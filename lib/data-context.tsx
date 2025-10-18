@@ -1,265 +1,376 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import type { Client, Appointment, Service, Sale } from "./types"
-import { mockClients, mockAppointments, mockServices } from "./mock-data"
+import type { Client, Appointment, Service, ServiceVariant, Sale, Payment } from "./types"
 import * as api from "@/services/api"
+import { useToast } from "@/hooks/use-toast"
 
 interface DataContextType {
-  // Data
-  clients: Client[]
-  appointments: Appointment[]
-  services: Service[]
-  sales: Sale[]
+    // Data
+    clients: Client[]
+    appointments: Appointment[]
+    services: Service[]
+    serviceVariants: ServiceVariant[]
+    sales: Sale[]
+    payments: Payment[]
 
-  // Loading states
-  isLoading: boolean
-  error: string | null
+    // Loading states
+    isLoading: boolean
+    error: string | null
 
-  // Client operations
-  addClient: (client: Omit<Client, "id">) => Promise<Client | null>
-  updateClient: (id: string, client: Partial<Client>) => Promise<Client | null>
-  deleteClient: (id: string) => Promise<boolean>
-  searchClients: (query: string) => Promise<Client[]>
+    // Client operations
+    addClient: (client: Omit<Client, "id" | "registrationDate" | "totalSpent">) => Promise<Client | null>
+    updateClient: (id: string, client: Partial<Client>) => Promise<Client | null>
+    deactivateClient: (id: string) => Promise<boolean>
+    reactivateClient: (id: string) => Promise<boolean>
+    getInactiveClients: () => Promise<Client[]>
+    searchClients: (query: string) => Promise<Client[]>
 
-  // Appointment operations
-  addAppointment: (appointment: Omit<Appointment, "id">) => Promise<Appointment | null>
-  updateAppointment: (id: string, appointment: Partial<Appointment>) => Promise<Appointment | null>
-  deleteAppointment: (id: string) => Promise<boolean>
+    // Appointment operations
+    addAppointment: (appointment: Omit<Appointment, "id" | "createdAt">) => Promise<Appointment | null>
+    updateAppointment: (id: string, appointment: Partial<Appointment>) => Promise<Appointment | null>
+    deleteAppointment: (id: string) => Promise<boolean>
 
-  // Service operations
-  addService: (service: Omit<Service, "id">) => Promise<Service | null>
-  updateService: (id: string, service: Partial<Service>) => Promise<Service | null>
-  deleteService: (id: string) => Promise<boolean>
+    // Service operations
+    addService: (service: Omit<Service, "id" | "createdAt">) => Promise<Service | null>
+    updateService: (id: string, service: Partial<Service>) => Promise<Service | null>
+    deleteService: (id: string) => Promise<boolean>
 
-  // Sale operations
-  createSale: (sale: Omit<Sale, "id" | "createdAt">) => Promise<Sale | null>
-  updateSaleStatus: (id: string, status: Sale["status"], paidAt?: string) => Promise<Sale | null>
-  getSaleByAppointmentId: (appointmentId: string) => Sale | undefined
+    // Service Variant operations
+    addServiceVariant: (variant: Omit<ServiceVariant, "id" | "createdAt">) => Promise<ServiceVariant | null>
+    getServiceVariants: (serviceId?: string) => Promise<ServiceVariant[]>
 
-  // Refresh data
-  refreshData: () => Promise<void>
+    // Sale operations
+    createSale: (sale: Omit<Sale, "id" | "createdAt">) => Promise<Sale | null>
+    updateSaleStatus: (id: string, status: Sale["status"], updates?: Partial<Sale>) => Promise<Sale | null>
+    getSaleByAppointmentId: (appointmentId: string) => Sale | undefined
+
+    // Payment operations
+    createPayment: (payment: Omit<Payment, "id" | "createdAt">) => Promise<Payment | null>
+
+    // Refresh data
+    refreshData: () => Promise<void>
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined)
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const [clients, setClients] = useState<Client[]>([])
-  const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [services, setServices] = useState<Service[]>([])
-  const [sales, setSales] = useState<Sale[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+    const { toast } = useToast()
+    const [clients, setClients] = useState<Client[]>([])
+    const [appointments, setAppointments] = useState<Appointment[]>([])
+    const [services, setServices] = useState<Service[]>([])
+    const [serviceVariants, setServiceVariants] = useState<ServiceVariant[]>([])
+    const [sales, setSales] = useState<Sale[]>([])
+    const [payments, setPayments] = useState<Payment[]>([])
+    const [isLoading, setIsLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
 
-  // Initialize API stores and load data
-  useEffect(() => {
-    const initializeData = async () => {
-      try {
-        setIsLoading(true)
-        api.initializeStores(mockClients, mockAppointments, mockServices)
-        await refreshData()
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load data")
-      } finally {
-        setIsLoading(false)
-      }
+    useEffect(() => {
+        const initializeData = async () => {
+            try {
+                setIsLoading(true)
+                await refreshData()
+            } catch (err) {
+                const errorMessage = err instanceof Error ? err.message : "Failed to load data"
+                setError(errorMessage)
+                toast({
+                    title: "Erro ao carregar dados",
+                    description: errorMessage,
+                    variant: "destructive",
+                })
+            } finally {
+                setIsLoading(false)
+            }
+        }
+        initializeData()
+    }, [])
+
+    const refreshData = async () => {
+        try {
+            const clientsData = await api.getActiveClients()
+            setClients(clientsData)
+
+            setAppointments([])
+            setServices([])
+            setServiceVariants([])
+            setSales([])
+            setPayments([])
+
+            setError(null)
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : "Failed to refresh data"
+            setError(errorMessage)
+            throw err
+        }
     }
 
-    initializeData()
-  }, [])
-
-  const refreshData = async () => {
-    try {
-      const [clientsData, appointmentsData, servicesData, salesData] = await Promise.all([
-        api.getClients(),
-        api.getAppointments(),
-        api.getServices(),
-        api.getSales(),
-      ])
-
-      setClients(clientsData)
-      setAppointments(appointmentsData)
-      setServices(servicesData)
-      setSales(salesData)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to refresh data")
-      throw err
+    // Client operations - com toast automático
+    const addClient = async (client: Omit<Client, "id" | "registrationDate" | "totalSpent">) => {
+        try {
+            const newClient = await api.createClient(client)
+            await refreshData()
+            toast({
+                title: "Cliente criado",
+                description: "O cliente foi cadastrado com sucesso.",
+            })
+            return newClient
+        } catch (err: any) {
+            const errorTitle = err?.title || "Erro ao criar cliente"
+            const errorMessage = err?.message || "Não foi possível criar o cliente."
+            setError(errorMessage)
+            toast({
+                title: errorTitle,
+                description: errorMessage,
+                variant: "destructive",
+            })
+            return null
+        }
     }
-  }
 
-  // Client operations
-  const addClient = async (client: Omit<Client, "id">) => {
-    try {
-      const newClient = await api.createClient(client)
-      await refreshData()
-      return newClient
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add client")
-      return null
+    const updateClient = async (id: string, updates: Partial<Client>) => {
+        try {
+            const updated = await api.updateClient(id, updates)
+            await refreshData()
+            toast({
+                title: "Cliente atualizado",
+                description: "As informações do cliente foram atualizadas.",
+            })
+            return updated
+        } catch (err: any) {
+            const errorTitle = err?.title || "Erro ao atualizar cliente"
+            const errorMessage = err?.message || "Não foi possível atualizar o cliente."
+            setError(errorMessage)
+            toast({
+                title: errorTitle,
+                description: errorMessage,
+                variant: "destructive",
+            })
+            return null
+        }
     }
-  }
 
-  const updateClient = async (id: string, updates: Partial<Client>) => {
-    try {
-      const updated = await api.updateClient(id, updates)
-      await refreshData()
-      return updated
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update client")
-      return null
+    const deactivateClient = async (id: string) => {
+        try {
+            const success = await api.deactivateClient(id)
+            if (success) {
+                await refreshData()
+                toast({
+                    title: "Cliente desativado",
+                    description: "O cliente foi desativado e pode ser reativado a qualquer momento.",
+                })
+            }
+            return success
+        } catch (err: any) {
+            const errorTitle = err?.title || "Erro ao desativar cliente"
+            const errorMessage = err?.message || "Não foi possível desativar o cliente."
+            setError(errorMessage)
+            toast({
+                title: errorTitle,
+                description: errorMessage,
+                variant: "destructive",
+            })
+            return false
+        }
     }
-  }
 
-  const deleteClient = async (id: string) => {
-    try {
-      const success = await api.deleteClient(id)
-      if (success) await refreshData()
-      return success
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete client")
-      return false
+    const reactivateClient = async (id: string) => {
+        try {
+            const success = await api.reactivateClient(id)
+            if (success) {
+                await refreshData()
+                toast({
+                    title: "Cliente reativado",
+                    description: "O cliente foi reativado e voltará a aparecer na lista de ativos.",
+                })
+            }
+            return success
+        } catch (err: any) {
+            const errorTitle = err?.title || "Erro ao reativar cliente"
+            const errorMessage = err?.message || "Não foi possível reativar o cliente."
+            setError(errorMessage)
+            toast({
+                title: errorTitle,
+                description: errorMessage,
+                variant: "destructive",
+            })
+            return false
+        }
     }
-  }
 
-  const searchClients = async (query: string) => {
-    try {
-      return await api.searchClients(query)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to search clients")
-      return []
+    const getInactiveClients = async () => {
+        try {
+            return await api.getInactiveClients()
+        } catch (err: any) {
+            const errorMessage = err?.message || "Failed to get inactive clients"
+            setError(errorMessage)
+            toast({
+                title: "Erro ao buscar clientes inativos",
+                description: errorMessage,
+                variant: "destructive",
+            })
+            return []
+        }
     }
-  }
 
-  // Appointment operations
-  const addAppointment = async (appointment: Omit<Appointment, "id">) => {
-    try {
-      const newAppointment = await api.createAppointment(appointment)
-      await refreshData()
-      return newAppointment
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add appointment")
-      return null
+    const searchClients = async (query: string) => {
+        try {
+            return await api.searchClients(query)
+        } catch (err: any) {
+            const errorMessage = err?.message || "Failed to search clients"
+            setError(errorMessage)
+            toast({
+                title: "Erro na busca",
+                description: errorMessage,
+                variant: "destructive",
+            })
+            return []
+        }
     }
-  }
 
-  const updateAppointment = async (id: string, updates: Partial<Appointment>) => {
-    try {
-      const updated = await api.updateAppointment(id, updates)
-      await refreshData()
-      return updated
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update appointment")
-      return null
+    // Appointment operations - Stub
+    const addAppointment = async (appointment: Omit<Appointment, "id" | "createdAt">) => {
+        toast({
+            title: "Funcionalidade em desenvolvimento",
+            description: "O módulo de agendamentos ainda não está disponível.",
+            variant: "destructive",
+        })
+        return null
     }
-  }
 
-  const deleteAppointment = async (id: string) => {
-    try {
-      const success = await api.deleteAppointment(id)
-      if (success) await refreshData()
-      return success
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete appointment")
-      return false
+    const updateAppointment = async (id: string, updates: Partial<Appointment>) => {
+        toast({
+            title: "Funcionalidade em desenvolvimento",
+            description: "O módulo de agendamentos ainda não está disponível.",
+            variant: "destructive",
+        })
+        return null
     }
-  }
 
-  // Service operations
-  const addService = async (service: Omit<Service, "id">) => {
-    try {
-      const newService = await api.createService(service)
-      await refreshData()
-      return newService
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add service")
-      return null
+    const deleteAppointment = async (id: string) => {
+        toast({
+            title: "Funcionalidade em desenvolvimento",
+            description: "O módulo de agendamentos ainda não está disponível.",
+            variant: "destructive",
+        })
+        return false
     }
-  }
 
-  const updateService = async (id: string, updates: Partial<Service>) => {
-    try {
-      const updated = await api.updateService(id, updates)
-      await refreshData()
-      return updated
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update service")
-      return null
+    // Service operations - Stub
+    const addService = async (service: Omit<Service, "id" | "createdAt">) => {
+        toast({
+            title: "Funcionalidade em desenvolvimento",
+            description: "O módulo de serviços ainda não está disponível.",
+            variant: "destructive",
+        })
+        return null
     }
-  }
 
-  const deleteService = async (id: string) => {
-    try {
-      const success = await api.deleteService(id)
-      if (success) await refreshData()
-      return success
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete service")
-      return false
+    const updateService = async (id: string, updates: Partial<Service>) => {
+        toast({
+            title: "Funcionalidade em desenvolvimento",
+            description: "O módulo de serviços ainda não está disponível.",
+            variant: "destructive",
+        })
+        return null
     }
-  }
 
-  // Sale operations
-  const createSale = async (sale: Omit<Sale, "id" | "createdAt">) => {
-    try {
-      const newSale = await api.createSale(sale)
-      await refreshData()
-      return newSale
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create sale")
-      return null
+    const deleteService = async (id: string) => {
+        toast({
+            title: "Funcionalidade em desenvolvimento",
+            description: "O módulo de serviços ainda não está disponível.",
+            variant: "destructive",
+        })
+        return false
     }
-  }
 
-  const updateSaleStatus = async (id: string, status: Sale["status"], paidAt?: string) => {
-    try {
-      const updated = await api.updateSaleStatus(id, status, paidAt)
-      await refreshData()
-      return updated
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update sale status")
-      return null
+    // Service Variant operations - Stub
+    const addServiceVariant = async (variant: Omit<ServiceVariant, "id" | "createdAt">) => {
+        toast({
+            title: "Funcionalidade em desenvolvimento",
+            description: "O módulo de variantes ainda não está disponível.",
+            variant: "destructive",
+        })
+        return null
     }
-  }
 
-  const getSaleByAppointmentId = (appointmentId: string) => {
-    return sales.find((s) => s.appointmentId === appointmentId)
-  }
+    const getServiceVariants = async (serviceId?: string) => {
+        return []
+    }
 
-  return (
-    <DataContext.Provider
-      value={{
-        clients,
-        appointments,
-        services,
-        sales,
-        isLoading,
-        error,
-        addClient,
-        updateClient,
-        deleteClient,
-        searchClients,
-        addAppointment,
-        updateAppointment,
-        deleteAppointment,
-        addService,
-        updateService,
-        deleteService,
-        createSale,
-        updateSaleStatus,
-        getSaleByAppointmentId,
-        refreshData,
-      }}
-    >
-      {children}
-    </DataContext.Provider>
-  )
+    // Sale operations - Stub
+    const createSale = async (sale: Omit<Sale, "id" | "createdAt">) => {
+        toast({
+            title: "Funcionalidade em desenvolvimento",
+            description: "O módulo de vendas ainda não está disponível.",
+            variant: "destructive",
+        })
+        return null
+    }
+
+    const updateSaleStatus = async (id: string, status: Sale["status"], updates?: Partial<Sale>) => {
+        toast({
+            title: "Funcionalidade em desenvolvimento",
+            description: "O módulo de vendas ainda não está disponível.",
+            variant: "destructive",
+        })
+        return null
+    }
+
+    const getSaleByAppointmentId = (appointmentId: string) => {
+        return undefined
+    }
+
+    // Payment operations - Stub
+    const createPayment = async (payment: Omit<Payment, "id" | "createdAt">) => {
+        toast({
+            title: "Funcionalidade em desenvolvimento",
+            description: "O módulo de pagamentos ainda não está disponível.",
+            variant: "destructive",
+        })
+        return null
+    }
+
+    return (
+        <DataContext.Provider
+            value={{
+                clients,
+                appointments,
+                services,
+                serviceVariants,
+                sales,
+                payments,
+                isLoading,
+                error,
+                addClient,
+                updateClient,
+                deactivateClient,
+                reactivateClient,
+                getInactiveClients,
+                searchClients,
+                addAppointment,
+                updateAppointment,
+                deleteAppointment,
+                addService,
+                updateService,
+                deleteService,
+                addServiceVariant,
+                getServiceVariants,
+                createSale,
+                updateSaleStatus,
+                getSaleByAppointmentId,
+                createPayment,
+                refreshData,
+            }}
+        >
+            {children}
+        </DataContext.Provider>
+    )
 }
 
 export function useData() {
-  const context = useContext(DataContext)
-  if (context === undefined) {
-    throw new Error("useData must be used within a DataProvider")
-  }
-  return context
+    const context = useContext(DataContext)
+    if (context === undefined) {
+        throw new Error("useData must be used within a DataProvider")
+    }
+    return context
 }
