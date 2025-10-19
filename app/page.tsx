@@ -93,10 +93,6 @@ export default function LoginPage() {
                 {isLoading ? "Entrando..." : "Entrar"}
               </Button>
             </form>
-
-            <div className="mt-6 text-center text-sm text-muted-foreground">
-              <p>Dica: Use qualquer email e senha para acessar. (Fase de testes)</p>
-            </div>
           </CardContent>
         </Card>
 
