@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/lib/auth-context"
 import { useData } from "@/lib/data-context"
-import { Users, Calendar, DollarSign, TrendingUp } from "lucide-react"
+import { Users, Calendar, DollarSign, TrendingUp, CalendarX } from "lucide-react"
 import { Line, LineChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts"
 
 export default function DashboardPage() {
@@ -140,32 +140,44 @@ export default function DashboardPage() {
             <CardTitle className="text-lg font-bold text-foreground">Próximos Agendamentos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {appointments.slice(0, 5).map((appointment) => (
-                <div
-                  key={appointment.id}
-                  className="flex items-center justify-between border-b border-border pb-3 last:border-0 last:pb-0"
-                >
-                  <div>
-                    <p className="font-medium text-foreground">{appointment.clientName}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {appointment.serviceVariants?.[0]?.serviceVariantName || "Serviço"}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-foreground">
-                      {new Date(appointment.startTime).toLocaleTimeString("pt-BR", { 
-                        hour: "2-digit", 
-                        minute: "2-digit" 
-                      })}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(appointment.startTime).toLocaleDateString("pt-BR")}
-                    </p>
-                  </div>
+            {appointments.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="rounded-full bg-muted p-3 mb-4">
+                  <CalendarX className="h-6 w-6 text-muted-foreground" />
                 </div>
-              ))}
-            </div>
+                <h3 className="font-semibold text-foreground mb-1">Nenhum agendamento</h3>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  Não há agendamentos cadastrados no momento.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {appointments.slice(0, 5).map((appointment) => (
+                  <div
+                    key={appointment.id}
+                    className="flex items-center justify-between border-b border-border pb-3 last:border-0 last:pb-0"
+                  >
+                    <div>
+                      <p className="font-medium text-foreground">{appointment.clientName}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {appointment.serviceVariants?.[0]?.serviceVariantName || "Serviço"}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-foreground">
+                        {new Date(appointment.startTime).toLocaleTimeString("pt-BR", { 
+                          hour: "2-digit", 
+                          minute: "2-digit" 
+                        })}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(appointment.startTime).toLocaleDateString("pt-BR")}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 

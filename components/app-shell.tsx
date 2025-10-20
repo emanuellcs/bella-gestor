@@ -37,7 +37,7 @@ const navigation = [
   { name: "Agenda", href: "/agenda", icon: Calendar },
   { name: "Financeiro", href: "/financeiro", icon: DollarSign },
   { name: "Relatórios", href: "/relatorios", icon: BarChart3 },
-  { name: "Configurações", href: "/configuracoes", icon: Settings },
+  { name: "Serviços", href: "/servicos", icon: Settings },
 ]
 
 export function AppShell({ children }: { children: React.ReactNode }) {
