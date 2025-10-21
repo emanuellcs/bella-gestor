@@ -462,7 +462,7 @@ export default function RelatoriosPage() {
                 {[
                   { status: "completed", label: "Concluídos", color: "bg-green-500" },
                   { status: "scheduled", label: "Agendados", color: "bg-blue-500" },
-                  { status: "confirmed", label: "Confirmados", color: "bg-purple-500" },
+                  { status: "confirmed", label: "Confirmados", color: "bg-primary/50" },
                   { status: "cancelled", label: "Cancelados", color: "bg-red-500" }
                 ].map(({ status, label, color }) => {
                   const count = currentPeriod.appointments.filter(a => a.status === status).length

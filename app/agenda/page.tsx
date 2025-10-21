@@ -511,7 +511,7 @@ export default function AgendaPage() {
               <Button
                 onClick={openNewAppointmentModal}
                 size="default"
-                className="gap-2 bg-purple-600 hover:bg-purple-700"
+                className="gap-2 bg-primary hover:bg-primary/90"
               >
                 <Plus className="h-4 w-4" />
                 Novo Agendamento
@@ -541,7 +541,7 @@ export default function AgendaPage() {
                     variant={viewMode === mode ? 'default' : 'ghost'}
                     className={`w-full justify-start ${
                       viewMode === mode 
-                        ? 'bg-purple-600 hover:bg-purple-700 text-white' 
+                        ? 'bg-primary hover:bg-primary/90 text-white' 
                         : 'hover:bg-gray-100'
                     }`}
                   >
@@ -604,7 +604,7 @@ export default function AgendaPage() {
                             aspect-square text-xs rounded-md transition-all
                             ${!currentMonth ? 'text-gray-300' : 'text-gray-700'}
                             ${today ? 'bg-purple-600 text-white font-bold' : ''}
-                            ${hasAppointments && !today ? 'bg-purple-100 font-semibold' : ''}
+                            ${hasAppointments && !today ? 'bg-primary/10 font-semibold' : ''}
                             ${!today && !hasAppointments ? 'hover:bg-gray-100' : ''}
                           `}
                         >
@@ -771,7 +771,7 @@ export default function AgendaPage() {
                               min-h-[100px] sm:min-h-[120px] p-2
                               border-b border-r last:border-r-0
                               ${!isCurrentMonthDay ? 'bg-gray-50/50' : 'bg-white'}
-                              ${today ? 'bg-purple-50 border-purple-200' : ''}
+                              ${today ? 'bg-primary/5 border-primary/20' : ''}
                               hover:bg-gray-50 transition-colors
                             `}
                           >
@@ -779,7 +779,7 @@ export default function AgendaPage() {
                               className={`
                                 text-sm font-medium mb-2
                                 ${!isCurrentMonthDay ? 'text-gray-400' : 'text-gray-700'}
-                                ${today ? 'text-purple-600 font-bold' : ''}
+                                ${today ? 'text-primary font-bold' : ''}
                               `}
                             >
                               {date.getDate()}
@@ -791,7 +791,7 @@ export default function AgendaPage() {
                                   <button
                                     key={appointment.id}
                                     onClick={() => openEditAppointmentModal(appointment)}
-                                    className="w-full text-left p-1.5 rounded text-xs bg-purple-100 hover:bg-purple-200 text-purple-900 transition-colors"
+                                    className="w-full text-left p-1.5 rounded text-xs bg-primary/10 hover:bg-primary/20 text-purple-900 transition-colors"
                                   >
                                     <div className="font-medium truncate">
                                       {new Date(appointment.start.dateTime).toLocaleTimeString('pt-BR', {
@@ -806,7 +806,7 @@ export default function AgendaPage() {
                                 ))}
 
                                 {dayAppointments.length > 3 && (
-                                  <div className="text-xs text-center text-purple-600 font-medium pt-1">
+                                  <div className="text-xs text-center text-primary font-medium pt-1">
                                     +{dayAppointments.length - 3} mais
                                   </div>
                                 )}
@@ -827,20 +827,20 @@ export default function AgendaPage() {
                       return (
                         <div
                           key={index}
-                          className={`p-4 sm:p-6 ${today ? 'bg-purple-50/50' : 'bg-white'}`}
+                          className={`p-4 sm:p-6 ${today ? 'bg-primary/5/50' : 'bg-white'}`}
                         >
                           <div className="flex items-center gap-3 mb-4">
-                            <div className={`text-center ${today ? 'text-purple-600' : 'text-gray-600'}`}>
+                            <div className={`text-center ${today ? 'text-primary' : 'text-gray-600'}`}>
                               <div className="text-xs font-medium uppercase">
                                 {getDayName(date, true)}
                               </div>
-                              <div className={`text-2xl font-bold ${today ? 'text-purple-600' : 'text-gray-900'}`}>
+                              <div className={`text-2xl font-bold ${today ? 'text-primary' : 'text-gray-900'}`}>
                                 {date.getDate()}
                               </div>
                             </div>
 
                             {today && (
-                              <Badge variant="secondary" className="bg-purple-100 text-purple-700">
+                              <Badge variant="secondary" className="bg-primary/10 text-primary/90">
                                 Hoje
                               </Badge>
                             )}
@@ -862,13 +862,13 @@ export default function AgendaPage() {
                                 return (
                                   <div
                                     key={appointment.id}
-                                    className="group relative bg-white border border-gray-200 rounded-lg p-4 hover:border-purple-300 hover:shadow-md transition-all cursor-pointer"
+                                    className="group relative bg-white border border-gray-200 rounded-lg p-4 hhover:border-primary/30 hover:shadow-md transition-all cursor-pointer"
                                     onClick={() => openEditAppointmentModal(appointment)}
                                   >
                                     <div className="flex items-start justify-between gap-4">
                                       <div className="flex-1 space-y-3">
                                         <div className="flex items-center gap-3">
-                                          <div className="flex items-center gap-2 text-purple-600">
+                                          <div className="flex items-center gap-2 text-primary">
                                             <Clock className="h-4 w-4" />
                                             <span className="font-semibold">
                                               {new Date(appointment.start.dateTime).toLocaleTimeString('pt-BR', {
@@ -901,7 +901,7 @@ export default function AgendaPage() {
 
                                           {serviceName && (
                                             <div className="flex items-center gap-2">
-                                              <Badge variant="secondary" className="bg-purple-100 text-purple-700">
+                                              <Badge variant="secondary" className="bg-primary/10 text-primary/90">
                                                 {serviceName}
                                               </Badge>
                                             </div>
@@ -920,13 +920,13 @@ export default function AgendaPage() {
                                         <Button
                                           size="sm"
                                           variant="ghost"
-                                          className="h-8 w-8 p-0 hover:bg-purple-100"
+                                          className="h-8 w-8 p-0 hover:bg-primary/10"
                                           onClick={(e) => {
                                             e.stopPropagation()
                                             openEditAppointmentModal(appointment)
                                           }}
                                         >
-                                          <Edit className="h-4 w-4 text-purple-600" />
+                                          <Edit className="h-4 w-4 text-primary" />
                                         </Button>
 
                                         <Button
@@ -962,7 +962,7 @@ export default function AgendaPage() {
       <Dialog open={showFormModal} onOpenChange={setShowFormModal}>
         <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-xl text-purple-600">
+            <DialogTitle className="text-xl text-primary">
               {selectedAppointment ? 'Editar Agendamento' : 'Novo Agendamento'}
             </DialogTitle>
             <DialogDescription>
@@ -1007,7 +1007,7 @@ export default function AgendaPage() {
             <Button
               onClick={handleSaveAppointment}
               disabled={loading}
-              className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700"
+              className="w-full sm:w-auto bg-primary hover:bg-primary/90"
             >
               {loading ? 'Salvando...' : selectedAppointment ? 'Salvar Alterações' : 'Criar Agendamento'}
             </Button>

@@ -57,7 +57,18 @@ export async function getClientById(id: string): Promise<Client | null> {
 
 export async function createClient(client: Omit<Client, 'id'>): Promise<Client> {
   try {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      const errorObj = new Error('Você precisa estar autenticado para criar clientes')
+      ;(errorObj as any).title = 'Autenticação necessária'
+      ;(errorObj as any).code = 'AUTH_REQUIRED'
+      throw errorObj
+    }
+
     const supabaseData = clientToSupabaseClient(client)
+    supabaseData.user_id = user.id
+
     const { data, error } = await supabase
       .from('clients')
       .insert([supabaseData])
@@ -78,6 +89,7 @@ export async function createClient(client: Omit<Client, 'id'>): Promise<Client> 
     throw error
   }
 }
+
 
 export async function updateClient(id: string, updates: Partial<Client>): Promise<Client | null> {
   try {
@@ -300,8 +312,17 @@ export async function getServiceById(id: string): Promise<Service | null> {
   }
 }
 
-export async function createService(service: Omit<Service, 'id'>): Promise<Service | null> {
+export async function createService(service: Omit<Service, 'id' | 'createdAt'>): Promise<Service | null> {
   try {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      const errorObj = new Error('Você precisa estar autenticado para criar serviços')
+      ;(errorObj as any).title = 'Autenticação necessária'
+      ;(errorObj as any).code = 'AUTH_REQUIRED'
+      throw errorObj
+    }
+
     const { data, error } = await supabase
       .from('services')
       .insert([{
@@ -309,6 +330,7 @@ export async function createService(service: Omit<Service, 'id'>): Promise<Servi
         description: service.description || null,
         category: service.category || null,
         is_active: service.active !== undefined ? service.active : true,
+        user_id: user.id,
       }])
       .select()
       .single()
@@ -340,7 +362,7 @@ export async function updateService(id: string, updates: Partial<Service>): Prom
     const updateData: any = {
       updated_at: new Date().toISOString()
     }
-    
+
     if (updates.name !== undefined) updateData.name = updates.name
     if (updates.description !== undefined) updateData.description = updates.description || null
     if (updates.category !== undefined) updateData.category = updates.category || null
@@ -393,6 +415,212 @@ export async function deleteService(id: string): Promise<boolean> {
     return true
   } catch (error) {
     console.error('Error in deleteService:', error)
+    throw error
+  }
+}
+
+export async function getServiceVariants(serviceId?: string): Promise<ServiceVariant[]> {
+  try {
+    let query = supabase
+      .from('service_variants')
+      .select('*')
+    
+    if (serviceId) {
+      query = query.eq('service_id', parseInt(serviceId))
+    }
+    
+    query = query.order('variant_name', { ascending: true })
+    
+    const { data, error } = await query
+    
+    if (error) {
+      const parsedError = parseSupabaseError(error)
+      throw new Error(parsedError.description)
+    }
+    
+    return (data || []).map(variant => ({
+      id: variant.id.toString(),
+      serviceId: variant.service_id.toString(),
+      variantName: variant.variant_name,
+      price: parseFloat(variant.price),
+      duration: variant.duration_minutes,
+      active: variant.is_active,
+      createdAt: variant.created_at,
+      updatedAt: variant.updated_at,
+    }))
+  } catch (error) {
+    console.error('Error in getServiceVariants:', error)
+    throw error
+  }
+}
+
+export async function getServiceVariantById(id: string): Promise<ServiceVariant | null> {
+  try {
+    const { data, error } = await supabase
+      .from('service_variants')
+      .select('*')
+      .eq('id', parseInt(id))
+      .single()
+    
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null
+      }
+      const parsedError = parseSupabaseError(error)
+      throw new Error(parsedError.description)
+    }
+    
+    return {
+      id: data.id.toString(),
+      serviceId: data.service_id.toString(),
+      variantName: data.variant_name,
+      price: parseFloat(data.price),
+      duration: data.duration_minutes,
+      active: data.is_active,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    }
+  } catch (error) {
+    console.error('Error in getServiceVariantById:', error)
+    throw error
+  }
+}
+
+export async function createServiceVariant(variant: Omit<ServiceVariant, 'id' | 'createdAt' | 'updatedAt'>): Promise<ServiceVariant | null> {
+  try {
+    const { data, error } = await supabase
+      .from('service_variants')
+      .insert([{
+        service_id: parseInt(variant.serviceId),
+        variant_name: variant.variantName,
+        price: variant.price,
+        duration_minutes: variant.duration,
+        is_active: variant.active !== undefined ? variant.active : true,
+      }])
+      .select()
+      .single()
+    
+    if (error) {
+      const parsedError = parseSupabaseError(error)
+      const errorObj = new Error(parsedError.description)
+      ;(errorObj as any).title = parsedError.title
+      ;(errorObj as any).code = parsedError.code
+      throw errorObj
+    }
+    
+    return {
+      id: data.id.toString(),
+      serviceId: data.service_id.toString(),
+      variantName: data.variant_name,
+      price: parseFloat(data.price),
+      duration: data.duration_minutes,
+      active: data.is_active,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    }
+  } catch (error) {
+    console.error('Error in createServiceVariant:', error)
+    throw error
+  }
+}
+
+export async function updateServiceVariant(id: string, updates: Partial<ServiceVariant>): Promise<ServiceVariant | null> {
+  try {
+    const updateData: any = {
+      updated_at: new Date().toISOString()
+    }
+    
+    if (updates.serviceId !== undefined) updateData.service_id = parseInt(updates.serviceId)
+    if (updates.variantName !== undefined) updateData.variant_name = updates.variantName
+    if (updates.price !== undefined) updateData.price = updates.price
+    if (updates.duration !== undefined) updateData.duration_minutes = updates.duration
+    if (updates.active !== undefined) updateData.is_active = updates.active
+    
+    const { data, error } = await supabase
+      .from('service_variants')
+      .update(updateData)
+      .eq('id', parseInt(id))
+      .select()
+      .single()
+    
+    if (error) {
+      const parsedError = parseSupabaseError(error)
+      const errorObj = new Error(parsedError.description)
+      ;(errorObj as any).title = parsedError.title
+      ;(errorObj as any).code = parsedError.code
+      throw errorObj
+    }
+    
+    return data ? {
+      id: data.id.toString(),
+      serviceId: data.service_id.toString(),
+      variantName: data.variant_name,
+      price: parseFloat(data.price),
+      duration: data.duration_minutes,
+      active: data.is_active,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    } : null
+  } catch (error) {
+    console.error('Error in updateServiceVariant:', error)
+    throw error
+  }
+}
+
+export async function deleteServiceVariant(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('service_variants')
+      .delete()
+      .eq('id', parseInt(id))
+    
+    if (error) {
+      const parsedError = parseSupabaseError(error)
+      const errorObj = new Error(parsedError.description)
+      ;(errorObj as any).title = parsedError.title
+      ;(errorObj as any).code = parsedError.code
+      throw errorObj
+    }
+    
+    return true
+  } catch (error) {
+    console.error('Error in deleteServiceVariant:', error)
+    throw error
+  }
+}
+
+export async function getActiveServiceVariants(serviceId?: string): Promise<ServiceVariant[]> {
+  try {
+    let query = supabase
+      .from('service_variants')
+      .select('*')
+      .eq('is_active', true)
+    
+    if (serviceId) {
+      query = query.eq('service_id', parseInt(serviceId))
+    }
+    
+    query = query.order('variant_name', { ascending: true })
+    
+    const { data, error } = await query
+    
+    if (error) {
+      const parsedError = parseSupabaseError(error)
+      throw new Error(parsedError.description)
+    }
+    
+    return (data || []).map(variant => ({
+      id: variant.id.toString(),
+      serviceId: variant.service_id.toString(),
+      variantName: variant.variant_name,
+      price: parseFloat(variant.price),
+      duration: variant.duration_minutes,
+      active: variant.is_active,
+      createdAt: variant.created_at,
+      updatedAt: variant.updated_at,
+    }))
+  } catch (error) {
+    console.error('Error in getActiveServiceVariants:', error)
     throw error
   }
 }
@@ -597,7 +825,7 @@ export async function createAppointment(appointment: Omit<Appointment, 'id' | 'c
 export async function updateAppointment(id: string, updates: Partial<Appointment>): Promise<Appointment | null> {
   try {
     const updateData: any = {}
-    
+
     if (updates.clientId) updateData.client_id = parseInt(updates.clientId)
     if (updates.professionalId) updateData.professional_id = updates.professionalId
     if (updates.startTime) updateData.start_time = updates.startTime
@@ -607,6 +835,7 @@ export async function updateAppointment(id: string, updates: Partial<Appointment
     if (updates.googleCalendarEventId !== undefined) {
       updateData.google_calendar_event_id = updates.googleCalendarEventId || null
     }
+
     updateData.updated_at = new Date().toISOString()
 
     const { data, error } = await supabase
@@ -669,16 +898,6 @@ export async function deleteAppointment(id: string): Promise<boolean> {
   }
 }
 
-export async function getServiceVariants(serviceId?: string): Promise<ServiceVariant[]> {
-  console.warn("getServiceVariants: Not fully implemented yet")
-  return []
-}
-
-export async function createServiceVariant(variant: Omit<ServiceVariant, 'id'>): Promise<ServiceVariant | null> {
-  console.warn("createServiceVariant: Not implemented yet")
-  return null
-}
-
 export async function getSales(): Promise<Sale[]> {
   console.warn("getSales: Not implemented yet")
   return []
@@ -694,7 +913,7 @@ export async function getSaleByAppointmentId(appointmentId: string): Promise<Sal
   return null
 }
 
-export async function createSale(sale: Omit<Sale, 'id'>): Promise<Sale | null> {
+export async function createSale(sale: Omit<Sale, 'id' | 'createdAt'>): Promise<Sale | null> {
   console.warn("createSale: Not implemented yet")
   return null
 }
@@ -704,7 +923,7 @@ export async function updateSaleStatus(id: string, status: SaleStatus, updates?:
   return null
 }
 
-export async function createPayment(payment: Omit<Payment, 'id'>): Promise<Payment | null> {
+export async function createPayment(payment: Omit<Payment, 'id' | 'createdAt'>): Promise<Payment | null> {
   console.warn("createPayment: Not implemented yet")
   return null
 }

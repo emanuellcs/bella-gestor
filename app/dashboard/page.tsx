@@ -144,8 +144,8 @@ export default function DashboardPage() {
       value: activeClients,
       icon: Users,
       description: `${clients.length} clientes no total`,
-      color: "text-purple-600",
-      bgColor: "bg-purple-100",
+      color: "text-primary",
+      bgColor: "bg-primary/10",
     },
     {
       title: "Agendamentos Hoje",
@@ -221,7 +221,7 @@ export default function DashboardPage() {
           <p className="text-sm font-semibold text-gray-900">
             {payload[0].payload.month}
           </p>
-          <p className="text-sm text-purple-600 font-bold mt-1">
+          <p className="text-sm text-primary font-bold mt-1">
             R$ {payload[0].value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </p>
         </div>
@@ -299,11 +299,11 @@ export default function DashboardPage() {
                   return (
                     <div
                       key={event.id}
-                      className="flex items-start space-x-3 p-3 rounded-lg border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-all"
+                      className="flex items-start space-x-3 p-3 rounded-lg border border-gray-200 hhover:border-primary/30 hover:bg-primary/5 transition-all"
                     >
                       <div className="flex-shrink-0 mt-1">
-                        <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
-                          <User className="h-5 w-5 text-purple-600" />
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                          <User className="h-5 w-5 text-primary" />
                         </div>
                       </div>
                       <div className="flex-1 min-w-0">
@@ -407,7 +407,7 @@ export default function DashboardPage() {
                     className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex items-center gap-3 flex-1">
-                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-100 text-purple-600 font-bold text-sm">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-sm">
                         {index + 1}
                       </div>
                       <div className="flex-1 min-w-0">

@@ -4,225 +4,249 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Edit, Trash2, MoreVertical, DollarSign, Clock } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Plus, Edit, Trash2, MoreVertical, DollarSign, Clock, Search } from "lucide-react"
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { useData } from "@/lib/data-context"
 import { ServiceModal } from "@/components/modals/service-modal"
-import type { Service } from "@/lib/types"
+import type { Service, ServiceVariant } from "@/lib/types"
 import { formatCurrency } from "@/lib/utils"
+import { useData } from "@/lib/data-context"
 
 export default function ConfiguracoesPage() {
-    const { services, serviceVariants, deleteService, isLoading } = useData()
-    const [serviceModalOpen, setServiceModalOpen] = useState(false)
-    const [modalMode, setModalMode] = useState<"create" | "edit">("create")
-    const [selectedService, setSelectedService] = useState<Service | null>(null)
-    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-    const [serviceToDelete, setServiceToDelete] = useState<string | null>(null)
+  const { services, serviceVariants, isLoading, deleteService } = useData()
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [serviceModalOpen, setServiceModalOpen] = useState(false)
+  const [modalMode, setModalMode] = useState<"create" | "edit">("create")
+  const [selectedService, setSelectedService] = useState<Service | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [serviceToDelete, setServiceToDelete] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
 
-    const handleEdit = (service: Service) => {
-        setSelectedService(service)
-        setModalMode("edit")
-        setServiceModalOpen(true)
+  const handleEdit = (service: Service) => {
+    setSelectedService(service)
+    setModalMode("edit")
+    setServiceModalOpen(true)
+  }
+
+  const handleDeleteClick = (serviceId: string) => {
+    setServiceToDelete(serviceId)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!serviceToDelete) return
+    setIsDeleting(true)
+    try {
+      const success = await deleteService(serviceToDelete)
+      if (success) {
+        setDeleteDialogOpen(false)
+        setServiceToDelete(null)
+      }
+    } catch (error: any) {
+      console.error('Erro ao deletar serviço:', error)
+    } finally {
+      setIsDeleting(false)
     }
+  }
 
-    const handleDeleteClick = (serviceId: string) => {
-        setServiceToDelete(serviceId)
-        setDeleteDialogOpen(true)
+  const handleNewService = () => {
+    setSelectedService(null)
+    setModalMode("create")
+    setServiceModalOpen(true)
+  }
+
+  const getServiceVariantsForService = (serviceId: string): ServiceVariant[] => {
+    return serviceVariants.filter((v: ServiceVariant) => v.serviceId === serviceId && v.active)
+  }
+
+  const getPriceRange = (serviceId: string): string => {
+    const variants = getServiceVariantsForService(serviceId)
+    if (variants.length === 0) return "Sem variantes"
+    const prices = variants.map((v: ServiceVariant) => v.price)
+    const minPrice = Math.min(...prices)
+    const maxPrice = Math.max(...prices)
+    if (minPrice === maxPrice) {
+      return formatCurrency(minPrice)
     }
+    return `${formatCurrency(minPrice)} - ${formatCurrency(maxPrice)}`
+  }
 
-    const handleDeleteConfirm = async () => {
-        if (serviceToDelete) {
-            await deleteService(serviceToDelete)
-            setDeleteDialogOpen(false)
-            setServiceToDelete(null)
-        }
+  const getDurationRange = (serviceId: string): string => {
+    const variants = getServiceVariantsForService(serviceId)
+    if (variants.length === 0) return "N/A"
+    const durations = variants.map((v: ServiceVariant) => v.duration)
+    const minDuration = Math.min(...durations)
+    const maxDuration = Math.max(...durations)
+    if (minDuration === maxDuration) {
+      return `${minDuration} min`
     }
+    return `${minDuration}-${maxDuration} min`
+  }
 
-    const handleNewService = () => {
-        setSelectedService(null)
-        setModalMode("create")
-        setServiceModalOpen(true)
-    }
-
-    // Função para obter variantes ativas de um serviço
-    const getServiceVariants = (serviceId: string) => {
-        return serviceVariants.filter((v) => v.serviceId === serviceId && v.active)
-    }
-
-    // Função para calcular range de preços de um serviço
-    const getPriceRange = (serviceId: string) => {
-        const variants = getServiceVariants(serviceId)
-        if (variants.length === 0) return "Sem variantes"
-
-        const prices = variants.map((v) => v.price)
-        const minPrice = Math.min(...prices)
-        const maxPrice = Math.max(...prices)
-
-        if (minPrice === maxPrice) {
-            return formatCurrency(minPrice)
-        }
-        return `${formatCurrency(minPrice)} - ${formatCurrency(maxPrice)}`
-    }
-
-    // Função para calcular range de duração de um serviço
-    const getDurationRange = (serviceId: string) => {
-        const variants = getServiceVariants(serviceId)
-        if (variants.length === 0) return "N/A"
-
-        const durations = variants.map((v) => v.duration)
-        const minDuration = Math.min(...durations)
-        const maxDuration = Math.max(...durations)
-
-        if (minDuration === maxDuration) {
-            return `${minDuration} min`
-        }
-        return `${minDuration}-${maxDuration} min`
-    }
-
+  const filteredServices = services.filter((service: Service) => {
+    if (!searchQuery) return true
+    const query = searchQuery.toLowerCase()
     return (
-        <div className="container mx-auto py-8 px-4 space-y-6">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Serviços</h1>
-                    <p className="text-muted-foreground">Gerencie os serviços oferecidos</p>
-                </div>
-                <Button onClick={handleNewService} size="default">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Novo Serviço
-                </Button>
-            </div>
-
-            {/* Services List */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {isLoading ? (
-                    <div className="col-span-full text-center py-8">
-                        <p className="text-muted-foreground">Carregando serviços...</p>
-                    </div>
-                ) : services.length > 0 ? (
-                    services.map((service) => {
-                        const variants = getServiceVariants(service.id)
-                        return (
-                            <Card key={service.id} className="hover:shadow-lg transition-shadow">
-                                <CardHeader className="pb-3">
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex-1">
-                                            <CardTitle className="text-lg mb-1">{service.name}</CardTitle>
-                                            {service.category && (
-                                                <Badge variant="secondary" className="text-xs">
-                                                    {service.category}
-                                                </Badge>
-                                            )}
-                                        </div>
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                    <MoreVertical className="h-4 w-4" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onClick={() => handleEdit(service)}>
-                                                    <Edit className="mr-2 h-4 w-4" />
-                                                    Editar
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onClick={() => handleDeleteClick(service.id)}
-                                                    className="text-destructive"
-                                                >
-                                                    <Trash2 className="mr-2 h-4 w-4" />
-                                                    Excluir
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="space-y-3">
-                                    {service.description && (
-                                        <p className="text-sm text-muted-foreground line-clamp-2">
-                                            {service.description}
-                                        </p>
-                                    )}
-
-                                    <div className="flex items-center justify-between text-sm pt-2 border-t">
-                                        <div className="flex items-center gap-1 text-muted-foreground">
-                                            <Clock className="h-4 w-4" />
-                                            <span>{getDurationRange(service.id)}</span>
-                                        </div>
-                                        <div className="flex items-center gap-1 font-semibold text-primary">
-                                            <DollarSign className="h-4 w-4" />
-                                            <span>{getPriceRange(service.id)}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
-                                        <span>{variants.length} variante{variants.length !== 1 ? 's' : ''}</span>
-                                        <Badge variant={service.active ? "default" : "secondary"} className="text-xs">
-                                            {service.active ? "Ativo" : "Inativo"}
-                                        </Badge>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        )
-                    })
-                ) : (
-                    <div className="col-span-full">
-                        <Card>
-                            <CardContent className="py-12 text-center">
-                                <p className="text-muted-foreground mb-4">Nenhum serviço cadastrado</p>
-                                <Button onClick={handleNewService} variant="outline">
-                                    <Plus className="mr-2 h-4 w-4" />
-                                    Adicionar Primeiro Serviço
-                                </Button>
-                            </CardContent>
-                        </Card>
-                    </div>
-                )}
-            </div>
-
-            {/* Service Modal */}
-            <ServiceModal
-                open={serviceModalOpen}
-                onOpenChange={setServiceModalOpen}
-                mode={modalMode}
-                service={selectedService}
-            />
-
-            {/* Delete Confirmation Dialog */}
-            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Tem certeza que deseja excluir este serviço? Esta ação não pode ser desfeita e todas
-                            as variantes relacionadas também serão removidas.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={handleDeleteConfirm}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                            Excluir
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        </div>
+      service.name.toLowerCase().includes(query) ||
+      service.category?.toLowerCase().includes(query) ||
+      service.description?.toLowerCase().includes(query)
     )
+  })
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Serviços</h1>
+          <p className="text-muted-foreground">Gerencie os serviços oferecidos</p>
+        </div>
+        <Button onClick={handleNewService} size="default">
+          <Plus className="h-4 w-4 mr-2" />
+          Novo Serviço
+        </Button>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          type="text"
+          placeholder="Buscar serviços por nome, categoria ou descrição..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      {isLoading ? (
+        <div className="text-center py-12 text-muted-foreground">
+          Carregando serviços...
+        </div>
+      ) : filteredServices.length > 0 ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filteredServices.map((service: Service) => {
+            const variants = getServiceVariantsForService(service.id)
+            return (
+              <Card key={service.id} className="flex flex-col h-full">
+                <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-4">
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <CardTitle className="text-lg truncate">{service.name}</CardTitle>
+                    {service.category && (
+                      <Badge variant="secondary" className="mt-1">
+                        {service.category}
+                      </Badge>
+                    )}
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleEdit(service)}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Editar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleDeleteClick(service.id)}
+                        className="text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Excluir
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </CardHeader>
+                <CardContent className="flex-1 flex flex-col justify-between space-y-4">
+                  <div className="space-y-2">
+                    {service.description && (
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {service.description}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span className="text-muted-foreground">{getDurationRange(service.id)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <DollarSign className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span className="font-medium">{getPriceRange(service.id)}</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-2 border-t">
+                      <span className="text-xs text-muted-foreground">
+                        {variants.length} variante{variants.length !== 1 ? 's' : ''}
+                      </span>
+                      <Badge variant={service.active ? "default" : "secondary"}>
+                        {service.active ? "Ativo" : "Inativo"}
+                      </Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <p className="text-muted-foreground mb-4">
+              {searchQuery ? "Nenhum serviço encontrado com os critérios de busca" : "Nenhum serviço cadastrado"}
+            </p>
+            {!searchQuery && (
+              <Button onClick={handleNewService} variant="outline">
+                <Plus className="h-4 w-4 mr-2" />
+                Adicionar Primeiro Serviço
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <ServiceModal
+        open={serviceModalOpen}
+        onOpenChange={setServiceModalOpen}
+        mode={modalMode}
+        service={selectedService}
+      />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este serviço? Esta ação não pode ser desfeita e todas
+              as variantes relacionadas também serão removidas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  )
 }
