@@ -4,36 +4,52 @@ import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { AuthProvider } from "@/lib/auth-context"
 import { DataProvider } from "@/lib/data-context"
+import { GoogleCalendarProvider } from "@/lib/google-calendar-context"
 import { Toaster } from "@/components/ui/toaster"
 import { Inter, Geist_Mono, Geist as V0_Font_Geist, Geist_Mono as V0_Font_Geist_Mono, Source_Serif_4 as V0_Font_Source_Serif_4 } from 'next/font/google'
 
+const _geist = V0_Font_Geist({ 
+  subsets: ['latin'], 
+  weight: ["100","200","300","400","500","600","700","800","900"] 
+})
 
-const _geist = V0_Font_Geist({ subsets: ['latin'], weight: ["100","200","300","400","500","600","700","800","900"] })
-const _geistMono = V0_Font_Geist_Mono({ subsets: ['latin'], weight: ["100","200","300","400","500","600","700","800","900"] })
-const _sourceSerif_4 = V0_Font_Source_Serif_4({ subsets: ['latin'], weight: ["200","300","400","500","600","700","800","900"] })
-const _inter = Inter({ subsets: ["latin"] })
+const _geistMono = V0_Font_Geist_Mono({ 
+  subsets: ['latin'], 
+  weight: ["100","200","300","400","500","600","700","800","900"] 
+})
+
+const _sourceSerif_4 = V0_Font_Source_Serif_4({ 
+  subsets: ['latin'], 
+  weight: ["200","300","400","500","600","700","800","900"] 
+})
+
+const _inter = Inter({ 
+  subsets: ["latin"] 
+})
 
 export const metadata: Metadata = {
-    title: "Bella Gestor - CRM",
-    description: "Sistema de gestão completo para a Spaço Bellas.",
+  title: "Bella Gestor - CRM",
+  description: "Sistema de gestão completo para a Spaço Bellas.",
 }
 
 export default function RootLayout({
-                                       children,
-                                   }: Readonly<{
-    children: React.ReactNode
+  children,
+}: Readonly<{
+  children: React.ReactNode
 }>) {
-    return (
-        <html lang="pt-BR" suppressHydrationWarning>
-        <body className={_inter.className}>
+  return (
+    <html lang="pt-BR">
+      <body className={_inter.className}>
         <AuthProvider>
-            <DataProvider>
-                {children}
-                <Toaster />
-            </DataProvider>
+          <DataProvider>
+            <GoogleCalendarProvider>
+              {children}
+              <Toaster />
+              <Analytics />
+            </GoogleCalendarProvider>
+          </DataProvider>
         </AuthProvider>
-        <Analytics />
-        </body>
-        </html>
-    )
+      </body>
+    </html>
+  )
 }
