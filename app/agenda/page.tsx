@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getActiveClients } from '@/services/api'
-import { getActiveServices } from '@/services/api'
+import { getActiveClients, getActiveServices } from '@/services/api'
 import { listCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '@/services/googleCalendarAppsScript'
 import { Client, Service } from '@/lib/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,11 +10,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { Calendar, Plus, ChevronLeft, ChevronRight, Clock, User, Trash2, CalendarX, RefreshCw } from 'lucide-react'
+import { Calendar, Plus, ChevronLeft, ChevronRight, Clock, User, Trash2, CalendarX, RefreshCw, Edit, MapPin, Phone } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
 
 type ViewMode = 'day' | 'week' | 'month'
 
@@ -49,12 +48,14 @@ function FormContent({ formData, setFormData, clients, services }: FormContentPr
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="client">Cliente *</Label>
+        <Label htmlFor="client" className="text-sm font-medium">
+          Cliente *
+        </Label>
         <Select
           value={formData.clientId}
           onValueChange={(value) => setFormData(prev => ({ ...prev, clientId: value }))}
         >
-          <SelectTrigger id="client">
+          <SelectTrigger id="client" className="w-full">
             <SelectValue placeholder="Selecione um cliente" />
           </SelectTrigger>
           <SelectContent>
@@ -68,12 +69,14 @@ function FormContent({ formData, setFormData, clients, services }: FormContentPr
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="service">Serviço *</Label>
+        <Label htmlFor="service" className="text-sm font-medium">
+          Serviço *
+        </Label>
         <Select
           value={formData.serviceId}
           onValueChange={(value) => setFormData(prev => ({ ...prev, serviceId: value }))}
         >
-          <SelectTrigger id="service">
+          <SelectTrigger id="service" className="w-full">
             <SelectValue placeholder="Selecione um serviço" />
           </SelectTrigger>
           <SelectContent>
@@ -88,34 +91,43 @@ function FormContent({ formData, setFormData, clients, services }: FormContentPr
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="startTime">Início *</Label>
+          <Label htmlFor="startTime" className="text-sm font-medium">
+            Início *
+          </Label>
           <Input
             id="startTime"
             type="datetime-local"
             value={formData.startTime}
             onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
+            className="w-full"
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="endTime">Término *</Label>
+          <Label htmlFor="endTime" className="text-sm font-medium">
+            Término *
+          </Label>
           <Input
             id="endTime"
             type="datetime-local"
             value={formData.endTime}
             onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
+            className="w-full"
           />
         </div>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="notes">Observações</Label>
+        <Label htmlFor="notes" className="text-sm font-medium">
+          Observações
+        </Label>
         <Textarea
           id="notes"
           value={formData.notes}
           onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
           rows={3}
-          placeholder="Observações..."
+          placeholder="Observações sobre o agendamento..."
+          className="w-full resize-none"
         />
       </div>
     </div>
@@ -128,10 +140,12 @@ export default function AgendaPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('week')
   const [currentDate, setCurrentDate] = useState(new Date())
   const [appointments, setAppointments] = useState<CalendarEvent[]>([])
-  const [showModal, setShowModal] = useState(false)
+  const [showFormModal, setShowFormModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [selectedAppointment, setSelectedAppointment] = useState<CalendarEvent | null>(null)
+  const [appointmentToDelete, setAppointmentToDelete] = useState<CalendarEvent | null>(null)
   const [loading, setLoading] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState<AppointmentFormData>({
     clientId: '',
     serviceId: '',
@@ -142,10 +156,6 @@ export default function AgendaPage() {
 
   useEffect(() => {
     loadClientsAndServices()
-    const checkMobile = () => setIsMobile(window.innerWidth < 768)
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
   useEffect(() => {
@@ -162,6 +172,7 @@ export default function AgendaPage() {
       setServices(servicesData)
     } catch (error) {
       console.error('Erro ao carregar dados:', error)
+      setError('Erro ao carregar clientes e serviços')
     }
   }
 
@@ -213,7 +224,7 @@ export default function AgendaPage() {
         const firstDay = start.getDay()
         const startDate = new Date(start)
         startDate.setDate(startDate.getDate() - firstDay)
-        
+
         for (let i = 0; i < 35; i++) {
           const date = new Date(startDate)
           date.setDate(startDate.getDate() + i)
@@ -230,26 +241,28 @@ export default function AgendaPage() {
 
     switch (viewMode) {
       case 'day':
-        return start.toLocaleDateString('pt-BR', { 
-          day: '2-digit', 
-          month: 'long', 
-          year: 'numeric' 
+        return start.toLocaleDateString('pt-BR', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric'
         })
       case 'week':
-        return `${start.getDate()} - ${end.getDate()} de ${end.toLocaleDateString('pt-BR', { 
+        return `${start.getDate()} - ${end.getDate()} de ${end.toLocaleDateString('pt-BR', {
           month: 'long',
-          year: 'numeric' 
+          year: 'numeric'
         })}`
       case 'month':
-        return start.toLocaleDateString('pt-BR', { 
-          month: 'long', 
-          year: 'numeric' 
+        return start.toLocaleDateString('pt-BR', {
+          month: 'long',
+          year: 'numeric'
         })
     }
   }
 
-  function getDayName(date: Date): string {
-    return date.toLocaleDateString('pt-BR', { weekday: 'short' }).toUpperCase()
+  function getDayName(date: Date, short: boolean = false): string {
+    return date.toLocaleDateString('pt-BR', { 
+      weekday: short ? 'short' : 'long' 
+    }).toUpperCase()
   }
 
   function formatDate(date: Date): string {
@@ -258,19 +271,22 @@ export default function AgendaPage() {
 
   async function loadAppointments() {
     setLoading(true)
+    setError(null)
     try {
       const { start, end } = getDateRange()
       const result = await listCalendarEvents(start.toISOString(), end.toISOString())
-      
+
       if (result.success && result.events) {
         setAppointments(result.events)
       } else {
         console.error('Erro ao carregar eventos:', result.error)
         setAppointments([])
+        setError(result.error || 'Erro ao carregar agendamentos')
       }
     } catch (error) {
       console.error('Erro ao carregar agendamentos:', error)
       setAppointments([])
+      setError('Erro ao carregar agendamentos')
     } finally {
       setLoading(false)
     }
@@ -278,6 +294,7 @@ export default function AgendaPage() {
 
   function handlePrevious() {
     const newDate = new Date(currentDate)
+
     switch (viewMode) {
       case 'day':
         newDate.setDate(newDate.getDate() - 1)
@@ -289,11 +306,13 @@ export default function AgendaPage() {
         newDate.setMonth(newDate.getMonth() - 1)
         break
     }
+
     setCurrentDate(newDate)
   }
 
   function handleNext() {
     const newDate = new Date(currentDate)
+
     switch (viewMode) {
       case 'day':
         newDate.setDate(newDate.getDate() + 1)
@@ -305,6 +324,7 @@ export default function AgendaPage() {
         newDate.setMonth(newDate.getMonth() + 1)
         break
     }
+
     setCurrentDate(newDate)
   }
 
@@ -321,23 +341,23 @@ export default function AgendaPage() {
       endTime: '',
       notes: '',
     })
-    setShowModal(true)
+    setShowFormModal(true)
   }
 
   function openEditAppointmentModal(appointment: CalendarEvent) {
     setSelectedAppointment(appointment)
-    
+
     const startTime = new Date(appointment.start.dateTime)
     const endTime = new Date(appointment.end.dateTime)
-    
+
     const descriptionParts = appointment.description?.split('\n') || []
     const clientInfo = descriptionParts.find(p => p.startsWith('Cliente:'))?.replace('Cliente: ', '') || ''
     const serviceInfo = descriptionParts.find(p => p.startsWith('Serviço:'))?.replace('Serviço: ', '') || ''
     const notes = descriptionParts.find(p => p.startsWith('Observações:'))?.replace('Observações: ', '') || ''
-    
+
     const client = clients.find(c => c.name === clientInfo)
     const service = services.find(s => s.name === serviceInfo)
-    
+
     setFormData({
       clientId: client?.id || '',
       serviceId: service?.id || '',
@@ -345,23 +365,30 @@ export default function AgendaPage() {
       endTime: `${endTime.getFullYear()}-${String(endTime.getMonth() + 1).padStart(2, '0')}-${String(endTime.getDate()).padStart(2, '0')}T${String(endTime.getHours()).padStart(2, '0')}:${String(endTime.getMinutes()).padStart(2, '0')}`,
       notes,
     })
-    setShowModal(true)
+
+    setShowFormModal(true)
+  }
+
+  function openDeleteModal(appointment: CalendarEvent) {
+    setAppointmentToDelete(appointment)
+    setShowDeleteModal(true)
   }
 
   async function handleSaveAppointment() {
     if (!formData.clientId || !formData.serviceId || !formData.startTime || !formData.endTime) {
-      alert('Preencha todos os campos obrigatórios')
+      setError('Preencha todos os campos obrigatórios')
       return
     }
 
     setLoading(true)
-    
+    setError(null)
+
     try {
       const client = clients.find(c => c.id === formData.clientId)
       const service = services.find(s => s.id === formData.serviceId)
-      
+
       if (!client || !service) {
-        alert('Cliente ou serviço não encontrado')
+        setError('Cliente ou serviço não encontrado')
         return
       }
 
@@ -379,45 +406,44 @@ export default function AgendaPage() {
 
       if (selectedAppointment) {
         const result = await updateCalendarEvent(selectedAppointment.id, eventData)
-        
         if (!result.success) {
           throw new Error(result.error || 'Erro ao atualizar evento')
         }
       } else {
         const result = await createCalendarEvent(eventData)
-        
         if (!result.success) {
           throw new Error(result.error || 'Erro ao criar evento')
         }
       }
 
-      setShowModal(false)
+      setShowFormModal(false)
       await loadAppointments()
     } catch (error) {
       console.error('Erro ao salvar agendamento:', error)
-      alert('Erro ao salvar agendamento. Tente novamente.')
+      setError('Erro ao salvar agendamento. Tente novamente.')
     } finally {
       setLoading(false)
     }
   }
 
-  async function handleDeleteAppointment(appointment: CalendarEvent) {
-    if (!confirm('Deseja realmente excluir este agendamento?')) return
+  async function confirmDeleteAppointment() {
+    if (!appointmentToDelete) return
 
     setLoading(true)
-    
+    setError(null)
+
     try {
-      const result = await deleteCalendarEvent(appointment.id)
-      
+      const result = await deleteCalendarEvent(appointmentToDelete.id)
       if (!result.success) {
         throw new Error(result.error || 'Erro ao deletar evento')
       }
 
-      setShowModal(false)
+      setShowDeleteModal(false)
+      setAppointmentToDelete(null)
       await loadAppointments()
     } catch (error) {
       console.error('Erro ao excluir agendamento:', error)
-      alert('Erro ao excluir agendamento. Tente novamente.')
+      setError('Erro ao excluir agendamento. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -426,10 +452,9 @@ export default function AgendaPage() {
   function getAppointmentsForDay(date: Date): CalendarEvent[] {
     const dayStart = new Date(date)
     dayStart.setHours(0, 0, 0, 0)
-    
     const dayEnd = new Date(date)
     dayEnd.setHours(23, 59, 59, 999)
-    
+
     return appointments.filter(apt => {
       const aptDate = new Date(apt.start.dateTime)
       return aptDate >= dayStart && aptDate <= dayEnd
@@ -457,342 +482,594 @@ export default function AgendaPage() {
   const displayDates = getDisplayDates()
 
   return (
-    <div className="space-y-4 md:space-y-6 p-4 md:p-6 max-w-full overflow-x-hidden">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Agenda</h1>
-          <p className="text-sm md:text-base text-muted-foreground">Gerencie seus agendamentos</p>
-        </div>
-        
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Button 
-            onClick={loadAppointments} 
-            variant="outline" 
-            size={isMobile ? "sm" : "default"}
-            className="gap-2 flex-1 sm:flex-initial"
-            disabled={loading}
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Atualizar</span>
-          </Button>
-          <Button 
-            onClick={openNewAppointmentModal} 
-            size={isMobile ? "sm" : "default"}
-            className="gap-2 flex-1 sm:flex-initial"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="sm:inline">Novo</span>
-          </Button>
-        </div>
-      </div>
-
-      <Card>
-        <CardHeader className="pb-3 px-4 md:px-6">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1 md:gap-2">
-                <Button 
-                  onClick={handlePrevious} 
-                  variant="outline" 
-                  size={isMobile ? "sm" : "icon"}
-                  disabled={loading}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                
-                <Button 
-                  onClick={handleToday} 
-                  variant="outline"
-                  size={isMobile ? "sm" : "default"}
-                  disabled={loading}
-                >
-                  Hoje
-                </Button>
-
-                <Button 
-                  onClick={handleNext} 
-                  variant="outline" 
-                  size={isMobile ? "sm" : "icon"}
-                  disabled={loading}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size={isMobile ? "sm" : "default"}>
-                    {getViewModeLabel(viewMode)}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setViewMode('day')}>
-                    Dia
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setViewMode('week')}>
-                    Semana
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setViewMode('month')}>
-                    Mês
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+    <div className="min-h-screen w-full">
+      <div className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
+        {/* Header */}
+        <div className="mb-6 space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-3">
+                Agenda
+              </h1>
+              <p className="text-sm text-gray-600 mt-2">
+                Gerencie seus agendamentos
+              </p>
             </div>
 
-            <CardTitle className="text-base md:text-lg text-center capitalize">
-              {formatDateRange()}
-            </CardTitle>
-          </div>
-        </CardHeader>
+            <div className="flex gap-2">
+              <Button
+                onClick={loadAppointments}
+                disabled={loading}
+                variant="outline"
+                size="default"
+                className="gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Atualizar</span>
+              </Button>
 
-        <CardContent className="p-0">
-          {viewMode === 'month' ? (
-            <>
-              <div className="grid grid-cols-7 border-t">
-                {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((day, index) => (
-                  <div
-                    key={index}
-                    className="p-1 md:p-2 text-center border-r last:border-r-0 bg-muted/50"
+              <Button
+                onClick={openNewAppointmentModal}
+                size="default"
+                className="gap-2 bg-purple-600 hover:bg-purple-700"
+              >
+                <Plus className="h-4 w-4" />
+                Novo Agendamento
+              </Button>
+            </div>
+          </div>
+
+          {error && (
+            <Alert variant="destructive" className="animate-in fade-in slide-in-from-top-2">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+          {/* Sidebar - Desktop Only */}
+          <div className="hidden lg:block space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Visualização</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {(['day', 'week', 'month'] as ViewMode[]).map((mode) => (
+                  <Button
+                    key={mode}
+                    onClick={() => setViewMode(mode)}
+                    variant={viewMode === mode ? 'default' : 'ghost'}
+                    className={`w-full justify-start ${
+                      viewMode === mode 
+                        ? 'bg-purple-600 hover:bg-purple-700 text-white' 
+                        : 'hover:bg-gray-100'
+                    }`}
                   >
-                    <div className="text-[10px] md:text-xs font-medium text-muted-foreground">{day}</div>
-                  </div>
+                    {getViewModeLabel(mode)}
+                  </Button>
                 ))}
-              </div>
-              <div className="grid grid-cols-7">
-                {displayDates.map((date, index) => {
-                  const dayAppointments = getAppointmentsForDay(date)
-                  const isCurrentMonthDay = isCurrentMonth(date)
-                  
-                  return (
-                    <div
-                      key={index}
-                      className={`min-h-[60px] md:min-h-[100px] p-1 md:p-2 border-r border-t last:border-r-0 ${
-                        !isCurrentMonthDay ? 'bg-muted/30' : ''
-                      }`}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Mini Calendário</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between mb-3">
+                    <Button
+                      onClick={handlePrevious}
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0"
                     >
-                      <div className={`text-[10px] md:text-sm font-medium mb-1 ${
-                        isToday(date) 
-                          ? 'text-primary font-bold' 
-                          : !isCurrentMonthDay
-                          ? 'text-muted-foreground'
-                          : ''
-                      }`}>
-                        {date.getDate()}
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm font-medium">
+                      {currentDate.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}
+                    </span>
+                    <Button
+                      onClick={handleNext}
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-1 text-center">
+                    {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((day, i) => (
+                      <div key={i} className="text-xs font-medium text-gray-500 py-1">
+                        {day}
                       </div>
-                      {dayAppointments.length > 0 ? (
-                        <div className="space-y-0.5 md:space-y-1">
-                          {dayAppointments.slice(0, 2).map((appointment) => (
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-1">
+                    {getDisplayDates().slice(0, 35).map((date, index) => {
+                      const today = isToday(date)
+                      const currentMonth = isCurrentMonth(date)
+                      const hasAppointments = getAppointmentsForDay(date).length > 0
+
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => {
+                            setCurrentDate(date)
+                            setViewMode('day')
+                          }}
+                          className={`
+                            aspect-square text-xs rounded-md transition-all
+                            ${!currentMonth ? 'text-gray-300' : 'text-gray-700'}
+                            ${today ? 'bg-purple-600 text-white font-bold' : ''}
+                            ${hasAppointments && !today ? 'bg-purple-100 font-semibold' : ''}
+                            ${!today && !hasAppointments ? 'hover:bg-gray-100' : ''}
+                          `}
+                        >
+                          {date.getDate()}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  <Button
+                    onClick={handleToday}
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-3"
+                  >
+                    Hoje
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Main Content */}
+          <div className="space-y-4">
+            {/* Mobile Controls */}
+            <Card className="lg:hidden">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-2 mb-4">
+                  <Button
+                    onClick={handlePrevious}
+                    variant="outline"
+                    size="sm"
+                    className="h-9 w-9 p-0"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={handleToday}
+                      variant="outline"
+                      size="sm"
+                      className="text-sm"
+                    >
+                      Hoje
+                    </Button>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          {getViewModeLabel(viewMode)}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem onClick={() => setViewMode('day')}>
+                          Dia
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setViewMode('week')}>
+                          Semana
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setViewMode('month')}>
+                          Mês
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+
+                  <Button
+                    onClick={handleNext}
+                    variant="outline"
+                    size="sm"
+                    className="h-9 w-9 p-0"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <div className="text-center">
+                  <h2 className="text-lg font-semibold text-gray-900 capitalize">
+                    {formatDateRange()}
+                  </h2>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Desktop Header */}
+            <Card className="hidden lg:block">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={handlePrevious}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        onClick={handleNext}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <h2 className="text-xl font-semibold text-gray-900 capitalize">
+                      {formatDateRange()}
+                    </h2>
+                  </div>
+
+                  <Button
+                    onClick={handleToday}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Hoje
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Calendar Content */}
+            <Card>
+              <CardContent className="p-0">
+                {viewMode === 'month' ? (
+                  /* Month View */
+                  <div className="overflow-hidden">
+                    {/* Desktop: Full week names, Mobile: Abbreviated */}
+                    <div className="hidden sm:grid grid-cols-7 bg-gray-100 border-b">
+                      {['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].map((day, index) => (
+                        <div
+                          key={index}
+                          className="p-3 text-center text-sm font-semibold text-gray-700 border-r last:border-r-0"
+                        >
+                          {day}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid sm:hidden grid-cols-7 bg-gray-100 border-b">
+                      {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((day, index) => (
+                        <div
+                          key={index}
+                          className="p-2 text-center text-xs font-semibold text-gray-700"
+                        >
+                          {day}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Calendar Grid */}
+                    <div className="grid grid-cols-7">
+                      {displayDates.map((date, index) => {
+                        const dayAppointments = getAppointmentsForDay(date)
+                        const isCurrentMonthDay = isCurrentMonth(date)
+                        const today = isToday(date)
+
+                        return (
+                          <div
+                            key={index}
+                            className={`
+                              min-h-[100px] sm:min-h-[120px] p-2
+                              border-b border-r last:border-r-0
+                              ${!isCurrentMonthDay ? 'bg-gray-50/50' : 'bg-white'}
+                              ${today ? 'bg-purple-50 border-purple-200' : ''}
+                              hover:bg-gray-50 transition-colors
+                            `}
+                          >
                             <div
-                              key={appointment.id}
-                              className="text-[8px] md:text-xs p-0.5 md:p-1 bg-primary/10 rounded cursor-pointer hover:bg-primary/20"
-                              onClick={() => openEditAppointmentModal(appointment)}
+                              className={`
+                                text-sm font-medium mb-2
+                                ${!isCurrentMonthDay ? 'text-gray-400' : 'text-gray-700'}
+                                ${today ? 'text-purple-600 font-bold' : ''}
+                              `}
                             >
-                              <div className="font-medium truncate">
-                                {new Date(appointment.start.dateTime).toLocaleTimeString('pt-BR', { 
-                                  hour: '2-digit', 
-                                  minute: '2-digit' 
-                                })}
-                              </div>
-                              <div className="truncate hidden md:block">{appointment.summary}</div>
+                              {date.getDate()}
                             </div>
-                          ))}
-                          {dayAppointments.length > 2 && (
-                            <div className="text-[8px] md:text-xs text-muted-foreground">
-                              +{dayAppointments.length - 2}
+
+                            {dayAppointments.length > 0 && (
+                              <div className="space-y-1">
+                                {dayAppointments.slice(0, 3).map((appointment) => (
+                                  <button
+                                    key={appointment.id}
+                                    onClick={() => openEditAppointmentModal(appointment)}
+                                    className="w-full text-left p-1.5 rounded text-xs bg-purple-100 hover:bg-purple-200 text-purple-900 transition-colors"
+                                  >
+                                    <div className="font-medium truncate">
+                                      {new Date(appointment.start.dateTime).toLocaleTimeString('pt-BR', {
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })}
+                                    </div>
+                                    <div className="truncate opacity-90">
+                                      {appointment.summary}
+                                    </div>
+                                  </button>
+                                ))}
+
+                                {dayAppointments.length > 3 && (
+                                  <div className="text-xs text-center text-purple-600 font-medium pt-1">
+                                    +{dayAppointments.length - 3} mais
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  /* Day/Week List View */
+                  <div className="divide-y">
+                    {displayDates.map((date, index) => {
+                      const dayAppointments = getAppointmentsForDay(date)
+                      const today = isToday(date)
+
+                      return (
+                        <div
+                          key={index}
+                          className={`p-4 sm:p-6 ${today ? 'bg-purple-50/50' : 'bg-white'}`}
+                        >
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className={`text-center ${today ? 'text-purple-600' : 'text-gray-600'}`}>
+                              <div className="text-xs font-medium uppercase">
+                                {getDayName(date, true)}
+                              </div>
+                              <div className={`text-2xl font-bold ${today ? 'text-purple-600' : 'text-gray-900'}`}>
+                                {date.getDate()}
+                              </div>
+                            </div>
+
+                            {today && (
+                              <Badge variant="secondary" className="bg-purple-100 text-purple-700">
+                                Hoje
+                              </Badge>
+                            )}
+                          </div>
+
+                          {dayAppointments.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+                              <CalendarX className="h-10 w-10 mb-2" />
+                              <p className="text-sm">Nenhum agendamento</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {dayAppointments.map((appointment) => {
+                                const descriptionParts = appointment.description?.split('\n') || []
+                                const clientName = descriptionParts.find(p => p.startsWith('Cliente:'))?.replace('Cliente: ', '')
+                                const phone = descriptionParts.find(p => p.startsWith('Telefone:'))?.replace('Telefone: ', '')
+                                const serviceName = descriptionParts.find(p => p.startsWith('Serviço:'))?.replace('Serviço: ', '')
+
+                                return (
+                                  <div
+                                    key={appointment.id}
+                                    className="group relative bg-white border border-gray-200 rounded-lg p-4 hover:border-purple-300 hover:shadow-md transition-all cursor-pointer"
+                                    onClick={() => openEditAppointmentModal(appointment)}
+                                  >
+                                    <div className="flex items-start justify-between gap-4">
+                                      <div className="flex-1 space-y-3">
+                                        <div className="flex items-center gap-3">
+                                          <div className="flex items-center gap-2 text-purple-600">
+                                            <Clock className="h-4 w-4" />
+                                            <span className="font-semibold">
+                                              {new Date(appointment.start.dateTime).toLocaleTimeString('pt-BR', {
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                              })}
+                                              {' - '}
+                                              {new Date(appointment.end.dateTime).toLocaleTimeString('pt-BR', {
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                              })}
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                          {clientName && (
+                                            <div className="flex items-center gap-2 text-gray-700">
+                                              <User className="h-4 w-4 text-gray-400" />
+                                              <span className="font-medium">{clientName}</span>
+                                            </div>
+                                          )}
+
+                                          {phone && (
+                                            <div className="flex items-center gap-2 text-gray-600 text-sm">
+                                              <Phone className="h-4 w-4 text-gray-400" />
+                                              <span>{phone}</span>
+                                            </div>
+                                          )}
+
+                                          {serviceName && (
+                                            <div className="flex items-center gap-2">
+                                              <Badge variant="secondary" className="bg-purple-100 text-purple-700">
+                                                {serviceName}
+                                              </Badge>
+                                            </div>
+                                          )}
+
+                                          {appointment.location && (
+                                            <div className="flex items-center gap-2 text-gray-600 text-sm">
+                                              <MapPin className="h-4 w-4 text-gray-400" />
+                                              <span>{appointment.location}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-8 w-8 p-0 hover:bg-purple-100"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            openEditAppointmentModal(appointment)
+                                          }}
+                                        >
+                                          <Edit className="h-4 w-4 text-purple-600" />
+                                        </Button>
+
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-8 w-8 p-0 hover:bg-red-50"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            openDeleteModal(appointment)
+                                          }}
+                                        >
+                                          <Trash2 className="h-4 w-4 text-red-600" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              })}
                             </div>
                           )}
                         </div>
-                      ) : null}
-                    </div>
-                  )
-                })}
-              </div>
-            </>
-          ) : (
-            <div className="overflow-x-auto">
-              <div className={`grid ${viewMode === 'week' ? 'grid-cols-7' : 'grid-cols-1'} border-t min-w-[600px] md:min-w-0`}>
-                {displayDates.map((date, index) => (
-                  <div
-                    key={index}
-                    className="border-r last:border-r-0"
-                  >
-                    <div className="p-2 md:p-4 text-center border-b">
-                      {viewMode === 'week' && (
-                        <div className="text-[10px] md:text-xs font-medium text-muted-foreground mb-1">
-                          {getDayName(date)}
-                        </div>
-                      )}
-                      <div className={`text-lg md:text-2xl font-bold ${
-                        isToday(date) ? 'text-primary' : ''
-                      }`}>
-                        {date.getDate()}
-                      </div>
-                    </div>
-
-                    <div className="p-2 md:p-3 bg-muted/30 min-h-[300px] md:min-h-[400px]">
-                      {getAppointmentsForDay(date).length === 0 ? (
-                        <Alert className="border-dashed">
-                          <CalendarX className="h-3 w-3 md:h-4 md:w-4" />
-                          <AlertTitle className="text-xs md:text-sm">Sem agendamentos</AlertTitle>
-                          <AlertDescription className="text-[10px] md:text-xs">
-                            Nenhum agendamento
-                          </AlertDescription>
-                        </Alert>
-                      ) : (
-                        <div className="space-y-2">
-                          {getAppointmentsForDay(date).map((appointment) => (
-                            <Card
-                              key={appointment.id}
-                              className="cursor-pointer hover:shadow-md transition-shadow"
-                              onClick={() => openEditAppointmentModal(appointment)}
-                            >
-                              <CardContent className="p-2 md:p-3 space-y-1 md:space-y-2">
-                                <div className="flex items-start justify-between">
-                                  <div className="flex items-center gap-1 text-[10px] md:text-xs text-muted-foreground">
-                                    <Clock className="h-3 w-3" />
-                                    {new Date(appointment.start.dateTime).toLocaleTimeString('pt-BR', { 
-                                      hour: '2-digit', 
-                                      minute: '2-digit' 
-                                    })}
-                                  </div>
-                                  <Calendar className="h-3 w-3 text-primary" />
-                                </div>
-                                
-                                <div className="flex items-center gap-1 md:gap-2">
-                                  <User className="h-3 w-3 text-muted-foreground" />
-                                  <p className="font-semibold text-xs md:text-sm truncate">
-                                    {appointment.summary}
-                                  </p>
-                                </div>
-
-                                {appointment.description && (
-                                  <p className="text-[10px] md:text-xs text-muted-foreground line-clamp-2">
-                                    {appointment.description}
-                                  </p>
-                                )}
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                      )
+                    })}
                   </div>
-                ))}
-              </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+
+      {/* Form Modal */}
+      <Dialog open={showFormModal} onOpenChange={setShowFormModal}>
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl text-purple-600">
+              {selectedAppointment ? 'Editar Agendamento' : 'Novo Agendamento'}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedAppointment
+                ? 'Atualize as informações do agendamento'
+                : 'Preencha os dados para criar um novo agendamento'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <FormContent
+            formData={formData}
+            setFormData={setFormData}
+            clients={clients}
+            services={services}
+          />
+
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
+            <Button
+              onClick={() => setShowFormModal(false)}
+              disabled={loading}
+              variant="outline"
+              className="w-full sm:w-auto"
+            >
+              Cancelar
+            </Button>
+
+            {selectedAppointment && (
+              <Button
+                onClick={() => {
+                  setShowFormModal(false)
+                  openDeleteModal(selectedAppointment)
+                }}
+                disabled={loading}
+                variant="destructive"
+                className="w-full sm:w-auto gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Excluir
+              </Button>
+            )}
+
+            <Button
+              onClick={handleSaveAppointment}
+              disabled={loading}
+              className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700"
+            >
+              {loading ? 'Salvando...' : selectedAppointment ? 'Salvar Alterações' : 'Criar Agendamento'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl text-red-600 flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Confirmar Exclusão
+            </DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir este agendamento? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+
+          {appointmentToDelete && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-2">
+              <p className="font-semibold text-gray-900">
+                {appointmentToDelete.summary}
+              </p>
+              <p className="text-sm text-gray-600">
+                {new Date(appointmentToDelete.start.dateTime).toLocaleString('pt-BR', {
+                  day: '2-digit',
+                  month: 'long',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </p>
             </div>
           )}
-        </CardContent>
-      </Card>
 
-      {isMobile ? (
-        <Sheet open={showModal} onOpenChange={setShowModal}>
-          <SheetContent side="bottom" className="h-[90vh] overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle>
-                {selectedAppointment ? 'Editar Agendamento' : 'Novo Agendamento'}
-              </SheetTitle>
-              <SheetDescription>
-                {selectedAppointment ? 'Atualize as informações' : 'Crie um novo agendamento'}
-              </SheetDescription>
-            </SheetHeader>
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
+            <Button
+              onClick={() => {
+                setShowDeleteModal(false)
+                setAppointmentToDelete(null)
+              }}
+              disabled={loading}
+              variant="outline"
+              className="w-full sm:w-auto"
+            >
+              Cancelar
+            </Button>
 
-            <div className="py-4">
-              <FormContent 
-                formData={formData}
-                setFormData={setFormData}
-                clients={clients}
-                services={services}
-              />
-            </div>
-
-            <SheetFooter className="flex-col sm:flex-row gap-2">
-              {selectedAppointment && (
-                <Button
-                  onClick={() => handleDeleteAppointment(selectedAppointment)}
-                  disabled={loading}
-                  variant="destructive"
-                  className="w-full gap-2"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Excluir
-                </Button>
-              )}
-
-              <div className="flex gap-2 w-full">
-                <Button 
-                  onClick={() => setShowModal(false)} 
-                  disabled={loading} 
-                  variant="outline"
-                  className="flex-1"
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  onClick={handleSaveAppointment} 
-                  disabled={loading}
-                  className="flex-1"
-                >
-                  {loading ? 'Salvando...' : 'Salvar'}
-                </Button>
-              </div>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
-      ) : (
-        <Dialog open={showModal} onOpenChange={setShowModal}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                {selectedAppointment ? 'Editar Agendamento' : 'Novo Agendamento'}
-              </DialogTitle>
-              <DialogDescription>
-                {selectedAppointment ? 'Atualize as informações do agendamento' : 'Crie um novo agendamento no Google Calendar'}
-              </DialogDescription>
-            </DialogHeader>
-
-            <FormContent 
-              formData={formData}
-              setFormData={setFormData}
-              clients={clients}
-              services={services}
-            />
-
-            <DialogFooter className="flex items-center justify-between gap-2 flex-col-reverse sm:flex-row">
-              <div>
-                {selectedAppointment && (
-                  <Button
-                    onClick={() => handleDeleteAppointment(selectedAppointment)}
-                    disabled={loading}
-                    variant="destructive"
-                    className="gap-2"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Excluir
-                  </Button>
-                )}
-              </div>
-
-              <div className="flex gap-2 w-full sm:w-auto">
-                <Button 
-                  onClick={() => setShowModal(false)} 
-                  disabled={loading} 
-                  variant="outline"
-                  className="flex-1 sm:flex-initial"
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  onClick={handleSaveAppointment} 
-                  disabled={loading}
-                  className="flex-1 sm:flex-initial"
-                >
-                  {loading ? 'Salvando...' : 'Salvar'}
-                </Button>
-              </div>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+            <Button
+              onClick={confirmDeleteAppointment}
+              disabled={loading}
+              variant="destructive"
+              className="w-full sm:w-auto gap-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              {loading ? 'Excluindo...' : 'Confirmar Exclusão'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
