@@ -6,7 +6,7 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
-const HANDLE = process.env.INFINITEPAY_HANDLE || ""
+const HANDLE = process.env.INFINITEPAY_HANDLE || "spacobellas"
 
 type CheckBody = {
   order_nsu: string

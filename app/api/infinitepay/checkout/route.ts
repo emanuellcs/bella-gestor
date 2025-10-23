@@ -6,7 +6,7 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
-const HANDLE = process.env.INFINITEPAY_HANDLE || ""
+const HANDLE = process.env.INFINITEPAY_HANDLE || "spacobellas"
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
 const REDIRECT_URL = process.env.INFINITEPAY_REDIRECT_URL || `${BASE_URL}/financeiro/retorno`
 const WEBHOOK_URL = process.env.INFINITEPAY_WEBHOOK_URL || `${BASE_URL}/api/infinitepay/webhook`

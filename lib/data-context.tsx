@@ -12,6 +12,7 @@ import type {
 import { SaleStatus, PaymentStatus } from "@/lib/types"
 import * as api from "@/services/api"
 import { useToast } from "@/hooks/use-toast"
+type NewSale = Omit<Sale, "id" | "payments" | "createdat" | "updatedAt" | "clientName"> & { totalAmount?: number };
 
 interface DataContextType {
   // Estado

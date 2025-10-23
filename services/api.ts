@@ -560,7 +560,7 @@ export async function getSales(): Promise<Sale[]> {
         amount: parseFloat(p.amount),
         paymentMethod: p.payment_method || undefined,
         externalTransactionId: p.external_transaction_id || undefined,
-        paymentlinkUrl: p.payment_link_url || undefined,
+        linkUrl: p.payment_link_url || undefined, // <- aqui
         status: p.status,
         paidAt: p.paid_at || undefined,
         created_at: p.created_at,
@@ -590,7 +590,7 @@ export async function getPayments(): Promise<Payment[]> {
       amount: parseFloat(p.amount),
       paymentMethod: p.payment_method || undefined,
       externalTransactionId: p.external_transaction_id || undefined,
-      paymentlinkUrl: p.payment_link_url || undefined,
+      linkUrl: p.payment_link_url || undefined, // <- aqui
       status: p.status,
       paidAt: p.paid_at || undefined,
       created_at: p.created_at,
@@ -696,7 +696,7 @@ export async function createPayment(payment: Omit<Payment, "id">): Promise<Payme
         ? null
         : (payment.paymentMethod ?? null),
       external_transaction_id: payment.externalTransactionId ?? null,
-      payment_link_url: payment.paymentlinkUrl ?? null,
+      payment_link_url: payment.linkUrl ?? null,
       status: payment.status as PaymentStatus,
       paid_at: payment.status === PaymentStatus.PAID
         ? (payment.paidAt ?? new Date().toISOString())
@@ -720,7 +720,7 @@ export async function createPayment(payment: Omit<Payment, "id">): Promise<Payme
       amount: Number(data.amount),
       paymentMethod: data.payment_method ?? undefined,
       externalTransactionId: data.external_transaction_id ?? undefined,
-      paymentlinkUrl: data.payment_link_url ?? undefined,
+      linkUrl: data.payment_link_url ?? undefined,
       status: data.status,
       paidAt: data.paid_at ?? undefined,
       created_at: data.created_at,

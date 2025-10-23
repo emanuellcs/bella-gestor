@@ -1,10 +1,19 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-
+import { Combobox, type ComboItem } from "@/components/ui/combobox";
 import type { Sale, Payment } from "@/lib/types"
+import type { Client, ServiceVariant } from "@/lib/types";
 import { PaymentStatus, SaleStatus } from "@/lib/types"
 import * as api from "@/services/api"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Command, CommandInput, CommandEmpty, CommandList, CommandGroup, CommandItem } from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Trash } from "lucide-react";
 
 // shadcn/ui
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -79,6 +88,72 @@ function withinRange(iso: string, range: DateRange) {
   return true
 }
 
+function ClientComboBox({
+  value, onChange, options, disabled,
+}: { value: string; onChange: (v: string) => void; options: { id: string; name: string }[]; disabled?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find(o => o.id === value);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between h-9" disabled={disabled}>
+          {selected ? selected.name : "Selecione..."}
+          <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 w-[--radix-popover-trigger-width]">
+        <Command>
+          <CommandInput placeholder="Buscar cliente..." />
+          <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+          <CommandList>
+            <CommandGroup>
+              {options.map((o) => (
+                <CommandItem key={o.id} value={o.name} onSelect={() => { onChange(o.id); setOpen(false); }}>
+                  <Check className={cn("mr-2 h-4 w-4", o.id === value ? "opacity-100" : "opacity-0")} />
+                  {o.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function VariantComboBox({
+  value, onChange, options, disabled,
+}: { value: string; onChange: (v: string) => void; options: { id: string; label: string }[]; disabled?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find(o => o.id === value);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between h-9" disabled={disabled}>
+          {selected ? selected.label : "Selecione..."}
+          <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 w-[--radix-popover-trigger-width]">
+        <Command>
+          <CommandInput placeholder="Buscar serviço/variante..." />
+          <CommandEmpty>Nenhum serviço encontrado.</CommandEmpty>
+          <CommandList>
+            <CommandGroup>
+              {options.map((o) => (
+                <CommandItem key={o.id} value={o.label} onSelect={() => { onChange(o.id); setOpen(false); }}>
+                  <Check className={cn("mr-2 h-4 w-4", o.id === value ? "opacity-100" : "opacity-0")} />
+                  {o.label}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function FinanceiroPage() {
   // Estado base
   const [sales, setSales] = useState<Sale[]>([])
@@ -121,6 +196,108 @@ export default function FinanceiroPage() {
   const [selectSaleOpen, setSelectSaleOpen] = useState(false)
   const [selectIntent, setSelectIntent] = useState<"link" | "pay" | null>(null)
   const [selectQuery, setSelectQuery] = useState("")
+  // NOVOS ESTADOS (modal de nova venda)
+  const [newSaleOpen, setNewSaleOpen] = useState(false);
+  const [newSaleLoading, setNewSaleLoading] = useState(false);
+  const [newSaleError, setNewSaleError] = useState<string | null>(null);
+
+  // listas auxiliares
+  const [clients, setClients] = useState<Client[]>([]);
+  const [variants, setVariants] = useState<ServiceVariant[]>([]);
+
+  // formulário da nova venda
+  type NewSaleItemForm = { rowId: string; serviceVariantId: string; quantity: number; unitPrice: number };
+  type NewSaleForm = { clientId: string; items: NewSaleItemForm[]; notes?: string };
+  const [newSaleForm, setNewSaleForm] = useState<NewSaleForm>({ clientId: "", items: [] });
+
+  // intenção após salvar: continuar em link ou pagamento
+  const [continueAfterCreate, setContinueAfterCreate] = useState<null | "link" | "pay">(null);
+
+  useEffect(() => {
+    if (!newSaleOpen) return;
+    (async () => {
+      try {
+        const [c, v] = await Promise.all([
+          api.getActiveClients?.() ?? api.getClients?.(),
+          api.getServiceVariants?.(),
+        ]);
+        if (c) setClients(c as Client[]);
+        if (v) setVariants(v as ServiceVariant[]);
+      } catch (e) {
+        // silencioso: o modal mostra erro apenas no submit
+      }
+    })();
+  }, [newSaleOpen]);
+
+  function addItemRow() {
+    setNewSaleForm(f => ({
+      ...f,
+      items: [
+        ...f.items,
+        { rowId: crypto.randomUUID(), serviceVariantId: "", quantity: 1, unitPrice: 0 }
+      ],
+    }));
+  }
+
+  function removeItemRow(idx: number) {
+    setNewSaleForm(f => ({
+      ...f,
+      items: f.items.filter((_, i) => i !== idx),
+    }));
+  }
+
+  function onChangeItem(idx: number, patch: Partial<NewSaleItemForm>) {
+    setNewSaleForm(f => ({
+      ...f,
+      items: f.items.map((it, i) => (i === idx ? { ...it, ...patch } : it)),
+    }));
+  }
+
+  async function submitNewSale() {
+    setNewSaleLoading(true);
+    setNewSaleError(null);
+    try {
+      if (!newSaleForm.clientId || newSaleForm.items.length === 0) {
+        throw new Error("Selecione o cliente e adicione pelo menos 1 item");
+      }
+      // calcula total localmente; o backend também recalcula
+      const created = await (api as any).createSale?.({
+        clientId: newSaleForm.clientId,
+        items: newSaleForm.items.map((it) => ({
+          serviceVariantId: it.serviceVariantId,
+          quantity: Number(it.quantity || 1),
+          unitPrice: Number(it.unitPrice || 0),
+        })),
+        notes: (newSaleForm as any).notes || undefined,
+        status: SaleStatus.PENDING,
+      });
+      if (!created) throw new Error("Falha ao criar venda");
+      await refreshAll();
+      setNewSaleOpen(false);
+      setSelectedSale(created);
+
+      const due = Math.max(0, Number(created.totalAmount) -
+        (created.payments || []).filter((p: any) => p.status === "paid")
+          .reduce((a: number, p: any) => a + Number(p.amount || 0), 0));
+
+      if (continueAfterCreate === "link") {
+        setLinkForm({ amount: Number(due.toFixed(2)), customerName: created.clientName });
+        setLinkOpen(true);
+      } else if (continueAfterCreate === "pay") {
+        setPayForm({
+          amount: Number(due.toFixed(2)),
+          paidAt: new Date().toISOString().slice(0, 16),
+          paymentMethod: "",
+          externalTransactionId: "",
+        });
+        setPayOpen(true);
+      }
+    } catch (e: any) {
+      setNewSaleError(e?.message || "Não foi possível criar a venda");
+    } finally {
+      setNewSaleLoading(false);
+    }
+  }
 
   function openSelectSale(intent: "link" | "pay") {
     setSelectIntent(intent)
@@ -249,8 +426,9 @@ export default function FinanceiroPage() {
   }
 
   function handleCreateNew() {
-    // Lugar para integrar com fluxo de nova venda (navegação/estado)
-    setChoiceOpen(false)
+    setContinueAfterCreate("link"); // ao salvar, já abre o modal de link
+    setChoiceOpen(false);
+    setNewSaleOpen(true);
   }
 
   function openRegisterPayment(sale: Sale) {
@@ -276,35 +454,27 @@ export default function FinanceiroPage() {
 
   // Ações com backend
   async function submitGenerateLink() {
-    if (!selectedSale) return
-    setSubmitting(true)
-    setError(null)
+    if (!selectedSale) return;
+    setSubmitting(true); setError(null);
     try {
-      await api.createPaymentLink({
+      const out = await api.createPaymentLink({
         saleId: (selectedSale as any).id,
-        amount: Number(linkForm.amount), // reais
+        amount: Number(linkForm.amount),
         items: ((selectedSale as any).items || []).map((it: any) => ({
           quantity: it.quantity,
-          price: Math.round(Number(it.unitPrice) * 100), // centavos
+          price: Math.round(Number(it.unitPrice) * 100),
           description: it.serviceVariantName || `Item ${it.serviceVariantId}`,
         })),
-        customer: {
-          name: linkForm.customerName,
-          email: linkForm.customerEmail,
-          phone_number: linkForm.customerPhone,
-        },
-        address: {
-          cep: linkForm.addressCep,
-          number: linkForm.addressNumber,
-          complement: linkForm.addressComplement,
-        },
-      })
-      await refreshAll()
-      setLinkOpen(false)
-    } catch (e: any) {
-      setError(e?.message || "Falha ao gerar link")
+        customer: { name: linkForm.customerName, email: linkForm.customerEmail, phone_number: linkForm.customerPhone },
+        address: { cep: linkForm.addressCep, number: linkForm.addressNumber, complement: linkForm.addressComplement },
+      });
+      window.open(out.url, "_blank", "noopener,noreferrer");
+      await refreshAll();
+      setLinkOpen(false);
+    } catch (e:any) {
+      setError(e?.message || "Falha ao gerar link");
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
   }
 
@@ -503,7 +673,10 @@ export default function FinanceiroPage() {
               {/* =========================
                   NOVOS BOTÕES GLOBAIS
                  ========================= */}
-              <Button className="h-9" onClick={() => openSelectSale("pay")}>
+              <Button className="h-9" onClick={() => { setContinueAfterCreate(null); setNewSaleOpen(true); }}>
+                Nova venda
+              </Button>
+              <Button className="h-9" variant="outline" onClick={() => openSelectSale("pay")}>
                 Registrar pagamento
               </Button>
               <Button className="h-9" variant="outline" onClick={() => openSelectSale("link")}>
@@ -1222,6 +1395,134 @@ export default function FinanceiroPage() {
 
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setSelectSaleOpen(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* =========================
+        NOVO MODAL: Nova venda
+        ======================== */}
+      <Dialog open={newSaleOpen} onOpenChange={setNewSaleOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nova venda</DialogTitle>
+            <DialogDescription>Cadastre o cliente e os itens da venda.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Cliente */}
+            <div className="space-y-2">
+              <Label>Cliente</Label>
+              <Combobox
+                placeholder="Cliente"
+                items={clients.map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                  hint: c.phone || "",
+                }))}
+                value={newSaleForm.clientId}
+                onChange={(v) => setNewSaleForm((f) => ({ ...f, clientId: v }))}
+              />
+            </div>
+
+            <Separator />
+
+            {/* Itens */}
+            <div className="flex items-center justify-between">
+              <Label className="text-base">Itens</Label>
+              <Button type="button" variant="outline" className="h-9" onClick={addItemRow}>
+                Adicionar item
+              </Button>
+            </div>
+
+            {newSaleForm.items.length === 0 ? (
+              <Alert><AlertDescription>Nenhum item adicionado.</AlertDescription></Alert>
+            ) : null}
+
+            <div className="space-y-3">
+              {newSaleForm.items.map((it, idx) => {
+                const variantItems = variants.map((v) => ({
+                  value: v.id,
+                  label: v.variantName,
+                  hint: `R$ ${Number(v.price).toFixed(2)}`,
+                }));
+
+                return (
+                  <div key={it.rowId} className="grid grid-cols-12 gap-3">
+                    {/* Serviço/variante (6) */}
+                    <div className="col-span-6 space-y-2">
+                      <Label>Serviço/variante</Label>
+                      <Combobox
+                        placeholder="Serviço/variante"
+                        items={variants.map((v) => ({
+                          value: v.id,
+                          label: v.variantName,
+                          hint: `R$ ${Number(v.price).toFixed(2)}`,
+                        }))}
+                        value={it.serviceVariantId}
+                        onChange={(vId) => {
+                          const vv = variants.find((x) => x.id === vId);
+                          onChangeItem(idx, { serviceVariantId: vId, unitPrice: vv ? Number(vv.price) : it.unitPrice });
+                        }}
+                      />
+                    </div>
+
+                    {/* Quantidade (2) — menor que preço */}
+                    <div className="col-span-2 space-y-2">
+                      <Label>Qtd.</Label>
+                      <Input
+                        className="h-9"
+                        inputMode="numeric"
+                        type="number"
+                        min={1}
+                        value={it.quantity}
+                        onChange={(e) => onChangeItem(idx, { quantity: Number(e.target.value) })}
+                      />
+                    </div>
+
+                    {/* Preço (4) + lixeira à direita */}
+                    <div className="col-span-4 space-y-2">
+                      <Label>Unitário (R$)</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          className="h-9"
+                          inputMode="decimal"
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={it.unitPrice}
+                          onChange={(e) => onChangeItem(idx, { unitPrice: Number(e.target.value) })}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 text-muted-foreground hover:text-destructive"
+                          onClick={() => removeItemRow(idx)}
+                          aria-label="Remover item"
+                          title="Remover item"
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {newSaleError ? (
+              <Alert><AlertDescription>{newSaleError}</AlertDescription></Alert>
+            ) : null}
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setNewSaleOpen(false)} disabled={newSaleLoading}>
+              Fechar
+            </Button>
+            <Button type="button" onClick={submitNewSale} disabled={newSaleLoading}>
+              {newSaleLoading ? "Salvando..." : "Salvar venda"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

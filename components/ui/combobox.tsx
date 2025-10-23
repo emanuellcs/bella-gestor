@@ -1,0 +1,67 @@
+// components/ui/combobox.tsx
+"use client";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Command, CommandInput, CommandEmpty, CommandList, CommandGroup, CommandItem } from "@/components/ui/command";
+import { ChevronsUpDown, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+export type ComboItem = { value: string; label: string; hint?: string };
+
+export function Combobox({
+  placeholder,
+  items,
+  value,
+  onChange,
+  emptyText = "Nenhum item encontrado",
+  disabled,
+}: {
+  placeholder: string;
+  items: ComboItem[];
+  value: string;
+  onChange: (v: string) => void;
+  emptyText?: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = items.find((i) => i.value === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between h-9" disabled={disabled}>
+          {selected ? selected.label : placeholder}
+          <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 w-[--radix-popover-trigger-width]">
+        <Command>
+          <CommandInput placeholder={`Buscar ${placeholder.toLowerCase()}...`} />
+          <CommandEmpty>{emptyText}</CommandEmpty>
+          <CommandList>
+            <CommandGroup>
+              {items.map((it) => (
+                <CommandItem
+                  key={it.value}
+                  value={it.label}
+                  onSelect={() => {
+                    onChange(it.value);
+                    setOpen(false);
+                  }}
+                  className="flex items-center justify-between"
+                >
+                  <div className="flex items-center">
+                    <Check className={cn("mr-2 h-4 w-4", value === it.value ? "opacity-100" : "opacity-0")} />
+                    <span>{it.label}</span>
+                  </div>
+                  {it.hint ? <span className="text-xs text-muted-foreground">{it.hint}</span> : null}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
