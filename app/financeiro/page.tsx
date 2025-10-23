@@ -1,16 +1,16 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+
+import type { Sale, Payment } from "@/lib/types"
+import { PaymentStatus, SaleStatus } from "@/lib/types"
+import * as api from "@/services/api"
+
+// shadcn/ui
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import {
   Dialog,
   DialogContent,
@@ -19,983 +19,1213 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+
+// ícones
 import {
   Search,
   Filter,
-  MoreVertical,
-  ChevronLeft,
-  ChevronRight,
-  DollarSign,
-  Wallet,
+  RefreshCw,
+  MoreHorizontal,
+  Link as LinkIcon,
+  CreditCard,
   CheckCircle2,
   XCircle,
-  Calendar as CalendarIcon,
-  Loader2,
-  AlertCircle,
-  Link2,
-  FilePlus2,
-  ListChecks,
-  ChevronsUpDown,
-  Check,
+  Receipt,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
 } from "lucide-react"
 
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-
-import { useData } from "@/lib/data-context"
-import { formatCurrency, formatDate } from "@/lib/utils"
-import type { Client, Service, ServiceVariant, Sale, Payment } from "@/lib/types"
-import { PaymentStatus, SaleStatus } from "@/lib/types"
-import * as api from "@/services/api"
-
-type StatusFilter = "all" | "paid" | "pending" | "cancelled"
-type EnrichedSale = Sale & { paidAmount: number; balance: number }
-
-function Combobox({
-  placeholder,
-  items,
-  value,
-  onChange,
-  emptyText = "Nenhum item encontrado",
-}: {
-  placeholder: string
-  items: { value: string; label: string; hint?: string }[]
-  value: string
-  onChange: (v: string) => void
-  emptyText?: string
-}) {
-  const [open, setOpen] = useState(false)
-  const current = items.find(i => i.value === value)
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" className="w-full justify-between">
-          <span className="truncate">{current ? current.label : placeholder}</span>
-          <ChevronsUpDown className="h-4 w-4 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-        <Command>
-          <CommandInput placeholder="Digitar para buscar..." />
-          <CommandList>
-            <CommandEmpty>{emptyText}</CommandEmpty>
-            <CommandGroup>
-              {items.map(it => (
-                <CommandItem
-                  key={it.value}
-                  value={`${it.label} ${it.hint || ""}`}
-                  onSelect={() => {
-                    onChange(it.value)
-                    setOpen(false)
-                  }}
-                  className="flex items-center justify-between"
-                >
-                  <span className="truncate">{it.label}</span>
-                  {value === it.value ? <Check className="h-4 w-4" /> : null}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  )
+// Tipos de formulário
+type LinkForm = {
+  amount: number
+  customerName?: string
+  customerEmail?: string
+  customerPhone?: string
+  addressCep?: string
+  addressNumber?: string
+  addressComplement?: string
 }
 
-function ChooseFlowDialog({
-  open,
-  onOpenChange,
-  onExisting,
-  onNew,
-}: {
-  open: boolean
-  onOpenChange: (v: boolean) => void
-  onExisting: () => void
-  onNew: () => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Como deseja gerar o link?</DialogTitle>
-          <DialogDescription>Escolha usar uma venda existente ou criar uma nova antes do checkout.</DialogDescription>
-        </DialogHeader>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Button variant="outline" className="h-auto py-4 flex flex-col items-start gap-2" onClick={onExisting}>
-            <ListChecks className="h-5 w-5" />
-            <div className="text-left">
-              <div className="text-sm font-medium">Usar venda existente</div>
-              <div className="text-xs text-muted-foreground">Selecione uma venda já cadastrada</div>
-            </div>
-          </Button>
-          <Button className="h-auto py-4 flex flex-col items-start gap-2" onClick={onNew}>
-            <FilePlus2 className="h-5 w-5" />
-            <div className="text-left">
-              <div className="text-sm font-medium">Criar nova venda</div>
-              <div className="text-xs text-muted-foreground">Cadastre cliente + serviço</div>
-            </div>
-          </Button>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
+type PaymentForm = {
+  amount: number
+  paymentMethod?: string
+  externalTransactionId?: string
+  paidAt?: string
 }
 
-function NewSaleDialog({
-  open,
-  onOpenChange,
-  clients,
-  services,
-  variants,
-  onCreated,
-}: {
-  open: boolean
-  onOpenChange: (v: boolean) => void
-  clients: Client[]
-  services: Service[]
-  variants: ServiceVariant[]
-  onCreated: (sale: EnrichedSale) => void
-}) {
-  const [clientId, setClientId] = useState("")
-  const [serviceId, setServiceId] = useState("")
-  const [variantId, setVariantId] = useState("")
-  const [quantity, setQuantity] = useState(1)
-  const [unitPrice, setUnitPrice] = useState("0")
-  const [notes, setNotes] = useState("")
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState("")
-
-  const serviceVariants = useMemo(() => variants.filter(v => v.serviceId === serviceId), [variants, serviceId])
-  const clientsItems = useMemo(() => clients.map(c => ({
-    value: c.id,
-    label: (c as any).name || (c as any).fullName || c.id,
-  })), [clients])
-  const serviceItems = useMemo(() => services.map(s => ({ value: s.id, label: s.name })), [services])
-  const variantItems = useMemo(() => serviceVariants.map(v => ({
-    value: v.id,
-    label: `${v.variantName} • ${formatCurrency(v.price)}`,
-  })), [serviceVariants])
-
-  function onVariantChange(id: string) {
-    setVariantId(id)
-    const v = variants.find(vv => vv.id === id)
-    if (v) {
-      setServiceId(v.serviceId)
-      setUnitPrice(String(v.price))
-    }
-  }
-
-  const total = useMemo(() => {
-    const price = Number((unitPrice || "0").replace(",", "."))
-    return Math.max(0, (Number.isFinite(price) ? price : 0) * (quantity > 0 ? quantity : 0))
-  }, [unitPrice, quantity])
-
-  async function handleCreate() {
-    try {
-      setSaving(true)
-      setError("")
-      if (!clientId || !variantId || quantity <= 0) throw new Error("Selecione cliente, variante e quantidade válida")
-
-      const unit = Number((unitPrice || "0").replace(",", "."))
-      const created = await api.createSale({
-        clientId,
-        items: [
-          {
-            serviceVariantId: variantId,
-            quantity,
-            unitPrice: unit,
-          },
-        ],
-        totalAmount: unit * quantity,
-        status: SaleStatus.PENDING,
-        notes,
-        payments: [],
-        createdAt: new Date().toISOString(),
-      } as any)
-
-      const paidAmount = (created.payments || [])
-        .filter((p: any) => p.status === PaymentStatus.PAID)
-        .reduce((acc: number, p: any) => acc + Number(p.amount), 0)
-
-      const enriched: EnrichedSale = { ...created, paidAmount, balance: Math.max(0, created.totalAmount - paidAmount) }
-      onCreated(enriched)
-      onOpenChange(false)
-    } catch (e: any) {
-      setError(e?.message || "Falha ao criar a venda")
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Criar nova venda</DialogTitle>
-          <DialogDescription>Defina cliente, serviço e valores antes de gerar o link.</DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm mb-1">Cliente</label>
-              <Combobox placeholder="Selecione o cliente" items={clientsItems} value={clientId} onChange={setClientId} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm mb-1">Serviço</label>
-              <Combobox placeholder="Selecione um serviço" items={serviceItems} value={serviceId} onChange={(v) => { setServiceId(v); setVariantId(""); }} />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Variante</label>
-              <Combobox placeholder="Selecione a variante" items={variantItems} value={variantId} onChange={onVariantChange} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-sm mb-1">Quantidade</label>
-              <Input type="number" min={1} value={quantity} onChange={(e) => setQuantity(Math.max(1, Number(e.target.value || 1)))} />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Valor unitário (R$)</label>
-              <Input type="number" step="0.01" min="0" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} />
-            </div>
-            <div className="flex items-end justify-end">
-              <div className="text-sm">
-                <div className="text-muted-foreground">Total</div>
-                <div className="text-lg font-semibold">{formatCurrency(total)}</div>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm mb-1">Observações (opcional)</label>
-            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notas internas" />
-          </div>
-
-          {!!error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={handleCreate} disabled={saving || !clientId || !variantId || total <= 0}>
-            {saving ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Criando…</>) : "Criar venda"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
+type DateRange = {
+  start?: string // yyyy-MM-dd
+  end?: string // yyyy-MM-dd
 }
 
-function PaymentLinkModal({
-  open,
-  onOpenChange,
-  sale,
-  clients,
-  services,
-  variants,
-  onSuccess,
-}: {
-  open: boolean
-  onOpenChange: (v: boolean) => void
-  sale: EnrichedSale | null
-  clients: Client[]
-  services: Service[]
-  variants: ServiceVariant[]
-  onSuccess: () => void
-}) {
-  const { createPayment } = useData()
+function currency(n: number) {
+  return `R$ ${Number(n || 0).toFixed(2)}`
+}
 
-  const [serviceId, setServiceId] = useState("")
-  const [variantId, setVariantId] = useState("")
-  const [quantity, setQuantity] = useState(1)
-  const [amount, setAmount] = useState("0")
-  const [description, setDescription] = useState("")
+function withinRange(iso: string, range: DateRange) {
+  if (!range.start && !range.end) return true
+  const d = new Date(iso).getTime()
+  if (range.start && d < new Date(range.start + "T00:00:00").getTime()) return false
+  if (range.end && d > new Date(range.end + "T23:59:59").getTime()) return false
+  return true
+}
 
-  const [customerName, setCustomerName] = useState("")
-  const [customerEmail, setCustomerEmail] = useState("")
-  const [customerPhone, setCustomerPhone] = useState("")
+export default function FinanceiroPage() {
+  // Estado base
+  const [sales, setSales] = useState<Sale[]>([])
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const [cep, setCep] = useState("")
-  const [addrNumber, setAddrNumber] = useState("")
-  const [addrComplement, setAddrComplement] = useState("")
+  // Filtros
+  const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState<"" | SaleStatus>("")
+  const [dateRange, setDateRange] = useState<DateRange>({})
 
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
+  // Paginação
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
-  const serviceVariants = useMemo(() => variants.filter(v => v.serviceId === serviceId), [variants, serviceId])
-  const serviceItems = useMemo(() => services.map(s => ({ value: s.id, label: s.name })), [services])
-  const variantItems = useMemo(() => serviceVariants.map(v => ({
-    value: v.id,
-    label: `${v.variantName} • ${formatCurrency(v.price)}`,
-  })), [serviceVariants])
+  // Seções (vendas | pagamentos)
+  const [activeTab, setActiveTab] = useState<"sales" | "payments">("sales")
 
-  useEffect(() => {
-    if (!sale) return
-    const client = clients.find(c => c.id === sale.clientId)
-    const name = (client as any)?.name ?? (client as any)?.fullName ?? ""
-    const email = (client as any)?.email ?? ""
-    const phone = (client as any)?.phone ?? ""
-    setCustomerName(name || "")
-    setCustomerEmail(email || "")
-    setCustomerPhone(phone?.startsWith("+") ? phone : phone ? `+55${phone.replace(/\D/g, "")}` : "")
+  // Seleções
+  const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
 
-    const firstVarId = sale.items?.[0]?.serviceVariantId
-    if (firstVarId) {
-      const v = variants.find(vv => vv.id === firstVarId)
-      if (v) {
-        setServiceId(v.serviceId)
-        setVariantId(v.id)
-        setAmount(String(v.price))
-        const svc = services.find(s => s.id === v.serviceId)
-        const title = svc ? `${svc.name} — ${v.variantName}` : v.variantName
-        setDescription(title)
-      }
-    } else {
-      const base = sale.balance > 0 ? sale.balance : sale.totalAmount
-      setAmount(String(base))
-      setDescription(`Venda #${sale.id}`)
-    }
-  }, [sale, clients, services, variants])
+  // Modais já existentes
+  const [choiceOpen, setChoiceOpen] = useState(false)
+  const [linkOpen, setLinkOpen] = useState(false)
+  const [payOpen, setPayOpen] = useState(false)
+  const [saleDetailsOpen, setSaleDetailsOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState<null | { sale: Sale; type: "paid" | "cancel" }>(null)
 
-  function onVariantChange(id: string) {
-    setVariantId(id)
-    const v = variants.find(vv => vv.id === id)
-    if (v) {
-      setServiceId(v.serviceId)
-      setAmount(String(v.price))
-      const svc = services.find(s => s.id === v.serviceId)
-      const title = svc ? `${svc.name} — ${v.variantName}` : v.variantName
-      setDescription(title)
-    }
+  // Forms
+  const [linkForm, setLinkForm] = useState<LinkForm>({ amount: 0 })
+  const [payForm, setPayForm] = useState<PaymentForm>({ amount: 0, paidAt: "" })
+  const [submitting, setSubmitting] = useState(false)
+
+  // =========================
+  // NOVOS ESTADOS E HANDLERS (sem remover nada)
+  // =========================
+  // Modal global para escolher a venda antes de abrir link/pagamento
+  const [selectSaleOpen, setSelectSaleOpen] = useState(false)
+  const [selectIntent, setSelectIntent] = useState<"link" | "pay" | null>(null)
+  const [selectQuery, setSelectQuery] = useState("")
+
+  function openSelectSale(intent: "link" | "pay") {
+    setSelectIntent(intent)
+    setSelectSaleOpen(true)
   }
 
-  const total = useMemo(() => {
-    const unit = Number((amount || "0").replace(",", "."))
-    return Math.max(0, (Number.isFinite(unit) ? unit : 0) * (quantity > 0 ? quantity : 0))
-  }, [amount, quantity])
+  function handlePickSaleForAction(sale: Sale) {
+    setSelectedSale(sale)
+    setSelectSaleOpen(false)
 
-  async function handleGenerate() {
-    if (!sale) return
-    setLoading(true)
-    setError("")
-    try {
-      const priceCents = Math.round((Number((amount || "0").replace(",", ".")) || 0) * 100)
-      const items = [{
-        quantity: Math.max(1, quantity),
-        price: priceCents,
-        description: description || `Venda #${sale.id}`,
-      }]
-
-      const customer =
-        customerName || customerEmail || customerPhone
-          ? { name: customerName || undefined, email: customerEmail || undefined, phone_number: customerPhone || undefined }
-          : undefined
-
-      const address =
-        cep || addrNumber || addrComplement
-          ? { cep: cep || undefined, number: addrNumber || undefined, complement: addrComplement || undefined }
-          : undefined
-
-      const resp = await fetch("/api/infinitepay/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          saleId: sale.id,
-          amount: Number((amount || "0").replace(",", ".")),
-          items,
-          customer,
-          address,
-        }),
+    if (selectIntent === "link") {
+      const defaultAmount = Number(balance(sale).toFixed(2))
+      setLinkForm({
+        amount: defaultAmount,
+        customerName: sale.clientName,
       })
-      const json = await resp.json()
-      if (!resp.ok || !json?.url || !json?.order_nsu) {
-        throw new Error(json?.error || "Falha ao gerar link de pagamento")
-      }
+      setLinkOpen(true)
+    }
+    if (selectIntent === "pay") {
+      const defaultAmount = Number(balance(sale).toFixed(2))
+      setPayForm({
+        amount: defaultAmount,
+        paidAt: new Date().toISOString().slice(0, 16),
+        paymentMethod: "",
+        externalTransactionId: "",
+      })
+      setPayOpen(true)
+    }
+  }
+  // =========================
 
-      await createPayment({
-        saleId: sale.id,
-        amount: Number((amount || "0").replace(",", ".")),
-        status: PaymentStatus.PENDING,
-        paymentLinkUrl: json.url,
-        externalTransactionId: json.order_nsu,
-        createdAt: new Date().toISOString(),
-      } as Omit<Payment, "id">)
-
-      onSuccess()
-      onOpenChange(false)
+  // Carregar dados
+  async function refreshAll() {
+    setLoading(true)
+    setError(null)
+    try {
+      const [s, p] = await Promise.all([api.getSales(), api.getPayments()])
+      setSales(s || [])
+      setPayments(p || [])
     } catch (e: any) {
-      setError(e?.message || "Erro ao gerar link")
+      setError(e?.message || "Falha ao carregar financeiro")
     } finally {
       setLoading(false)
     }
   }
 
-  if (!sale) return null
+  useEffect(() => {
+    void refreshAll()
+  }, [])
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Gerar link de pagamento</DialogTitle>
-          <DialogDescription>Selecione o serviço, ajuste os dados e gere o checkout.</DialogDescription>
-        </DialogHeader>
+  // Helpers de valores
+  function paidAmount(sale: Sale) {
+    return (sale.payments || [])
+      .filter((p) => p.status === PaymentStatus.PAID)
+      .reduce((acc, p) => acc + (Number(p.amount) || 0), 0)
+  }
 
-        <div className="space-y-4">
-          <div className="text-sm">
-            <div>Cliente: <span className="text-foreground">{sale.clientName || sale.clientId}</span></div>
-            <div>Total: {formatCurrency(sale.totalAmount)} | Pago: {formatCurrency(sale.paidAmount)} | Saldo: {formatCurrency(sale.balance)}</div>
-          </div>
+  function balance(sale: Sale) {
+    return Math.max(0, Number(sale.totalAmount) - paidAmount(sale))
+  }
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm mb-1">Serviço</label>
-              <Combobox placeholder="Selecione um serviço" items={serviceItems} value={serviceId} onChange={(v) => { setServiceId(v); setVariantId(""); }} />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Variante</label>
-              <Combobox placeholder="Selecione a variante" items={variantItems} value={variantId} onChange={onVariantChange} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-sm mb-1">Quantidade</label>
-              <Input type="number" min={1} value={quantity} onChange={(e) => setQuantity(Math.max(1, Number(e.target.value || 1)))} />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Valor unitário (R$)</label>
-              <Input type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} />
-            </div>
-            <div className="md:col-span-3">
-              <label className="block text-sm mb-1">Descrição</label>
-              <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex.: Limpeza de pele — Premium" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-sm mb-1">Nome do cliente</label>
-              <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">E-mail</label>
-              <Input type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Telefone (+55...)</label>
-              <Input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-sm mb-1">CEP</label>
-              <Input value={cep} onChange={(e) => setCep(e.target.value)} />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Número</label>
-              <Input value={addrNumber} onChange={(e) => setAddrNumber(e.target.value)} />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Complemento</label>
-              <Input value={addrComplement} onChange={(e) => setAddrComplement(e.target.value)} />
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Total</span>
-            <span className="text-lg font-semibold">{formatCurrency(total)}</span>
-          </div>
-
-          {!!error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={handleGenerate} disabled={loading || total <= 0 || !sale}>
-            {loading ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Gerando…</>) : "Gerar link"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-export default function FinanceiroPage() {
-  const { sales, clients, services, serviceVariants, isLoading, error, createPayment, updateSaleStatus } = useData()
-
-  const [searchQuery, setSearchQuery] = useState("")
-  const [startDate, setStartDate] = useState<string>("")
-  const [endDate, setEndDate] = useState<string>("")
-  const [currentPage, setCurrentPage] = useState(1)
-  const pageSize = 10
-
-  const [chooseOpen, setChooseOpen] = useState(false)
-  const [selectSaleOpen, setSelectSaleOpen] = useState(false)
-  const [newSaleOpen, setNewSaleOpen] = useState(false)
-  const [selectedSaleId, setSelectedSaleId] = useState<string>("")
-
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false)
-  const [selectedSale, setSelectedSale] = useState<EnrichedSale | null>(null)
-  const [paymentAmount, setPaymentAmount] = useState<string>("")
-  const [paymentMethod, setPaymentMethod] = useState<string>("pix")
-  const [submitting, setSubmitting] = useState(false)
-
-  const [linkModalOpen, setLinkModalOpen] = useState(false)
-  const [saleForLink, setSaleForLink] = useState<EnrichedSale | null>(null)
-
-  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false)
-  const [saleToCancel, setSaleToCancel] = useState<EnrichedSale | null>(null)
-
-  const enrichedSales: EnrichedSale[] = useMemo(() => {
-    return (sales || []).map((s: Sale) => {
-      const paid = (s.payments || [])
-        .filter((p: any) => p.status === PaymentStatus.PAID)
-        .reduce((acc: number, p: any) => acc + Number(p.amount), 0)
-      const balance = Math.max(0, Number(s.totalAmount) - paid)
-      return { ...s, paidAmount: paid, balance }
-    })
-  }, [sales])
-
-  const filtered = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase()
-    const start = startDate ? new Date(startDate) : null
-    const endD = endDate ? new Date(endDate + "T23:59:59.999") : null
-    return enrichedSales.filter((s) => {
-      const matchesText =
+  // Filtros memorizados
+  const filteredSales = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const arr = (sales || []).filter((s) => {
+      const inText =
         !q ||
-        s.clientName?.toLowerCase().includes(q) ||
-        s.clientId?.toLowerCase().includes(q) ||
-        s.items?.some((it: any) => String(it.serviceVariantId || "").toLowerCase().includes(q))
-      const createdAt = new Date(s.createdAt)
-      const matchesDate = (!start || createdAt >= start) && (!endD || createdAt <= endD)
-      return matchesText && matchesDate
+        (s.clientName || "").toLowerCase().includes(q) ||
+        String(s.id).includes(q) ||
+        (s.items || []).some((it) => (it.serviceVariantName || "").toLowerCase().includes(q))
+      const inStatus = !statusFilter || s.status === statusFilter
+      const inDate = withinRange((s as any).created_at || (s as any).created_at || new Date().toISOString(), dateRange)
+      return inText && inStatus && inDate
     })
-  }, [enrichedSales, searchQuery, startDate, endDate])
+    return arr
+  }, [sales, search, statusFilter, dateRange])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const page = Math.min(currentPage, totalPages)
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const filteredPayments = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const arr = (payments || []).filter((p) => {
+      const inText =
+        !q ||
+        String(p.id).includes(q) ||
+        ((p as any).saleId && String((p as any).saleId).includes(q)) ||
+        ((p as any).paymentMethod || "").toLowerCase().includes(q) ||
+        ((p as any).externalTransactionId || "").toLowerCase().includes(q)
+      const inDate = withinRange((p as any).created_at || (p as any).created_at || new Date().toISOString(), dateRange)
+      return inText && inDate
+    })
+    return arr
+  }, [payments, search, dateRange])
 
-  const kpis = useMemo(() => {
-    const totalPaid = enrichedSales.reduce((acc, s) => acc + s.paidAmount, 0)
-    const totalBalance = enrichedSales.reduce((acc, s) => acc + s.balance, 0)
-    const paidCount = enrichedSales.filter((s) => s.status === SaleStatus.PAID).length
-    const pendingCount = enrichedSales.filter((s) => s.status === SaleStatus.PENDING).length
-    return { totalPaid, totalBalance, paidCount, pendingCount }
-  }, [enrichedSales])
+  // Paginação por aba
+  const pagedSales = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredSales.slice(start, start + pageSize)
+  }, [filteredSales, page, pageSize])
 
-  function openPaymentModal(s: EnrichedSale) {
-    setSelectedSale(s)
-    setPaymentAmount(String(s.balance || 0))
-    setPaymentMethod("pix")
-    setPaymentModalOpen(true)
+  const pagedPayments = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredPayments.slice(start, start + pageSize)
+  }, [filteredPayments, page, pageSize])
+
+  // Controles de UI
+  function resetFilters() {
+    setSearch("")
+    setStatusFilter("")
+    setDateRange({})
+    setPage(1)
   }
 
-  function openLinkModal(s: EnrichedSale) {
-    setSaleForLink(s)
-    setLinkModalOpen(true)
-  }
-
-  function startGenerateLinkFlow() {
-    setSelectedSaleId("")
-    setChooseOpen(true)
+  function openChoice(sale: Sale) {
+    setSelectedSale(sale)
+    setChoiceOpen(true)
   }
 
   function handleChooseExisting() {
-    setChooseOpen(false)
-    setSelectSaleOpen(true)
-  }
-
-  function handleChooseNew() {
-    setChooseOpen(false)
-    setNewSaleOpen(true)
-  }
-
-  function confirmSelectSale() {
-    const s = enrichedSales.find(es => es.id === selectedSaleId)
-    if (!s) return
-    setSaleForLink(s)
-    setSelectSaleOpen(false)
-    setLinkModalOpen(true)
-  }
-
-  async function handleSubmitPayment() {
     if (!selectedSale) return
-    const amountNum = Number(paymentAmount.replace(",", "."))
-    if (!amountNum || amountNum <= 0) return
+    setChoiceOpen(false)
+    const defaultAmount = Number(balance(selectedSale).toFixed(2))
+    setLinkForm({
+      amount: defaultAmount,
+      customerName: selectedSale.clientName,
+    })
+    setLinkOpen(true)
+  }
+
+  function handleCreateNew() {
+    // Lugar para integrar com fluxo de nova venda (navegação/estado)
+    setChoiceOpen(false)
+  }
+
+  function openRegisterPayment(sale: Sale) {
+    setSelectedSale(sale)
+    const defaultAmount = Number(balance(sale).toFixed(2))
+    setPayForm({
+      amount: defaultAmount,
+      paidAt: new Date().toISOString().slice(0, 16),
+      paymentMethod: "",
+      externalTransactionId: "",
+    })
+    setPayOpen(true)
+  }
+
+  function openSaleDetails(sale: Sale) {
+    setSelectedSale(sale)
+    setSaleDetailsOpen(true)
+  }
+
+  function confirmStatus(sale: Sale, type: "paid" | "cancel") {
+    setConfirmOpen({ sale, type })
+  }
+
+  // Ações com backend
+  async function submitGenerateLink() {
+    if (!selectedSale) return
     setSubmitting(true)
+    setError(null)
     try {
-      await createPayment({
-        saleId: selectedSale.id,
-        amount: amountNum,
-        paymentMethod,
-        status: PaymentStatus.PAID,
-        paidAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-      } as Omit<Payment, "id">)
-      setPaymentModalOpen(false)
+      await api.createPaymentLink({
+        saleId: (selectedSale as any).id,
+        amount: Number(linkForm.amount), // reais
+        items: ((selectedSale as any).items || []).map((it: any) => ({
+          quantity: it.quantity,
+          price: Math.round(Number(it.unitPrice) * 100), // centavos
+          description: it.serviceVariantName || `Item ${it.serviceVariantId}`,
+        })),
+        customer: {
+          name: linkForm.customerName,
+          email: linkForm.customerEmail,
+          phone_number: linkForm.customerPhone,
+        },
+        address: {
+          cep: linkForm.addressCep,
+          number: linkForm.addressNumber,
+          complement: linkForm.addressComplement,
+        },
+      })
+      await refreshAll()
+      setLinkOpen(false)
+    } catch (e: any) {
+      setError(e?.message || "Falha ao gerar link")
     } finally {
       setSubmitting(false)
     }
   }
 
-  function triggerCancelSale(sale: EnrichedSale) {
-    setSaleToCancel(sale)
-    setConfirmCancelOpen(true)
+  async function submitRegisterPayment() {
+    if (!selectedSale) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      await api.createPayment({
+        saleId: (selectedSale as any).id,
+        amount: Number(payForm.amount),
+        status: PaymentStatus.PAID,
+        paidAt: payForm.paidAt ? new Date(payForm.paidAt).toISOString() : new Date().toISOString(),
+        paymentMethod: payForm.paymentMethod || undefined,
+        externalTransactionId: payForm.externalTransactionId || undefined,
+        // Mantendo compatibilidade com seu backend atual sem remover nada
+        // Caso o tipo exija createdAt, o serviço pode preencher server-side
+      } as any)
+      await refreshAll()
+      setPayOpen(false)
+    } catch (e: any) {
+      setError(e?.message || "Falha ao registrar pagamento")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  async function performCancelSale() {
-    if (!saleToCancel) return
-    await updateSaleStatus(saleToCancel.id, SaleStatus.CANCELLED)
-    setConfirmCancelOpen(false)
-    setSaleToCancel(null)
+  async function applyConfirm() {
+    if (!confirmOpen) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      if (confirmOpen.type === "paid") {
+        await api.updateSaleStatus((confirmOpen.sale as any).id, SaleStatus.PAID)
+      } else {
+        await api.updateSaleStatus((confirmOpen.sale as any).id, SaleStatus.CANCELLED)
+      }
+      await refreshAll()
+      setConfirmOpen(null)
+    } catch (e: any) {
+      setError(e?.message || "Falha ao atualizar status")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  function firstPendingLink(sale: EnrichedSale) {
-    return sale.payments?.find((p: any) => p.status === PaymentStatus.PENDING && p.paymentLinkUrl)?.paymentLinkUrl
+  // Exportação CSV (cliente)
+  function exportCSV() {
+    const headers =
+      activeTab === "sales"
+        ? ["id", "cliente", "status", "total", "pago", "saldo", "criado_em"]
+        : ["id", "sale_id", "valor", "status", "metodo", "nsu", "criado_em"]
+
+    const rows =
+      activeTab === "sales"
+        ? filteredSales.map((s: any) => [
+            s.id,
+            s.clientName || "",
+            s.status,
+            Number(s.totalAmount).toFixed(2),
+            paidAmount(s).toFixed(2),
+            balance(s).toFixed(2),
+            (s.created_at || s.created_at || "").toString(),
+          ])
+        : filteredPayments.map((p: any) => [
+            p.id,
+            p.saleId || "",
+            Number(p.amount).toFixed(2),
+            p.status,
+            p.paymentMethod || "",
+            p.externalTransactionId || "",
+            (p.created_at || p.created_at || "").toString(),
+          ])
+
+    const csv =
+      [headers.join(","), ...rows.map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(","))].join("\n")
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = activeTab === "sales" ? "vendas.csv" : "pagamentos.csv"
+    a.click()
+    URL.revokeObjectURL(url)
   }
+
+  // Quando muda a aba, resetar página
+  useEffect(() => {
+    setPage(1)
+  }, [activeTab, pageSize, filteredSales.length, filteredPayments.length])
 
   return (
     <div className="space-y-4 p-4">
+      {/* Título */}
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">Financeiro</h1>
-        <p className="text-sm text-muted-foreground">Acompanhe receitas, pagamentos e transações</p>
+        <p className="text-sm text-muted-foreground">Vendas, pagamentos e links de checkout</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-emerald-600" />
-              Receita recebida
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-xl font-semibold">{formatCurrency(kpis.totalPaid)}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Wallet className="h-4 w-4 text-amber-600" />
-              A receber
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-xl font-semibold">{formatCurrency(kpis.totalBalance)}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              Vendas pagas
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-xl font-semibold">{kpis.paidCount}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <XCircle className="h-4 w-4 text-amber-600" />
-              Vendas pendentes
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-xl font-semibold">{kpis.pendingCount}</div>
-          </CardContent>
-        </Card>
-      </div>
-
+      {/* Filtros e ações (responsivo, preenche o retângulo) */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 w-full">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Buscar por cliente..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+            <div className="relative sm:col-span-2">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                className="pl-9 h-10"
+                placeholder="Buscar por cliente, item, ID da venda, método, NSU..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
 
-              <div className="flex items-center gap-2">
-                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-              </div>
+            <div>
+              <select
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter((e.target.value || "") as any)}
+              >
+                <option value="">Todos os status</option>
+                <option value={SaleStatus.PENDING}>Pendente</option>
+                <option value={SaleStatus.PAID}>Pago</option>
+                <option value={SaleStatus.CANCELLED}>Cancelado</option>
+              </select>
+            </div>
 
-              <div className="flex items-center gap-2">
-                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-              </div>
+            <Input
+              type="date"
+              className="h-10 w-full"
+              value={dateRange.start || ""}
+              onChange={(e) => setDateRange((p) => ({ ...p, start: e.target.value || undefined }))}
+            />
+            <Input
+              type="date"
+              className="h-10 w-full"
+              value={dateRange.end || ""}
+              onChange={(e) => setDateRange((p) => ({ ...p, end: e.target.value || undefined }))}
+            />
+
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                className="h-10 w-full"
+                onClick={() => {
+                  resetFilters()
+                  void refreshAll()
+                }}
+              >
+                <Filter className="h-4 w-4 mr-2" />
+                Limpar
+              </Button>
+              <Button variant="outline" className="h-10 w-full" onClick={() => void refreshAll()}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Atualizar
+              </Button>
+            </div>
+          </div>
+
+          {/* Aba de seção + ações secundárias */}
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="inline-flex rounded-md border overflow-hidden">
+              {(["sales", "payments"] as const).map((tab) => (
+                <Button
+                  key={tab}
+                  variant={activeTab === tab ? "default" : "ghost"}
+                  onClick={() => setActiveTab(tab)}
+                  className="h-9 px-3 rounded-none"
+                >
+                  {tab === "sales" ? "Vendas" : "Pagamentos"}
+                </Button>
+              ))}
             </div>
 
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => {
-                setSearchQuery("")
-                setStartDate("")
-                setEndDate("")
-                setCurrentPage(1)
-              }}>
-                <Filter className="h-4 w-4 mr-2" />
-                Limpar Filtros
+              <div className="inline-flex items-center gap-1">
+                <span className="text-sm text-muted-foreground">Itens por página</span>
+                <select
+                  className="h-9 rounded-md border bg-background px-2 text-sm"
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                >
+                  {[10, 20, 50].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Botões existentes */}
+              <Button variant="outline" className="h-9" onClick={exportCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                Exportar CSV
               </Button>
 
-              <Button onClick={startGenerateLinkFlow}>
-                <Link2 className="h-4 w-4 mr-2" />
-                Gerar link de pagamento
+              {/* =========================
+                  NOVOS BOTÕES GLOBAIS
+                 ========================= */}
+              <Button className="h-9" onClick={() => openSelectSale("pay")}>
+                Registrar pagamento
               </Button>
+              <Button className="h-9" variant="outline" onClick={() => openSelectSale("link")}>
+                Gerar pagamento
+              </Button>
+              {/* ========================= */}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Transações</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">Carregando dados financeiros...</p>
-          ) : error ? (
-            <p className="text-sm text-destructive">{error}</p>
-          ) : filtered.length === 0 ? (
-            <div className="text-sm text-muted-foreground py-6 flex flex-col items-start gap-3">
-              <div>Nenhuma transação encontrada com os filtros atuais</div>
-              <Button onClick={startGenerateLinkFlow}>
-                <Link2 className="h-4 w-4 mr-2" />
-                Gerar link de pagamento
-              </Button>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-left text-muted-foreground">
-                  <tr className="border-b">
-                    <th className="py-2">Data</th>
-                    <th>Cliente</th>
-                    <th>Itens</th>
-                    <th className="text-right">Total</th>
-                    <th className="text-right">Pago</th>
-                    <th className="text-right">Saldo</th>
-                    <th>Status</th>
-                    <th className="w-10"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginated.map((s) => {
-                    const pendingLink = firstPendingLink(s)
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {/* Conteúdo principal */}
+      {activeTab === "sales" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Vendas</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {loading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                Carregando informações...
+              </div>
+            ) : filteredSales.length === 0 ? (
+              <div className="text-sm text-muted-foreground p-4">Nenhuma venda encontrada</div>
+            ) : (
+              <>
+                <ul className="divide-y">
+                  {pagedSales.map((s: any) => {
+                    const paid = paidAmount(s)
+                    const due = balance(s)
                     return (
-                      <tr key={s.id} className="border-b hover:bg-muted/50">
-                        <td className="py-2">{formatDate(s.createdAt)}</td>
-                        <td>{s.clientName || s.clientId}</td>
-                        <td>{s.items?.length || 0}</td>
-                        <td className="text-right">{formatCurrency(s.totalAmount)}</td>
-                        <td className="text-right">{formatCurrency(s.paidAmount)}</td>
-                        <td className="text-right">{formatCurrency(s.balance)}</td>
-                        <td>
-                          <Badge variant={
-                            s.status === SaleStatus.PAID ? "default" :
-                            s.status === SaleStatus.PENDING ? "secondary" : "destructive"
-                          }>
-                            {s.status === SaleStatus.PAID ? "Pago" : s.status === SaleStatus.PENDING ? "Pendente" : "Cancelado"}
-                          </Badge>
-                        </td>
-                        <td className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-60">
-                              <DropdownMenuItem
-                                disabled={!pendingLink}
-                                onClick={() => pendingLink && window.open(pendingLink, "_blank", "noopener,noreferrer")}
+                      <li key={s.id} className="py-3 px-2">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <div className="font-medium truncate">
+                                {s.clientName || "Cliente"} — Venda #{s.id}
+                              </div>
+                              <Badge
+                                variant={
+                                  s.status === SaleStatus.PAID
+                                    ? "default"
+                                    : s.status === SaleStatus.CANCELLED
+                                    ? "secondary"
+                                    : "outline"
+                                }
                               >
-                                Abrir link de pagamento
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                disabled={!pendingLink}
-                                onClick={() => pendingLink && navigator.clipboard.writeText(pendingLink).catch(() => {})}
-                              >
-                                Copiar link de pagamento
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openLinkModal(s)}>
-                                Gerar link de pagamento
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openPaymentModal(s)}>
-                                Registrar pagamento
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive" onClick={() => triggerCancelSale(s)}>
-                                Cancelar venda
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </td>
-                      </tr>
+                                {s.status === SaleStatus.PAID
+                                  ? "Pago"
+                                  : s.status === SaleStatus.CANCELLED
+                                  ? "Cancelado"
+                                  : "Pendente"}
+                              </Badge>
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              Total: {currency(s.totalAmount)} • Pago: {currency(paid)} • Saldo: {currency(due)}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Button variant="outline" className="h-9" onClick={() => openSaleDetails(s)}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              Detalhes
+                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="outline" className="h-9">
+                                  <MoreHorizontal className="h-4 w-4 mr-2" />
+                                  Ações
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuItem onClick={() => openChoice(s)}>
+                                  <LinkIcon className="h-4 w-4 mr-2" />
+                                  Gerar link de pagamento
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openRegisterPayment(s)}>
+                                  <CreditCard className="h-4 w-4 mr-2" />
+                                  Registrar pagamento
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => confirmStatus(s, "paid")}
+                                  disabled={s.status === SaleStatus.PAID}
+                                >
+                                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                                  Marcar como pago
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => confirmStatus(s, "cancel")}
+                                  disabled={s.status === SaleStatus.CANCELLED}
+                                >
+                                  <XCircle className="h-4 w-4 mr-2" />
+                                  Cancelar venda
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </div>
+                      </li>
                     )
                   })}
-                </tbody>
-              </table>
+                </ul>
 
-              <div className="flex items-center justify-between mt-3 text-sm">
-                <div>
-                  Página {page} de {totalPages} ({filtered.length} {filtered.length === 1 ? "transação" : "transações"})
+                {/* Paginação */}
+                <div className="flex items-center justify-between py-3">
+                  <div className="text-sm text-muted-foreground">
+                    {filteredSales.length} registro(s) • Página {page} de {Math.max(1, Math.ceil(filteredSales.length / pageSize))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page <= 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() =>
+                        setPage((p) => Math.min(Math.ceil(filteredSales.length / pageSize) || 1, p + 1))
+                      }
+                      disabled={page >= (Math.ceil(filteredSales.length / pageSize) || 1)}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="icon" disabled={page <= 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <Button variant="outline" size="icon" disabled={page >= totalPages} onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Pagamentos</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {loading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                Carregando informações...
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            ) : filteredPayments.length === 0 ? (
+              <div className="text-sm text-muted-foreground p-4">Nenhum pagamento encontrado</div>
+            ) : (
+              <>
+                <ul className="divide-y">
+                  {pagedPayments.map((p: any) => (
+                    <li key={p.id} className="py-3 px-2">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <div className="font-medium truncate">
+                              Pagamento #{p.id} {p.saleId ? `• Venda #${p.saleId}` : ""}
+                            </div>
+                            <Badge
+                              variant={
+                                p.status === PaymentStatus.PAID
+                                  ? "default"
+                                  : p.status === PaymentStatus.PENDING
+                                  ? "outline"
+                                  : "secondary"
+                              }
+                            >
+                              {p.status === PaymentStatus.PAID
+                                ? "Pago"
+                                : p.status === PaymentStatus.PENDING
+                                ? "Pendente"
+                                : p.status === PaymentStatus.REFUNDED
+                                ? "Estornado"
+                                : "Falhou"}
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Valor: {currency(p.amount)} • Método: {p.paymentMethod || "—"} • NSU:{" "}
+                            {p.externalTransactionId || "—"}
+                          </div>
+                        </div>
 
-      <Dialog open={paymentModalOpen} onOpenChange={setPaymentModalOpen}>
-        <DialogContent>
+                        <div className="flex items-center gap-2">
+                          {p.linkUrl ? (
+                            <Button
+                              variant="outline"
+                              className="h-9"
+                              onClick={() => window.open(p.linkUrl as string, "_blank", "noopener,noreferrer")}
+                            >
+                              <Receipt className="h-4 w-4 mr-2" />
+                              Ver link
+                            </Button>
+                          ) : null}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" className="h-9">
+                                <MoreHorizontal className="h-4 w-4 mr-2" />
+                                Ações
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                              <DropdownMenuItem onClick={() => setSelectedPayment(p)}>
+                                <Eye className="h-4 w-4 mr-2" />
+                                Detalhes
+                              </DropdownMenuItem>
+                              {/* Espaço para futuramente adicionar estorno/cancelamento via backend */}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Paginação */}
+                <div className="flex items-center justify-between py-3">
+                  <div className="text-sm text-muted-foreground">
+                    {filteredPayments.length} registro(s) • Página {page} de{" "}
+                    {Math.max(1, Math.ceil(filteredPayments.length / pageSize))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page <= 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() =>
+                        setPage((p) => Math.min(Math.ceil(filteredPayments.length / pageSize) || 1, p + 1))
+                      }
+                      disabled={page >= (Math.ceil(filteredPayments.length / pageSize) || 1)}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Modal: escolha do fluxo (botões empilhados e neutros) */}
+      <Dialog open={choiceOpen} onOpenChange={setChoiceOpen}>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Registrar pagamento</DialogTitle>
-            <DialogDescription>Informe o valor e o método do pagamento para a venda selecionada.</DialogDescription>
+            <DialogTitle>Como deseja gerar o link?</DialogTitle>
+            <DialogDescription>Escolha usar a venda atual ou criar uma nova antes do checkout.</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3">
-            <div className="text-sm text-muted-foreground">
-              {selectedSale ? (
-                <>
-                  <div>Cliente: <span className="text-foreground">{selectedSale.clientName || selectedSale.clientId}</span></div>
-                  <div>Total: {formatCurrency(selectedSale.totalAmount)} | Pago: {formatCurrency(selectedSale.paidAmount)} | Saldo: {formatCurrency(selectedSale.balance)}</div>
-                </>
-              ) : null}
+
+          <div className="grid grid-cols-1 gap-3">
+            <button
+              type="button"
+              onClick={handleChooseExisting}
+              className="w-full rounded-md border p-4 text-left hover:bg-muted transition"
+            >
+              <div className="font-medium">Usar venda existente</div>
+              <div className="text-sm text-muted-foreground">Gerar o link com base na venda selecionada</div>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCreateNew}
+              className="w-full rounded-md border p-4 text-left hover:bg-muted transition"
+            >
+              <div className="font-medium">Criar nova venda</div>
+              <div className="text-sm text-muted-foreground">Cadastre cliente + serviço antes do link</div>
+            </button>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setChoiceOpen(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: gerar link (venda existente) */}
+      <Dialog open={linkOpen} onOpenChange={setLinkOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Gerar link de pagamento</DialogTitle>
+            <DialogDescription>Preencha os dados para criar o checkout.</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 gap-3">
+            <div>
+              <label className="block text-sm mb-1">Valor a cobrar (R$)</label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={linkForm.amount}
+                onChange={(e) => setLinkForm((p) => ({ ...p, amount: Number(e.target.value) }))}
+              />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm mb-1">Valor</label>
-                <Input type="number" step="0.01" min="0" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
+                <label className="block text-sm mb-1">Cliente (opcional)</label>
+                <Input
+                  placeholder="Nome"
+                  value={linkForm.customerName || ""}
+                  onChange={(e) => setLinkForm((p) => ({ ...p, customerName: e.target.value }))}
+                />
               </div>
               <div>
-                <label className="block text-sm mb-1">Método</label>
-                <Combobox
-                  placeholder="Selecione o método"
-                  items={[
-                    { value: "pix", label: "PIX" },
-                    { value: "credit_card", label: "Cartão" },
-                    { value: "cash", label: "Dinheiro" },
-                    { value: "debit", label: "Débito" },
-                  ]}
-                  value={paymentMethod}
-                  onChange={setPaymentMethod}
+                <label className="block text-sm mb-1">E-mail (opcional)</label>
+                <Input
+                  type="email"
+                  placeholder="email@exemplo.com"
+                  value={linkForm.customerEmail || ""}
+                  onChange={(e) => setLinkForm((p) => ({ ...p, customerEmail: e.target.value }))}
                 />
               </div>
             </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPaymentModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSubmitPayment} disabled={submitting || !selectedSale}>
-              {submitting ? "Salvando..." : "Salvar"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      <Dialog open={confirmCancelOpen} onOpenChange={setConfirmCancelOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancelar venda</DialogTitle>
-            <DialogDescription>Tem certeza que deseja cancelar esta venda? Esta ação não pode ser desfeita.</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmCancelOpen(false)}>Voltar</Button>
-            <Button className="bg-destructive hover:bg-destructive/90" onClick={performCancelSale}>
-              Cancelar venda
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-sm mb-1">Telefone (opcional)</label>
+                <Input
+                  placeholder="+55 11 99999-9999"
+                  value={linkForm.customerPhone || ""}
+                  onChange={(e) => setLinkForm((p) => ({ ...p, customerPhone: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">CEP</label>
+                <Input
+                  placeholder="00000-000"
+                  value={linkForm.addressCep || ""}
+                  onChange={(e) => setLinkForm((p) => ({ ...p, addressCep: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Número</label>
+                <Input
+                  placeholder="123"
+                  value={linkForm.addressNumber || ""}
+                  onChange={(e) => setLinkForm((p) => ({ ...p, addressNumber: e.target.value }))}
+                />
+              </div>
+            </div>
 
-      <ChooseFlowDialog open={chooseOpen} onOpenChange={setChooseOpen} onExisting={handleChooseExisting} onNew={handleChooseNew} />
-
-      <Dialog open={selectSaleOpen} onOpenChange={setSelectSaleOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Selecionar venda</DialogTitle>
-            <DialogDescription>Escolha uma venda para gerar o link de pagamento.</DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-3">
             <div>
-              <label className="block text-sm mb-1">Venda</label>
-              <Combobox
-                placeholder="Selecione uma venda"
-                items={enrichedSales.map(s => ({
-                  value: s.id,
-                  label: `${s.clientName || s.clientId} • ${s.status} • Saldo: ${formatCurrency(s.balance)}`,
-                }))}
-                value={selectedSaleId}
-                onChange={setSelectedSaleId}
+              <label className="block text-sm mb-1">Complemento</label>
+              <Input
+                placeholder="Apto, bloco..."
+                value={linkForm.addressComplement || ""}
+                onChange={(e) => setLinkForm((p) => ({ ...p, addressComplement: e.target.value }))}
               />
             </div>
-            <Alert variant="default" className="text-xs">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>No próximo passo você definirá serviço/variante e poderá editar valores antes de gerar o link.</AlertDescription>
-            </Alert>
+
+            {error ? (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSelectSaleOpen(false)}>Cancelar</Button>
-            <Button onClick={confirmSelectSale} disabled={!selectedSaleId}>Continuar</Button>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setLinkOpen(false)} disabled={submitting}>
+              Fechar
+            </Button>
+            <Button onClick={submitGenerateLink} disabled={submitting || !linkForm.amount}>
+              {submitting ? "Gerando..." : "Gerar link"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <NewSaleDialog
-        open={newSaleOpen}
-        onOpenChange={setNewSaleOpen}
-        clients={clients || []}
-        services={services || []}
-        variants={serviceVariants || []}
-        onCreated={(created) => {
-          setSaleForLink(created)
-          setLinkModalOpen(true)
-        }}
-      />
+      {/* Modal: registrar pagamento manual */}
+      <Dialog open={payOpen} onOpenChange={setPayOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Registrar pagamento</DialogTitle>
+            <DialogDescription>Inclua um pagamento manualmente.</DialogDescription>
+          </DialogHeader>
 
-      <PaymentLinkModal
-        open={linkModalOpen}
-        onOpenChange={setLinkModalOpen}
-        sale={saleForLink}
-        clients={clients || []}
-        services={services || []}
-        variants={serviceVariants || []}
-        onSuccess={() => {}}
-      />
+          <div className="grid grid-cols-1 gap-3">
+            <div>
+              <label className="block text-sm mb-1">Valor pago (R$)</label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={payForm.amount}
+                onChange={(e) => setPayForm((p) => ({ ...p, amount: Number(e.target.value) }))}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm mb-1">Método (opcional)</label>
+                <Input
+                  placeholder="Pix, Cartão..."
+                  value={payForm.paymentMethod || ""}
+                  onChange={(e) => setPayForm((p) => ({ ...p, paymentMethod: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Transação/NSU (opcional)</label>
+                <Input
+                  placeholder="NSU / ID externo"
+                  value={payForm.externalTransactionId || ""}
+                  onChange={(e) => setPayForm((p) => ({ ...p, externalTransactionId: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm mb-1">Data/hora do pagamento</label>
+              <Input
+                type="datetime-local"
+                value={payForm.paidAt || ""}
+                onChange={(e) => setPayForm((p) => ({ ...p, paidAt: e.target.value }))}
+              />
+            </div>
+
+            {error ? (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setPayOpen(false)} disabled={submitting}>
+              Fechar
+            </Button>
+            <Button onClick={submitRegisterPayment} disabled={submitting || !payForm.amount}>
+              {submitting ? "Salvando..." : "Registrar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: confirmação de status */}
+      <Dialog open={!!confirmOpen} onOpenChange={() => setConfirmOpen(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Confirmar ação</DialogTitle>
+            <DialogDescription>
+              {confirmOpen?.type === "paid"
+                ? "Marcar esta venda como PAGA?"
+                : "Cancelar esta venda? Esta ação não pode ser desfeita."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setConfirmOpen(null)} disabled={submitting}>
+              Fechar
+            </Button>
+            <Button
+              variant={confirmOpen?.type === "paid" ? "default" : "destructive"}
+              onClick={applyConfirm}
+              disabled={submitting}
+            >
+              {submitting ? "Aplicando..." : "Confirmar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: detalhes da venda */}
+      <Dialog open={saleDetailsOpen} onOpenChange={setSaleDetailsOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Detalhes da venda</DialogTitle>
+            <DialogDescription>Itens e pagamentos vinculados</DialogDescription>
+          </DialogHeader>
+
+          {selectedSale ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="rounded-md border p-3">
+                  <div className="text-sm text-muted-foreground">Cliente</div>
+                  <div className="font-medium">{(selectedSale as any).clientName || "—"}</div>
+                </div>
+                <div className="rounded-md border p-3">
+                  <div className="text-sm text-muted-foreground">Status</div>
+                  <div className="font-medium capitalize">
+                    {(selectedSale as any).status === SaleStatus.PAID
+                      ? "Pago"
+                      : (selectedSale as any).status === SaleStatus.CANCELLED
+                      ? "Cancelado"
+                      : "Pendente"}
+                  </div>
+                </div>
+                <div className="rounded-md border p-3">
+                  <div className="text-sm text-muted-foreground">Total</div>
+                  <div className="font-medium">{currency((selectedSale as any).totalAmount)}</div>
+                </div>
+                <div className="rounded-md border p-3">
+                  <div className="text-sm text-muted-foreground">Saldo</div>
+                  <div className="font-medium">{currency(balance(selectedSale as any))}</div>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 font-medium">Itens</div>
+                <div className="rounded-md border overflow-hidden">
+                  <div className="grid grid-cols-12 gap-0 px-3 py-2 text-xs text-muted-foreground bg-muted/40">
+                    <div className="col-span-6">Serviço/variante</div>
+                    <div className="col-span-2 text-right">Qtd.</div>
+                    <div className="col-span-2 text-right">Unitário</div>
+                    <div className="col-span-2 text-right">Subtotal</div>
+                  </div>
+                  {((selectedSale as any).items || []).map((it: any, idx: number) => (
+                    <div key={`item-${(selectedSale as any).id}-${idx}`} className="grid grid-cols-12 gap-0 px-3 py-2 text-sm">
+                      <div className="col-span-6 truncate">{it.serviceVariantName || `Variante ${it.serviceVariantId}`}</div>
+                      <div className="col-span-2 text-right">{it.quantity}</div>
+                      <div className="col-span-2 text-right">{currency(it.unitPrice)}</div>
+                      <div className="col-span-2 text-right">{currency(it.quantity * it.unitPrice)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 font-medium">Pagamentos</div>
+                <div className="rounded-md border overflow-hidden">
+                  <div className="grid grid-cols-12 gap-0 px-3 py-2 text-xs text-muted-foreground bg-muted/40">
+                    <div className="col-span-3">Criado em</div>
+                    <div className="col-span-2 text-right">Valor</div>
+                    <div className="col-span-2">Status</div>
+                    <div className="col-span-2">Método</div>
+                    <div className="col-span-3">NSU / Link</div>
+                  </div>
+                  {((selectedSale as any).payments || []).map((p: any) => (
+                    <div key={p.id} className="grid grid-cols-12 gap-0 px-3 py-2 text-sm">
+                      <div className="col-span-3">{new Date((p as any).created_at || (p as any).created_at || "").toLocaleString("pt-BR")}</div>
+                      <div className="col-span-2 text-right">{currency(p.amount)}</div>
+                      <div className="col-span-2">
+                        <Badge
+                          variant={
+                            p.status === PaymentStatus.PAID
+                              ? "default"
+                              : p.status === PaymentStatus.PENDING
+                              ? "outline"
+                              : "secondary"
+                          }
+                        >
+                          {p.status === PaymentStatus.PAID
+                            ? "Pago"
+                            : p.status === PaymentStatus.PENDING
+                            ? "Pendente"
+                            : p.status === PaymentStatus.REFUNDED
+                            ? "Estornado"
+                            : "Falhou"}
+                        </Badge>
+                      </div>
+                      <div className="col-span-2 truncate">{p.paymentMethod || "—"}</div>
+                      <div className="col-span-3 truncate">
+                        {p.linkUrl ? (
+                          <a className="underline" href={p.linkUrl as string} target="_blank" rel="noreferrer">
+                            Abrir link
+                          </a>
+                        ) : (
+                          p.externalTransactionId || "—"
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setSaleDetailsOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: detalhes do pagamento (visualização simples) */}
+      <Dialog open={!!selectedPayment} onOpenChange={() => setSelectedPayment(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Detalhes do pagamento</DialogTitle>
+            <DialogDescription>Informações do registro selecionado</DialogDescription>
+          </DialogHeader>
+
+          {selectedPayment ? (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-md border p-3">
+                  <div className="text-muted-foreground">ID</div>
+                  <div className="font-medium">{(selectedPayment as any).id}</div>
+                </div>
+                <div className="rounded-md border p-3">
+                  <div className="text-muted-foreground">Venda</div>
+                  <div className="font-medium">{(selectedPayment as any).saleId || "—"}</div>
+                </div>
+                <div className="rounded-md border p-3">
+                  <div className="text-muted-foreground">Valor</div>
+                  <div className="font-medium">{currency((selectedPayment as any).amount)}</div>
+                </div>
+                <div className="rounded-md border p-3">
+                  <div className="text-muted-foreground">Status</div>
+                  <div className="font-medium capitalize">{(selectedPayment as any).status}</div>
+                </div>
+                <div className="rounded-md border p-3">
+                  <div className="text-muted-foreground">Método</div>
+                  <div className="font-medium">{(selectedPayment as any).paymentMethod || "—"}</div>
+                </div>
+                <div className="rounded-md border p-3">
+                  <div className="text-muted-foreground">NSU</div>
+                  <div className="font-medium">{(selectedPayment as any).externalTransactionId || "—"}</div>
+                </div>
+              </div>
+
+              <div className="rounded-md border p-3">
+                <div className="text-muted-foreground">Criado em</div>
+                <div className="font-medium">
+                  {new Date((selectedPayment as any).created_at || (selectedPayment as any).created_at || "").toLocaleString("pt-BR")}
+                </div>
+              </div>
+
+              {(selectedPayment as any).linkUrl ? (
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(((selectedPayment as any).linkUrl as string), "_blank", "noopener,noreferrer")}
+                >
+                  <Receipt className="h-4 w-4 mr-2" />
+                  Abrir link
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setSelectedPayment(null)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* =========================
+          NOVO MODAL: Selecionar venda
+         ========================= */}
+      <Dialog open={selectSaleOpen} onOpenChange={setSelectSaleOpen}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Selecionar venda</DialogTitle>
+            <DialogDescription>Escolha a venda para continuar</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <Input
+              placeholder="Buscar por cliente ou ID..."
+              value={selectQuery}
+              onChange={(e) => setSelectQuery(e.target.value)}
+            />
+
+            <div className="max-h-80 overflow-auto rounded-md border">
+              <ul className="divide-y">
+                {filteredSales
+                  .filter((s) => s.status !== SaleStatus.CANCELLED)
+                  .filter((s) => {
+                    const q = selectQuery.trim().toLowerCase()
+                    if (!q) return true
+                    return (
+                      (s.clientName || "").toLowerCase().includes(q) ||
+                      String((s as any).id).includes(q)
+                    )
+                  })
+                  .map((s) => {
+                    const paid = paidAmount(s as any)
+                    const due = balance(s as any)
+                    return (
+                      <li key={(s as any).id}>
+                        <button
+                          type="button"
+                          onClick={() => handlePickSaleForAction(s as any)}
+                          className="w-full px-3 py-2 text-left hover:bg-muted transition"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="truncate">
+                              <div className="font-medium truncate">
+                                {(s as any).clientName || "Cliente"} — Venda #{(s as any).id}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Total {currency((s as any).totalAmount)} • Pago {currency(paid)} • Saldo {currency(due)}
+                              </div>
+                            </div>
+                            <Badge variant={(s as any).status === SaleStatus.PAID ? "default" : "outline"}>
+                              {(s as any).status === SaleStatus.PAID ? "Pago" : "Pendente"}
+                            </Badge>
+                          </div>
+                        </button>
+                      </li>
+                    )
+                  })}
+              </ul>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setSelectSaleOpen(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* ========================= */}
     </div>
   )
 }

@@ -169,7 +169,7 @@ export async function getServices(): Promise<Service[]> {
       description: s.description || "",
       category: s.category || "",
       active: !!s.is_active,
-      createdAt: s.created_at,
+      created_at: s.created_at,
       updatedAt: s.updated_at || undefined,
     }))
   } catch (error) {
@@ -178,7 +178,7 @@ export async function getServices(): Promise<Service[]> {
   }
 }
 
-export async function createService(service: Omit<Service, "id" | "createdAt" | "updatedAt">): Promise<Service> {
+export async function createService(service: Omit<Service, "id" | "created_at" | "updatedAt">): Promise<Service> {
   try {
     const payload: any = {
       name: service.name,
@@ -197,7 +197,7 @@ export async function createService(service: Omit<Service, "id" | "createdAt" | 
       description: data.description || "",
       category: data.category || "",
       active: !!data.is_active,
-      createdAt: data.created_at,
+      created_at: data.created_at,
       updatedAt: data.updated_at || undefined,
     }
   } catch (error) {
@@ -226,7 +226,7 @@ export async function updateService(id: string, service: Partial<Service>): Prom
       description: data.description || "",
       category: data.category || "",
       active: !!data.is_active,
-      createdAt: data.created_at,
+      created_at: data.created_at,
       updatedAt: data.updated_at || undefined,
     }
   } catch (error) {
@@ -263,7 +263,7 @@ export async function getServiceVariants(): Promise<ServiceVariant[]> {
       price: parseFloat(v.price),
       duration: v.duration_minutes, // mapeia para duration do domínio
       active: !!v.is_active,
-      createdAt: v.created_at,
+      created_at: v.created_at,
       updatedAt: v.updated_at || undefined,
     }))
   } catch (error) {
@@ -272,7 +272,7 @@ export async function getServiceVariants(): Promise<ServiceVariant[]> {
   }
 }
 
-export async function createServiceVariant(variant: Omit<ServiceVariant, "id" | "createdAt" | "updatedAt">): Promise<ServiceVariant> {
+export async function createServiceVariant(variant: Omit<ServiceVariant, "id" | "created_at" | "updatedAt">): Promise<ServiceVariant> {
   try {
     const payload: any = {
       service_id: parseInt(variant.serviceId),
@@ -293,7 +293,7 @@ export async function createServiceVariant(variant: Omit<ServiceVariant, "id" | 
       price: parseFloat(data.price),
       duration: data.duration_minutes,
       active: !!data.is_active,
-      createdAt: data.created_at,
+      created_at: data.created_at,
       updatedAt: data.updated_at || undefined,
     }
   } catch (error) {
@@ -324,7 +324,7 @@ export async function updateServiceVariant(id: string, variant: Partial<ServiceV
       price: parseFloat(data.price),
       duration: data.duration_minutes,
       active: !!data.is_active,
-      createdAt: data.created_at,
+      created_at: data.created_at,
       updatedAt: data.updated_at || undefined,
     }
   } catch (error) {
@@ -370,7 +370,7 @@ export async function getAppointments(): Promise<Appointment[]> {
       notes: apt.notes || "",
       totalPrice: 0,
       googleCalendarEventId: apt.google_calendar_event_id || undefined,
-      createdAt: apt.created_at,
+      created_at: apt.created_at,
     }))
   } catch (error) {
     console.error("Error in getAppointments:", error)
@@ -402,7 +402,7 @@ export async function getAppointmentsByDateRange(startDate: string, endDate: str
       notes: apt.notes || "",
       totalPrice: 0,
       googleCalendarEventId: apt.google_calendar_event_id || undefined,
-      createdAt: apt.created_at,
+      created_at: apt.created_at,
     }))
   } catch (error) {
     console.error("Error in getAppointmentsByDateRange:", error)
@@ -410,7 +410,7 @@ export async function getAppointmentsByDateRange(startDate: string, endDate: str
   }
 }
 
-export async function createAppointment(appointment: Omit<Appointment, "id" | "createdAt">): Promise<Appointment> {
+export async function createAppointment(appointment: Omit<Appointment, "id" | "created_at">): Promise<Appointment> {
   try {
     const payload: any = {
       client_id: parseInt(appointment.clientId),
@@ -438,7 +438,7 @@ export async function createAppointment(appointment: Omit<Appointment, "id" | "c
       notes: data.notes || "",
       totalPrice: 0,
       googleCalendarEventId: data.google_calendar_event_id || undefined,
-      createdAt: data.created_at,
+      created_at: data.created_at,
     }
   } catch (error) {
     console.error("Error in createAppointment:", error)
@@ -475,7 +475,7 @@ export async function updateAppointment(id: string, appointment: Partial<Appoint
       notes: data.notes || "",
       totalPrice: 0,
       googleCalendarEventId: data.google_calendar_event_id || undefined,
-      createdAt: data.created_at,
+      created_at: data.created_at,
     }
   } catch (error) {
     console.error("Error in updateAppointment:", error)
@@ -560,13 +560,13 @@ export async function getSales(): Promise<Sale[]> {
         amount: parseFloat(p.amount),
         paymentMethod: p.payment_method || undefined,
         externalTransactionId: p.external_transaction_id || undefined,
-        paymentLinkUrl: p.payment_link_url || undefined,
+        paymentlinkUrl: p.payment_link_url || undefined,
         status: p.status,
         paidAt: p.paid_at || undefined,
-        createdAt: p.created_at,
+        created_at: p.created_at,
         updatedAt: p.updated_at || undefined,
       })),
-      createdAt: s.created_at,
+      created_at: s.created_at,
       updatedAt: s.updated_at || undefined,
     }))
 
@@ -590,10 +590,10 @@ export async function getPayments(): Promise<Payment[]> {
       amount: parseFloat(p.amount),
       paymentMethod: p.payment_method || undefined,
       externalTransactionId: p.external_transaction_id || undefined,
-      paymentLinkUrl: p.payment_link_url || undefined,
+      paymentlinkUrl: p.payment_link_url || undefined,
       status: p.status,
       paidAt: p.paid_at || undefined,
-      createdAt: p.created_at,
+      created_at: p.created_at,
       updatedAt: p.updated_at || undefined,
     }))
   } catch (error) {
@@ -602,7 +602,7 @@ export async function getPayments(): Promise<Payment[]> {
   }
 }
 
-type NewSale = Omit<Sale, "id" | "payments" | "createdAt" | "updatedAt" | "clientName" | "totalAmount"> & {
+type NewSale = Omit<Sale, "id" | "payments" | "created_at" | "updatedAt" | "clientName" | "totalAmount"> & {
   totalAmount?: number
 }
 
@@ -696,7 +696,7 @@ export async function createPayment(payment: Omit<Payment, "id">): Promise<Payme
         ? null
         : (payment.paymentMethod ?? null),
       external_transaction_id: payment.externalTransactionId ?? null,
-      payment_link_url: payment.paymentLinkUrl ?? null,
+      payment_link_url: payment.paymentlinkUrl ?? null,
       status: payment.status as PaymentStatus,
       paid_at: payment.status === PaymentStatus.PAID
         ? (payment.paidAt ?? new Date().toISOString())
@@ -720,10 +720,10 @@ export async function createPayment(payment: Omit<Payment, "id">): Promise<Payme
       amount: Number(data.amount),
       paymentMethod: data.payment_method ?? undefined,
       externalTransactionId: data.external_transaction_id ?? undefined,
-      paymentLinkUrl: data.payment_link_url ?? undefined,
+      paymentlinkUrl: data.payment_link_url ?? undefined,
       status: data.status,
       paidAt: data.paid_at ?? undefined,
-      createdAt: data.created_at,
+      created_at: data.created_at,
       updatedAt: data.updated_at ?? undefined,
     } as Payment
   } catch (e) {

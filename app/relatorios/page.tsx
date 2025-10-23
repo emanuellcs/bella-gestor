@@ -124,8 +124,8 @@ export default function RelatoriosPage() {
     return {
       clients: (clients || []).filter((c) => new Date(c.registrationDate) >= startDate),
       appointments: (appointments || []).filter((a) => new Date(a.startTime) >= startDate),
-      sales: (sales || []).filter((s) => new Date(s.createdAt) >= startDate),
-      payments: (payments || []).filter((p) => new Date(p.createdAt) >= startDate && p.status === "paid"),
+      sales: (sales || []).filter((s) => new Date(s.created_at) >= startDate),
+      payments: (payments || []).filter((p) => new Date(p.created_at) >= startDate && p.status === "paid"),
     }
   }
 
@@ -151,11 +151,11 @@ export default function RelatoriosPage() {
         return d >= startDate && d < endDate
       }),
       sales: (sales || []).filter((s) => {
-        const d = new Date(s.createdAt)
+        const d = new Date(s.created_at)
         return d >= startDate && d < endDate
       }),
       payments: (payments || []).filter((p) => {
-        const d = new Date(p.createdAt)
+        const d = new Date(p.created_at)
         return d >= startDate && d < endDate && p.status === "paid"
       }),
     }

@@ -36,15 +36,15 @@ interface DataContextType {
   searchClients: (query: string) => Promise<Client[]>
 
   // Appointments
-  addAppointment: (appointment: Omit<Appointment, "id" | "createdAt">) => Promise<Appointment | null>
+  addAppointment: (appointment: Omit<Appointment, "id" | "created_at">) => Promise<Appointment | null>
   updateAppointment: (id: string, appointment: Partial<Appointment>) => Promise<Appointment | null>
   deleteAppointment: (id: string) => Promise<boolean>
 
   // Services
-  addService: (service: Omit<Service, "id" | "createdAt" | "updatedAt">) => Promise<Service | null>
+  addService: (service: Omit<Service, "id" | "created_at" | "updatedAt">) => Promise<Service | null>
   updateService: (id: string, service: Partial<Service>) => Promise<Service | null>
   deleteService: (id: string) => Promise<boolean>
-  addServiceVariant: (variant: Omit<ServiceVariant, "id" | "createdAt" | "updatedAt">) => Promise<ServiceVariant | null>
+  addServiceVariant: (variant: Omit<ServiceVariant, "id" | "created_at" | "updatedAt">) => Promise<ServiceVariant | null>
   updateServiceVariant: (id: string, variant: Partial<ServiceVariant>) => Promise<ServiceVariant | null>
   deleteServiceVariant: (id: string) => Promise<boolean>
 
@@ -136,7 +136,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Criação de pagamento: aceita externalTransactionId=order_nsu e paymentLinkUrl quando gerar link
+  // Criação de pagamento: aceita externalTransactionId=order_nsu e paymentlinkUrl quando gerar link
   const createPayment = async (payment: Omit<Payment, "id">): Promise<Payment | null> => {
     try {
       const created = await (api as any).createPayment?.(payment)
@@ -269,7 +269,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }
 
   const addAppointment = async (
-    appointment: Omit<Appointment, "id" | "createdAt">
+    appointment: Omit<Appointment, "id" | "created_at">
   ): Promise<Appointment | null> => {
     try {
       const created = await api.createAppointment?.(appointment as any)
@@ -312,7 +312,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const addService = async (service: Omit<Service, "id" | "createdAt" | "updatedAt">): Promise<Service | null> => {
+  const addService = async (service: Omit<Service, "id" | "created_at" | "updatedAt">): Promise<Service | null> => {
     try {
       const created = await api.createService?.(service as any)
       await refreshData()
@@ -355,7 +355,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }
 
   const addServiceVariant = async (
-    variant: Omit<ServiceVariant, "id" | "createdAt" | "updatedAt">
+    variant: Omit<ServiceVariant, "id" | "created_at" | "updatedAt">
   ): Promise<ServiceVariant | null> => {
     try {
       const created = await api.createServiceVariant?.(variant as any)

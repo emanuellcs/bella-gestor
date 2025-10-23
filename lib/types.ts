@@ -136,7 +136,7 @@ export interface UserIntegration {
   googleCalendarAccessToken: string | null
   googleCalendarRefreshToken: string | null
   googleCalendarConnectedAt: string | null
-  createdAt: string
+  created_at: string
   updatedAt: string | null
 }
 
@@ -177,7 +177,7 @@ export interface Service {
   category: string
   active: boolean
   variants?: ServiceVariant[]
-  createdAt: string
+  created_at: string
   updatedAt?: string
 }
 
@@ -188,7 +188,7 @@ export interface ServiceVariant {
   price: number
   duration: number
   active: boolean
-  createdAt: string
+  created_at: string
   updatedAt?: string
 }
 
@@ -206,7 +206,7 @@ export interface Appointment {
   totalPrice: number
   saleId?: string
   googleCalendarEventId?: string
-  createdAt: string
+  created_at: string
   updatedAt?: string
 }
 
@@ -226,7 +226,7 @@ export interface Sale {
   status: SaleStatus
   notes?: string
   payments: Payment[]
-  createdAt: string
+  created_at: string
   updatedAt?: string
 }
 
@@ -245,10 +245,10 @@ export interface Payment {
   amount: number
   paymentMethod?: string
   externalTransactionId?: string
-  paymentLinkUrl?: string
+  linkUrl?: string
   status: PaymentStatus
   paidAt?: string
-  createdAt: string
+  created_at: string
   updatedAt?: string
 }
 
