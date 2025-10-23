@@ -1,15 +1,33 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/lib/auth-context"
 import { useData } from "@/lib/data-context"
-import { Users, Calendar, DollarSign, TrendingUp, CalendarX, Clock, User, MapPin, Award } from "lucide-react"
-import { Line, LineChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts"
-import { listCalendarEvents } from '@/services/googleCalendarAppsScript'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import Link from 'next/link'
+import {
+  Users,
+  Calendar,
+  DollarSign,
+  TrendingUp,
+  CalendarX,
+  Clock,
+  User,
+  MapPin,
+  Award,
+} from "lucide-react"
+import {
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from "recharts"
+import { listCalendarEvents } from "@/services/googleCalendarAppsScript"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
 
 interface CalendarEvent {
   id: string
@@ -29,8 +47,9 @@ interface ServiceStats {
 }
 
 export default function DashboardPage() {
-  const { user } = useAuth()
-  const { clients, appointments } = useData()
+  const user = useAuth()
+  const { clients, appointments, payments } = useData()
+
   const [upcomingEvents, setUpcomingEvents] = useState<CalendarEvent[]>([])
   const [loadingEvents, setLoadingEvents] = useState(true)
   const [eventsError, setEventsError] = useState<string | null>(null)
@@ -43,6 +62,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadUpcomingAppointments()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function loadUpcomingAppointments() {
@@ -55,59 +75,55 @@ export default function DashboardPage() {
 
       // Busca próximos eventos
       const result = await listCalendarEvents(now.toISOString(), endOfWeek.toISOString())
-      
-      if (result.success && result.events) {
-        const futureEvents = result.events
-          .filter((event: CalendarEvent) => new Date(event.start.dateTime) > now)
-          .sort((a: CalendarEvent, b: CalendarEvent) => 
-            new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime()
+      if (result.success) {
+        const futureEvents = (result.events as CalendarEvent[])
+          .filter((event: CalendarEvent) => new Date(event.start.dateTime) >= now)
+          .sort(
+            (a: CalendarEvent, b: CalendarEvent) =>
+              new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime()
           )
           .slice(0, 5)
-        
         setUpcomingEvents(futureEvents)
       } else {
-        console.error('Erro ao carregar eventos:', result.error)
-        setEventsError(result.error || 'Erro ao carregar próximos agendamentos')
+        console.error("Erro ao carregar eventos:", result.error)
+        setEventsError(result.error || "Erro ao carregar próximos agendamentos")
       }
 
       // Busca eventos dos últimos 30 dias para calcular serviços populares
       const thirtyDaysAgo = new Date()
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-      
       const pastResult = await listCalendarEvents(thirtyDaysAgo.toISOString(), now.toISOString())
-      
-      if (pastResult.success && pastResult.events) {
-        calculatePopularServices(pastResult.events)
+      if (pastResult.success) {
+        calculatePopularServices(pastResult.events as CalendarEvent[])
       }
-
     } catch (error) {
-      console.error('Erro ao carregar próximos agendamentos:', error)
-      setEventsError('Erro ao carregar próximos agendamentos')
+      console.error("Erro ao carregar próximos agendamentos:", error)
+      setEventsError("Erro ao carregar próximos agendamentos")
     } finally {
       setLoadingEvents(false)
     }
   }
 
   function calculatePopularServices(events: CalendarEvent[]) {
-    const serviceCounts: { [key: string]: number } = {}
-    
+    const serviceCounts: Record<string, number> = {}
+
     // Conta quantas vezes cada serviço aparece
-    events.forEach(event => {
+    events.forEach((event) => {
       const serviceName = extractService(event.description)
-      if (serviceName && serviceName !== 'Não especificado') {
+      if (serviceName && serviceName !== "Não especificado") {
         serviceCounts[serviceName] = (serviceCounts[serviceName] || 0) + 1
       }
     })
 
     // Calcula total e percentuais
     const totalServices = Object.values(serviceCounts).reduce((sum, count) => sum + count, 0)
-    
+
     // Converte para array e ordena
     const servicesArray: ServiceStats[] = Object.entries(serviceCounts)
       .map(([serviceName, count]) => ({
         serviceName,
         count,
-        percentage: totalServices > 0 ? (count / totalServices) * 100 : 0
+        percentage: totalServices === 0 ? 0 : (count / totalServices) * 100,
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5) // Top 5 serviços
@@ -115,8 +131,9 @@ export default function DashboardPage() {
     setPopularServices(servicesArray)
   }
 
+  // Métricas (mantidas)
   const activeClients = clients.filter((c) => c.status === "active").length
-  
+
   const todayAppointments = appointments.filter((a) => {
     const today = new Date().toISOString().split("T")[0]
     const appointmentDate = new Date(a.startTime).toISOString().split("T")[0]
@@ -124,19 +141,39 @@ export default function DashboardPage() {
   }).length
 
   const totalRevenue = clients.reduce((sum, client) => sum + client.totalSpent, 0)
-  
-  const monthlyRevenue = appointments
-    .filter((a) => a.status === "completed")
-    .reduce((sum, appointment) => sum + appointment.totalPrice, 0)
 
-  const revenueData = [
-    { month: "Jan", revenue: 12500 },
-    { month: "Fev", revenue: 15200 },
-    { month: "Mar", revenue: 14800 },
-    { month: "Abr", revenue: 16900 },
-    { month: "Mai", revenue: 18200 },
-    { month: "Jun", revenue: 19500 },
-  ]
+  // Receita mensal REAL (últimos 6 meses) a partir de payments com status 'paid' e paidAt
+  const now = new Date()
+  const sixMonths = Array.from({ length: 6 }, (_, idx) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - idx), 1)
+    return d
+  })
+
+  const revenueData = sixMonths.map((d) => {
+    const start = new Date(d.getFullYear(), d.getMonth(), 1)
+    const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999)
+    const value = (payments || [])
+      .filter(
+        (p) =>
+          p.status === "paid" &&
+          p.paidAt &&
+          new Date(p.paidAt) >= start &&
+          new Date(p.paidAt) <= end
+      )
+      .reduce((sum, p) => sum + p.amount, 0)
+
+    const monthLabel = start
+      .toLocaleDateString("pt-BR", { month: "short" })
+      .replace(".", "")
+      .replace(/^\w/, (c) => c.toUpperCase())
+
+    return { month: monthLabel, revenue: value }
+  })
+
+  const current = revenueData[revenueData.length - 1]?.revenue ?? 0
+  const previous = revenueData[revenueData.length - 2]?.revenue ?? 0
+  const growthPercent = previous > 0 ? ((current - previous) / previous) * 100 : 0
+  const growthValue = Number(growthPercent.toFixed(1))
 
   const stats = [
     {
@@ -165,7 +202,7 @@ export default function DashboardPage() {
     },
     {
       title: "Crescimento",
-      value: "+12.5%",
+      value: growthValue,
       icon: TrendingUp,
       description: "vs. mês anterior",
       color: "text-orange-600",
@@ -174,21 +211,21 @@ export default function DashboardPage() {
   ]
 
   function extractClientName(description?: string): string {
-    if (!description) return 'Cliente não identificado'
-    const clientLine = description.split('\n').find(line => line.startsWith('Cliente:'))
-    return clientLine?.replace('Cliente: ', '') || 'Cliente não identificado'
+    if (!description) return "Cliente não identificado"
+    const clientLine = description.split("\n").find((line) => line.startsWith("Cliente:"))
+    return clientLine?.replace("Cliente:", "").trim() || "Cliente não identificado"
   }
 
   function extractPhone(description?: string): string | null {
     if (!description) return null
-    const phoneLine = description.split('\n').find(line => line.startsWith('Telefone:'))
-    return phoneLine?.replace('Telefone: ', '') || null
+    const phoneLine = description.split("\n").find((line) => line.startsWith("Telefone:"))
+    return phoneLine?.replace("Telefone:", "").trim() || null
   }
 
   function extractService(description?: string): string | null {
     if (!description) return null
-    const serviceLine = description.split('\n').find(line => line.startsWith('Serviço:'))
-    return serviceLine?.replace('Serviço: ', '') || 'Não especificado'
+    const serviceLine = description.split("\n").find((line) => line.startsWith("Serviço:"))
+    return serviceLine?.replace("Serviço:", "").trim() || "Não especificado"
   }
 
   function formatEventDate(dateTime: string): string {
@@ -201,15 +238,15 @@ export default function DashboardPage() {
     const isTomorrow = date.toDateString() === tomorrow.toDateString()
 
     if (isToday) {
-      return `Hoje às ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+      return `Hoje • ${date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
     } else if (isTomorrow) {
-      return `Amanhã às ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+      return `Amanhã • ${date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
     } else {
-      return date.toLocaleDateString('pt-BR', { 
-        day: '2-digit', 
-        month: 'short', 
-        hour: '2-digit', 
-        minute: '2-digit' 
+      return date.toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
       })
     }
   }
@@ -218,11 +255,9 @@ export default function DashboardPage() {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-          <p className="text-sm font-semibold text-gray-900">
-            {payload[0].payload.month}
-          </p>
+          <p className="text-sm font-semibold text-gray-900">{payload[0].payload.month}</p>
           <p className="text-sm text-primary font-bold mt-1">
-            R$ {payload[0].value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            R$ {payload[0].value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           </p>
         </div>
       )
@@ -244,9 +279,7 @@ export default function DashboardPage() {
           return (
             <Card key={index} className="hover:shadow-lg transition-shadow">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">
-                  {stat.title}
-                </CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-600">{stat.title}</CardTitle>
                 <div className={`p-2 rounded-lg ${stat.bgColor}`}>
                   <Icon className={`h-4 w-4 ${stat.color}`} />
                 </div>
@@ -269,9 +302,7 @@ export default function DashboardPage() {
               <p className="text-sm text-gray-500 mt-1">Agendamentos da próxima semana</p>
             </div>
             <Link href="/dashboard/agenda">
-              <Button variant="outline" size="sm">
-                Ver todos
-              </Button>
+              <Button variant="outline" size="sm">Ver todos</Button>
             </Link>
           </CardHeader>
           <CardContent>
@@ -299,7 +330,7 @@ export default function DashboardPage() {
                   return (
                     <div
                       key={event.id}
-                      className="flex items-start space-x-3 p-3 rounded-lg border border-gray-200 hhover:border-primary/30 hover:bg-primary/5 transition-all"
+                      className="flex items-start space-x-3 p-3 rounded-lg border border-gray-200 hover:border-primary/30 hover:bg-primary/5 transition-all"
                     >
                       <div className="flex-shrink-0 mt-1">
                         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -309,10 +340,10 @@ export default function DashboardPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-900 truncate">
                           {clientName}
+                          {service && (
+                            <span className="text-xs text-gray-600 ml-2">{service}</span>
+                          )}
                         </p>
-                        {service && (
-                          <p className="text-xs text-gray-600 mt-0.5">{service}</p>
-                        )}
                         <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
                           <div className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
@@ -324,6 +355,7 @@ export default function DashboardPage() {
                               <span>{event.location}</span>
                             </div>
                           )}
+                          {phone && <span>{phone}</span>}
                         </div>
                       </div>
                     </div>
@@ -334,13 +366,11 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Revenue Chart */}
+        {/* Receita Mensal */}
         <Card className="col-span-1">
           <CardHeader>
             <CardTitle className="text-lg font-semibold">Receita Mensal</CardTitle>
-            <p className="text-sm text-gray-500 mt-1">
-              Evolução da receita nos últimos 6 meses (dados fictícios)
-            </p>
+            <p className="text-sm text-gray-500 mt-1">Evolução da receita nos últimos 6 meses</p>
           </CardHeader>
           <CardContent>
             {!mounted ? (
@@ -351,22 +381,15 @@ export default function DashboardPage() {
               <ResponsiveContainer width="100%" height={250}>
                 <LineChart data={revenueData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis 
-                    dataKey="month" 
-                    stroke="#6b7280"
-                    style={{ fontSize: '12px' }}
-                  />
-                  <YAxis 
-                    stroke="#6b7280"
-                    style={{ fontSize: '12px' }}
-                  />
+                  <XAxis dataKey="month" stroke="#6b7280" style={{ fontSize: "12px" }} />
+                  <YAxis stroke="#6b7280" style={{ fontSize: "12px" }} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Line 
-                    type="monotone" 
-                    dataKey="revenue" 
-                    stroke="#8c0082" 
+                  <Line
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="#8c0082"
                     strokeWidth={2}
-                    dot={{ fill: '#8c0082', r: 4 }}
+                    dot={{ fill: "#8c0082", r: 4 }}
                     activeDot={{ r: 6 }}
                   />
                 </LineChart>
@@ -376,9 +399,9 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Recent Activity Section */}
+      {/* Seção de atividade recente */}
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Serviços Mais Populares */}
+        {/* Serviços mais populares */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
@@ -415,7 +438,7 @@ export default function DashboardPage() {
                           {service.serviceName}
                         </p>
                         <div className="mt-1 w-full bg-gray-200 rounded-full h-1.5">
-                          <div 
+                          <div
                             className="bg-purple-600 h-1.5 rounded-full transition-all duration-300"
                             style={{ width: `${service.percentage}%` }}
                           />
@@ -423,9 +446,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <div className="text-right ml-3">
-                      <p className="text-sm font-semibold text-gray-900">
-                        {service.count}x
-                      </p>
+                      <p className="text-sm font-semibold text-gray-900">{service.count}x</p>
                       <p className="text-xs text-gray-500">
                         {service.percentage.toFixed(1)}%
                       </p>
@@ -437,7 +458,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Top Clients */}
+        {/* Melhores clientes */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg font-semibold">Melhores Clientes</CardTitle>
