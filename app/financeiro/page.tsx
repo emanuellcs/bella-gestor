@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Combobox, type ComboItem } from "@/components/ui/combobox";
 import type { Sale, Payment } from "@/lib/types"
-import type { Client, ServiceVariant } from "@/lib/types";
+import type { Client, Service, ServiceVariant } from "@/lib/types";
 import { PaymentStatus, SaleStatus } from "@/lib/types"
 import * as api from "@/services/api"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -201,6 +201,8 @@ export default function FinanceiroPage() {
   const [newSaleLoading, setNewSaleLoading] = useState(false);
   const [newSaleError, setNewSaleError] = useState<string | null>(null);
 
+  const [services, setServices] = useState<Service[]>([]);
+
   // listas auxiliares
   const [clients, setClients] = useState<Client[]>([]);
   const [variants, setVariants] = useState<ServiceVariant[]>([]);
@@ -217,11 +219,14 @@ export default function FinanceiroPage() {
     if (!newSaleOpen) return;
     (async () => {
       try {
-        const [c, v] = await Promise.all([
+        const [c, s, v] = await Promise.all([
           api.getActiveClients?.() ?? api.getClients?.(),
+          api.getActiveServices?.() ?? api.getServices?.(),
           api.getServiceVariants?.(),
         ]);
+
         if (c) setClients(c as Client[]);
+        if (s) setServices(s as Service[]);
         if (v) setVariants(v as ServiceVariant[]);
       } catch (e) {
         // silencioso: o modal mostra erro apenas no submit
@@ -1483,11 +1488,15 @@ export default function FinanceiroPage() {
 
             <div className="space-y-3">
               {newSaleForm.items.map((it, idx) => {
-                const variantItems = variants.map((v) => ({
-                  value: v.id,
-                  label: v.variantName,
-                  hint: `R$ ${Number(v.price).toFixed(2)}`,
-                }));
+                const variantItems = variants.map((v) => {
+                  const svc = services.find((s) => s.id === v.serviceId);
+                  const svcName = svc ? svc.name : "Serviço";
+                  return {
+                    value: v.id,
+                    label: `${svcName} (${v.variantName})`,
+                    hint: `R$ ${Number(v.price).toFixed(2)}`,
+                  };
+                });
 
                 return (
                   <div key={it.rowId} className="grid grid-cols-12 gap-3">
@@ -1496,15 +1505,22 @@ export default function FinanceiroPage() {
                       <Label>Serviço/variante</Label>
                       <Combobox
                         placeholder="Serviço/variante"
-                        items={variants.map((v) => ({
-                          value: v.id,
-                          label: v.variantName,
-                          hint: `R$ ${Number(v.price).toFixed(2)}`,
-                        }))}
+                        items={variants.map((v) => {
+                          const svc = services.find((s) => s.id === v.serviceId);
+                          const svcName = svc ? svc.name : "Serviço";
+                          return {
+                            value: v.id,
+                            label: `${svcName} (${v.variantName})`,
+                            hint: `R$ ${Number(v.price).toFixed(2)}`,
+                          };
+                        })}
                         value={it.serviceVariantId}
                         onChange={(vId) => {
                           const vv = variants.find((x) => x.id === vId);
-                          onChangeItem(idx, { serviceVariantId: vId, unitPrice: vv ? Number(vv.price) : it.unitPrice });
+                          onChangeItem(idx, {
+                            serviceVariantId: vId,
+                            unitPrice: vv ? Number(vv.price) : it.unitPrice,
+                          });
                         }}
                       />
                     </div>
