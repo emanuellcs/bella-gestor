@@ -705,8 +705,7 @@ export default function FinanceiroPage() {
                   onClick={() => { setContinueAfterCreate(null); setNewSaleOpen(true); }}
                   aria-label="Nova venda"
                 >
-                  <span className="md:hidden whitespace-nowrap">Nova</span>
-                  <span className="hidden md:inline">Nova venda</span>
+                  <span className="md:inline">Nova venda</span>
                 </Button>
 
                 <Button
@@ -715,8 +714,7 @@ export default function FinanceiroPage() {
                   onClick={() => openSelectSale('pay')}
                   aria-label="Registrar pagamento"
                 >
-                  <span className="md:hidden whitespace-nowrap">Reg. Pag.</span>
-                  <span className="hidden md:inline">Registrar pagamento</span>
+                  <span className="md:inline">Registrar pagamento</span>
                 </Button>
 
                 <Button
@@ -725,8 +723,7 @@ export default function FinanceiroPage() {
                   onClick={() => openSelectSale('link')}
                   aria-label="Gerar pagamento"
                 >
-                  <span className="md:hidden whitespace-nowrap">Ger. Pag.</span>
-                  <span className="hidden md:inline">Gerar pagamento</span>
+                  <span className="md:inline">Gerar pagamento</span>
                 </Button>
               </div>
             </div>
