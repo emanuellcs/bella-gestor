@@ -12,6 +12,7 @@ import type {
 import { SaleStatus, PaymentStatus } from "@/lib/types"
 import * as api from "@/services/api"
 import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/lib/auth-context"
 type NewSale = Omit<Sale, "id" | "payments" | "createdat" | "updatedAt" | "clientName"> & { totalAmount?: number };
 
 interface DataContextType {
@@ -59,6 +60,8 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined)
 
 export function DataProvider({ children }: { children: ReactNode }) {
+  const { isAuthenticated } = useAuth()
+
   const { toast } = useToast()
 
   const [clients, setClients] = useState<Client[]>([])
@@ -106,11 +109,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setIsLoading(false)
     }
   }
-
-  useEffect(() => {
-    void refreshData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // Wrappers financeiros
 
@@ -443,6 +441,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     createPayment,
     updateSaleStatus,
   }
+
+  useEffect(() => {
+    if (isAuthenticated) void refreshData()
+  }, [isAuthenticated])
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>
 }
