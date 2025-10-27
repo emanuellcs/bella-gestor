@@ -59,7 +59,6 @@ export async function POST(req: Request) {
         .from("payments")
         .update({
           status: "paid",
-          payment_method: null,             // desconhecido neste fluxo
           external_transaction_id: transaction_nsu || order_nsu,
           paid_at: new Date().toISOString(),
         })
@@ -70,7 +69,7 @@ export async function POST(req: Request) {
         .insert([{
           sale_id: saleId,
           status: "paid",
-          payment_method: null,
+          payment_method: 'Link',
           external_transaction_id: transaction_nsu || order_nsu,
           paid_at: new Date().toISOString(),
           amount: 0, // sem valor confirmado aqui; webhook atualiza quando chegar

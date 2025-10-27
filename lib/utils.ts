@@ -91,3 +91,42 @@ export function zonedNowForInput(tz = SAO_TZ): string {
    .reduce((a: any, p) => (a[p.type] = p.value, a), {});
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 }
+
+// Formata telefone brasileiro: (11) 99999-9999 ou (11) 9999-9999
+export function formatBrazilianPhone(value: string): string {
+  const numbers = value.replace(/\D/g, '');
+  
+  if (numbers.length === 0) return '';
+  if (numbers.length <= 2) return `(${numbers}`;
+  if (numbers.length <= 6) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+  if (numbers.length <= 10) {
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`;
+  }
+  return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
+}
+
+// Remove formatação do telefone e retorna apenas números sem +55
+export function unformatPhone(value: string): string {
+  return value.replace(/\D/g, '').slice(0, 11); // máximo 11 dígitos (DDD + número)
+}
+
+// Formata CEP brasileiro: 00000-000
+export function formatCEP(value: string): string {
+  const numbers = value.replace(/\D/g, '');
+  
+  if (numbers.length === 0) return '';
+  if (numbers.length <= 5) return numbers;
+  return `${numbers.slice(0, 5)}-${numbers.slice(5, 8)}`;
+}
+
+// Remove formatação do CEP
+export function unformatCEP(value: string): string {
+  return value.replace(/\D/g, '').slice(0, 8);
+}
+
+// Formata o telefone no padrão InfinitePay (+5511999887766)
+export function formatPhoneForInfinitePay(value: string): string {
+  const numbers = unformatPhone(value);
+  if (numbers.length < 10) return ''; // inválido
+  return `+55${numbers}`; // sempre adiciona +55
+}

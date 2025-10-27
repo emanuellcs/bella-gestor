@@ -702,21 +702,31 @@ export async function updateSaleStatus(id: string, status: SaleStatus, updates?:
 }
 
 export async function createPaymentLink(input: {
-  saleId: string | number
-  amount: number // REAIS
-  items?: { quantity: number; price: number; description: string }[] // CENTAVOS
-  customer?: { name?: string; email?: string; phone_number?: string }
-  address?: { cep?: string; number?: string; complement?: string }
+  saleId: string | number;
+  amount: number; // REAIS
+  items?: { quantity: number; price: number; description: string }[]; // price em CENTAVOS
+  customer?: { name?: string; email?: string; phone_number?: string }; // phone_number já formatado com +55
+  address?: {
+    cep?: string;           // só números
+    street?: string;        // NOVO
+    number?: string;
+    neighborhood?: string;  // NOVO
+    complement?: string;
+  };
 }) {
   const resp = await fetch("/api/infinitepay/checkout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
-  })
-  const out = await resp.json()
-  if (!resp.ok) throw new Error(out?.error || "Falha ao gerar link")
-  // out.url e out.order_nsu retornam; o pending já foi inserido no servidor
-  return out
+  });
+
+  if (!resp.ok) {
+    const out = await resp.json();
+    throw new Error(out?.error || "Falha ao gerar link");
+  }
+
+  const out = await resp.json();
+  return out;
 }
 
 export async function createPayment(payment: Omit<Payment, "id">): Promise<Payment> {
@@ -767,9 +777,13 @@ export async function createPayment(payment: Omit<Payment, "id">): Promise<Payme
 
 export async function updatePaymentStatus(id: string, status: PaymentStatus): Promise<Payment | null> {
   try {
+    const patch: any = { status, updated_at: new Date().toISOString() };
+    if (status === PaymentStatus.CANCELLED) {
+      patch.payment_link_url = null;
+    }
     const { data, error } = await supabase
       .from("payments")
-      .update({ status, updated_at: new Date().toISOString() })
+      .update(patch)
       .eq("id", parseInt(id))
       .select("*")
       .single();
@@ -798,15 +812,25 @@ export async function updatePaymentStatus(id: string, status: PaymentStatus): Pr
   }
 }
 
-export async function cancelInfinitePayPayment(externalTransactionId: string): Promise<any> {
-  const resp = await fetch("/api/infinitepay/cancel-payment", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ externalTransactionId }),
-  });
-  const out = await resp.json();
-  if (!resp.ok) throw new Error(out?.error || "Falha ao cancelar pagamento InfinitePay");
-  return out;
+export async function cancelInfinitePayPayment(externalTransactionId: string): Promise<void> {
+  try {
+    const response = await fetch("/api/infinitepay/cancel-payment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ externalTransactionId }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Falha ao cancelar pagamento");
+    }
+
+    const data = await response.json();
+    console.log("Pagamento cancelado:", data);
+  } catch (error) {
+    console.error("Error in cancelInfinitePayPayment:", error);
+    throw error; // IMPORTANTE: re-lançar o erro para o handler pegar
+  }
 }
 
 // Lista apenas serviços ativos (Service.active === true)

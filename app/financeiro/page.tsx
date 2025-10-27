@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Combobox, type ComboItem } from "@/components/ui/combobox";
 import type { Sale, Payment } from "@/lib/types"
+import { useToast } from "@/hooks/use-toast";
 import type { Client, Service, ServiceVariant } from "@/lib/types";
 import { PaymentStatus, SaleStatus } from "@/lib/types"
 import * as api from "@/services/api"
@@ -11,9 +12,10 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Command, CommandInput, CommandEmpty, CommandList, CommandGroup, CommandItem } from "@/components/ui/command";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, X } from "lucide-react";
 import { cn, zonedNowForInput } from "@/lib/utils";
 import { Trash } from "lucide-react";
+import { formatBrazilianPhone, formatCEP, formatPhoneForInfinitePay, unformatCEP } from "@/lib/utils";
 import * as XLSX from "xlsx"; // Import the xlsx library
 
 // shadcn/ui
@@ -61,9 +63,12 @@ type LinkForm = {
   customerEmail?: string
   customerPhone?: string
   addressCep?: string
+  addressStreet?: string
   addressNumber?: string
+  addressNeighborhood?: string
   addressComplement?: string
 }
+
 
 type PaymentForm = {
   amount: number
@@ -156,6 +161,7 @@ function VariantComboBox({
 }
 
 export default function FinanceiroPage() {
+  const { toast } = useToast();
   // Estado base
   const [sales, setSales] = useState<Sale[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
@@ -358,7 +364,21 @@ export default function FinanceiroPage() {
   }
 
   useEffect(() => {
-    void refreshAll()
+    void refreshAll();
+    
+    // Carregar services e variants globalmente
+    (async () => {
+      try {
+        const [s, v] = await Promise.all([
+          api.getActiveServices?.() ?? api.getServices?.(),
+          api.getServiceVariants?.(),
+        ]);
+        if (s) setServices(s as Service[]);
+        if (v) setVariants(v as ServiceVariant[]);
+      } catch (e) {
+        console.error("Erro ao carregar serviços/variantes:", e);
+      }
+    })()
   }, [])
 
   // Helpers de valores
@@ -468,24 +488,55 @@ export default function FinanceiroPage() {
   // Ações com backend
   async function submitGenerateLink() {
     if (!selectedSale) return;
-    setSubmitting(true); setError(null);
+    setSubmitting(true);
+    setError(null);
+    
     try {
       const out = await api.createPaymentLink({
         saleId: (selectedSale as any).id,
         amount: Number(linkForm.amount),
-        items: ((selectedSale as any).items || []).map((it: any) => ({
-          quantity: it.quantity,
-          price: Math.round(Number(it.unitPrice) * 100),
-          description: it.serviceVariantName || `Item ${it.serviceVariantId}`,
-        })),
-        customer: { name: linkForm.customerName, email: linkForm.customerEmail, phone_number: linkForm.customerPhone },
-        address: { cep: linkForm.addressCep, number: linkForm.addressNumber, complement: linkForm.addressComplement },
+        items: ((selectedSale as any).items || []).map((it: any) => {
+          const variant = variants.find(v => v.id === it.serviceVariantId);
+          const service = services.find(s => s.id === variant?.serviceId);
+          return {
+            quantity: it.quantity,
+            price: Math.round(Number(it.unitPrice) * 100), // centavos
+            description: `${service?.name || 'Serviço'} - ${variant?.variantName || 'Variante'}`,
+          };
+        }),
+        customer: {
+          name: linkForm.customerName || undefined,
+          email: linkForm.customerEmail || undefined,
+          phone_number: linkForm.customerPhone
+            ? formatPhoneForInfinitePay(linkForm.customerPhone)
+            : undefined,
+        },
+        address: (linkForm.addressCep && linkForm.addressNumber)
+          ? {
+              cep: unformatCEP(linkForm.addressCep),
+              street: linkForm.addressStreet || undefined,
+              number: linkForm.addressNumber,
+              neighborhood: linkForm.addressNeighborhood || undefined,
+              complement: linkForm.addressComplement || undefined,
+            }
+          : undefined,
       });
+
       window.open(out.url, "_blank", "noopener,noreferrer");
       await refreshAll();
       setLinkOpen(false);
-    } catch (e:any) {
+      
+      toast({
+        title: "Sucesso!",
+        description: "Link de pagamento gerado com sucesso!",
+      });
+    } catch (e: any) {
       setError(e?.message || "Falha ao gerar link");
+      toast({
+        title: "Erro",
+        description: e?.message || "Falha ao gerar link. Tente novamente.",
+        variant: "destructive",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -539,22 +590,39 @@ export default function FinanceiroPage() {
   }
 
   async function applyCancelPayment() {
-    if (!confirmPaymentCancelOpen) return
-    setSubmitting(true)
-    setError(null)
+    if (!confirmPaymentCancelOpen) return;
+    setSubmitting(true);
+    setError(null);
+    
     try {
       if (confirmPaymentCancelOpen.paymentMethod === 'Link' && confirmPaymentCancelOpen.externalTransactionId) {
+        // 1. Cancela no endpoint (marca cancelled e limpa link)
         await api.cancelInfinitePayPayment(confirmPaymentCancelOpen.externalTransactionId);
+        
+        // 2. Atualiza localmente (redundante, mas garante consistência)
+        await api.updatePaymentStatus(confirmPaymentCancelOpen.id, PaymentStatus.CANCELLED);
       }
-      await api.updatePaymentStatus(confirmPaymentCancelOpen.id, PaymentStatus.CANCELLED);
+      
+      // 3. Só mostra sucesso se chegou aqui sem throw
       await refreshAll();
       setConfirmPaymentCancelOpen(null);
+      toast({
+        title: "Sucesso!",
+        description: "Pagamento cancelado com sucesso!",
+      });
     } catch (e: any) {
+      console.error("Erro ao cancelar pagamento:", e);
       setError(e?.message || "Falha ao cancelar pagamento");
+      toast({
+        title: "Erro",
+        description: e?.message || "Erro ao cancelar pagamento. Tente novamente.",
+        variant: "destructive",
+      });
     } finally {
       setSubmitting(false);
     }
   }
+
 
   // Exportação XLSX
   function exportXLSX() {
@@ -930,7 +998,11 @@ export default function FinanceiroPage() {
                                 ? "Pendente"
                                 : p.status === PaymentStatus.REFUNDED
                                 ? "Estornado"
-                                : "Falhou"}
+                                : p.status === PaymentStatus.FAILED
+                                ? "Falhou"
+                                : p.status === PaymentStatus.CANCELLED
+                                ? "Cancelado"
+                                : p.status}
                             </Badge>
                           </div>
                           <div className="text-sm text-muted-foreground">
@@ -940,13 +1012,12 @@ export default function FinanceiroPage() {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          {p.linkUrl ? (
+                          {p.linkUrl && p.status === PaymentStatus.PENDING ? (
                             <Button
                               variant="outline"
-                              className="h-9"
+                              size="sm"
                               onClick={() => window.open(p.linkUrl as string, "_blank", "noopener,noreferrer")}
                             >
-                              <Receipt className="h-4 w-4 mr-2" />
                               Ver link
                             </Button>
                           ) : null}
@@ -962,7 +1033,14 @@ export default function FinanceiroPage() {
                                 <Eye className="h-4 w-4 mr-2" />
                                 Detalhes
                               </DropdownMenuItem>
-                              {/* Espaço para futuramente adicionar estorno/cancelamento via backend */}
+                              <DropdownMenuItem
+                                disabled={!(p.status === PaymentStatus.PENDING && p.paymentMethod === 'Link')}
+                                onClick={() => confirmCancelPayment(p)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <XCircle className="h-4 w-4 mr-2" />
+                                Cancelar pagamento
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
@@ -1042,92 +1120,141 @@ export default function FinanceiroPage() {
 
       {/* Modal: gerar link (venda existente) */}
       <Dialog open={linkOpen} onOpenChange={setLinkOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Gerar link de pagamento</DialogTitle>
             <DialogDescription>Preencha os dados para criar o checkout.</DialogDescription>
           </DialogHeader>
-
-          <div className="grid grid-cols-1 gap-3">
+          <div className="space-y-4">
+            {/* Valor */}
             <div>
-              <label className="block text-sm mb-1">Valor a cobrar (R$)</label>
+              <Label htmlFor="amount" className="mb-2">Valor a cobrar (R$)</Label>
               <Input
-                type="number"
-                min="0"
-                step="0.01"
+                id="amount"
+                type="text"
+                placeholder="150"
                 value={linkForm.amount}
-                onChange={(e) => setLinkForm((p) => ({ ...p, amount: Number(e.target.value) }))}
+                onChange={(e) => {
+                  const formatted = e.target.value.replace(/[^\d.,]/g, '');
+                  setLinkForm((p) => ({ ...p, amount: Number(formatted.replace(',', '.')) || 0 }));
+                }}
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Cliente e E-mail */}
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm mb-1">Cliente (opcional)</label>
+                <Label htmlFor="customerName" className="mb-2">Cliente (opcional)</Label>
                 <Input
-                  placeholder="Nome"
-                  value={linkForm.customerName || ""}
+                  id="customerName"
+                  type="text"
+                  placeholder="Emanuel Lázaro"
+                  value={linkForm.customerName || ''}
                   onChange={(e) => setLinkForm((p) => ({ ...p, customerName: e.target.value }))}
                 />
               </div>
               <div>
-                <label className="block text-sm mb-1">E-mail (opcional)</label>
+                <Label htmlFor="customerEmail" className="mb-2">E-mail (opcional)</Label>
                 <Input
+                  id="customerEmail"
                   type="email"
                   placeholder="email@exemplo.com"
-                  value={linkForm.customerEmail || ""}
+                  value={linkForm.customerEmail || ''}
                   onChange={(e) => setLinkForm((p) => ({ ...p, customerEmail: e.target.value }))}
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Telefone, CEP e Número */}
+            <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm mb-1">Telefone (opcional)</label>
+                <Label htmlFor="customerPhone" className="mb-2">Telefone (opcional)</Label>
                 <Input
-                  placeholder="+55 11 99999-9999"
-                  value={linkForm.customerPhone || ""}
-                  onChange={(e) => setLinkForm((p) => ({ ...p, customerPhone: e.target.value }))}
+                  id="customerPhone"
+                  type="tel"
+                  placeholder="(11) 99999-9999"
+                  maxLength={15}
+                  value={linkForm.customerPhone || ''}
+                  onChange={(e) => {
+                    const formatted = formatBrazilianPhone(e.target.value);
+                    setLinkForm((p) => ({ ...p, customerPhone: formatted }));
+                  }}
                 />
               </div>
               <div>
-                <label className="block text-sm mb-1">CEP</label>
+                <Label htmlFor="addressCep" className="mb-2">CEP</Label>
                 <Input
+                  id="addressCep"
+                  type="text"
                   placeholder="00000-000"
-                  value={linkForm.addressCep || ""}
-                  onChange={(e) => setLinkForm((p) => ({ ...p, addressCep: e.target.value }))}
+                  maxLength={9}
+                  value={linkForm.addressCep || ''}
+                  onChange={(e) => {
+                    const formatted = formatCEP(e.target.value);
+                    setLinkForm((p) => ({ ...p, addressCep: formatted }));
+                  }}
                 />
               </div>
               <div>
-                <label className="block text-sm mb-1">Número</label>
+                <Label htmlFor="addressNumber" className="mb-2">Número</Label>
                 <Input
+                  id="addressNumber"
+                  type="text"
                   placeholder="123"
-                  value={linkForm.addressNumber || ""}
+                  value={linkForm.addressNumber || ''}
                   onChange={(e) => setLinkForm((p) => ({ ...p, addressNumber: e.target.value }))}
                 />
               </div>
             </div>
 
+            {/* Rua e Bairro (NOVA LINHA) */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="addressStreet" className="mb-2">Rua (opcional)</Label>
+                <Input
+                  id="addressStreet"
+                  type="text"
+                  placeholder="Rua, avenida, logradouro..."
+                  value={linkForm.addressStreet || ''}
+                  onChange={(e) => setLinkForm((p) => ({ ...p, addressStreet: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="addressNeighborhood" className="mb-2">Bairro (opcional)</Label>
+                <Input
+                  id="addressNeighborhood"
+                  type="text"
+                  placeholder="Morro Grande"
+                  value={linkForm.addressNeighborhood || ''}
+                  onChange={(e) => setLinkForm((p) => ({ ...p, addressNeighborhood: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {/* Complemento */}
             <div>
-              <label className="block text-sm mb-1">Complemento</label>
+              <Label htmlFor="addressComplement" className="mb-2">Complemento</Label>
               <Input
+                id="addressComplement"
+                type="text"
                 placeholder="Apto, bloco..."
-                value={linkForm.addressComplement || ""}
+                value={linkForm.addressComplement || ''}
                 onChange={(e) => setLinkForm((p) => ({ ...p, addressComplement: e.target.value }))}
               />
             </div>
-
-            {error ? (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : null}
           </div>
 
-          <DialogFooter className="gap-2">
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          <DialogFooter>
             <Button variant="outline" onClick={() => setLinkOpen(false)} disabled={submitting}>
               Fechar
             </Button>
-            <Button onClick={submitGenerateLink} disabled={submitting || !linkForm.amount}>
+            <Button onClick={submitGenerateLink} disabled={submitting}>
               {submitting ? "Gerando..." : "Gerar link"}
             </Button>
           </DialogFooter>
@@ -1324,7 +1451,11 @@ export default function FinanceiroPage() {
                             ? "Pendente"
                             : p.status === PaymentStatus.REFUNDED
                             ? "Estornado"
-                            : "Falhou"}
+                            : p.status === PaymentStatus.FAILED
+                            ? "Falhou"
+                            : p.status === PaymentStatus.CANCELLED
+                            ? "Cancelado"
+                            : p.status}
                         </Badge>
                       </div>
                       <div className="col-span-2 truncate">{p.paymentMethod || "—"}</div>

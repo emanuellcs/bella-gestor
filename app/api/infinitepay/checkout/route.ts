@@ -1,113 +1,100 @@
-// app/api/infinitepay/checkout/route.ts
-import { NextResponse } from "next/server"
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin"
+import { NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 
-export const runtime = "nodejs"
-export const dynamic = "force-dynamic"
-export const revalidate = 0
-
-const HANDLE = process.env.INFINITEPAY_HANDLE || "spacobellas"
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
-const REDIRECT_URL = process.env.INFINITEPAY_REDIRECT_URL || `${BASE_URL}/financeiro/retorno`
-const WEBHOOK_URL = process.env.INFINITEPAY_WEBHOOK_URL || `${BASE_URL}/api/infinitepay/webhook`
-
-type CheckoutItem = { quantity: number; price: number; description: string }
-type CheckoutBody = {
-  saleId: string | number
-  amount: number // REAIS (interno do app)
-  items?: CheckoutItem[] // price em CENTAVOS (API InfinitePay)
-  customer?: { name?: string; email?: string; phone_number?: string }
-  address?: { cep?: string; number?: string; complement?: string }
-  order_nsu?: string
-}
-
-async function getSaleBalance(supabaseAdmin: any, saleIdNum: number) {
-  const { data: sale, error: saleErr } = await supabaseAdmin
-    .from("sales")
-    .select("id,total_amount,status")
-    .eq("id", saleIdNum)
-    .single()
-  if (saleErr || !sale) throw new Error("Venda não encontrada")
-
-  const { data: pays, error: paysErr } = await supabaseAdmin
-    .from("payments")
-    .select("amount,status")
-    .eq("sale_id", saleIdNum)
-  if (paysErr) throw new Error("Falha ao consultar pagamentos")
-
-  const paid = (pays || [])
-    .filter((p: any) => p.status === "paid")
-    .reduce((acc: number, p: any) => acc + Number(p.amount), 0)
-  const balance = Math.max(0, Number(sale.total_amount) - paid)
-  return { sale, paid, balance }
-}
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
-    if (!HANDLE) throw new Error("INFINITEPAY_HANDLE ausente")
+    const body = await req.json();
+    const { saleId, amount, items, customer, address } = body;
 
-    const body = (await req.json()) as CheckoutBody
-    const supabaseAdmin = getSupabaseAdmin()
+    console.log('Gerando link InfinitePay:', { saleId, amount, customer, address });
 
-    const saleIdNum = parseInt(String(body.saleId), 10)
-    const { balance } = await getSaleBalance(supabaseAdmin, saleIdNum)
+    // Monta o payload para a InfinitePay
+    const payload: any = {
+      handle: process.env.INFINITEPAY_HANDLE || 'spacobellas',
+      redirect_url: `${process.env.INFINITEPAY_REDIRECT_URL || 'https://www.spacobellas.com.br'}/sucesso`,
+      webhook_url: `${process.env.INFINITEPAY_WEBHOOK_URL || 'http://localhost:3000'}/api/infinitepay/webhook`,
+      order_nsu: `sale-${saleId}-${Date.now()}`,
+      items: items && items.length > 0
+        ? items
+        : [{
+            quantity: 1,
+            price: Math.round(amount * 100), // converte R$ para centavos
+            description: 'Pagamento de serviço',
+          }],
+    };
 
-    const amountReais = Number(body.amount || 0) // REAIS
-    if (!amountReais || amountReais <= 0) throw new Error("Valor inválido")
-    if (amountReais > balance) throw new Error("Valor excede o saldo da venda")
-
-    const order_nsu = body.order_nsu || `sale-${saleIdNum}-${Date.now()}`
-
-    // Gera items em CENTAVOS conforme exigido pela InfinitePay
-    const items = (body.items && body.items.length
-      ? body.items
-      : [{ quantity: 1, price: Math.round(amountReais * 100), description: `Venda #${saleIdNum}` }])
-      .map(it => ({
-        quantity: Math.max(1, Number(it.quantity || 1)),
-        price: Math.round(Number(it.price)), // CENTAVOS
-        description: it.description || `Venda #${saleIdNum}`,
-      }))
-
-    const payload = {
-      handle: HANDLE,
-      redirect_url: REDIRECT_URL,
-      webhook_url: WEBHOOK_URL,
-      order_nsu,
-      items, // CENTAVOS
-      ...(body.customer ? { customer: body.customer } : {}),
-      ...(body.address ? { address: body.address } : {}),
+    // Adiciona customer se fornecido
+    if (customer && (customer.name || customer.email || customer.phone_number)) {
+      payload.customer = {};
+      if (customer.name) payload.customer.name = customer.name;
+      if (customer.email) payload.customer.email = customer.email;
+      if (customer.phone_number) payload.customer.phone_number = customer.phone_number; // já vem formatado
     }
 
-    const resp = await fetch("https://api.infinitepay.io/invoices/public/checkout/links", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    // Adiciona address se fornecido
+    if (address && address.cep && address.number) {
+      payload.address = {
+        cep: address.cep, // só números
+        number: address.number,
+      };
+      
+      // Campos opcionais da API InfinitePay
+      if (address.street) payload.address.street = address.street;
+      if (address.neighborhood) payload.address.neighborhood = address.neighborhood;
+      if (address.complement) payload.address.complement = address.complement;
+    }
+
+    console.log('Enviando para InfinitePay:', JSON.stringify(payload, null, 2));
+
+    // Chama a API da InfinitePay
+    const response = await fetch('https://api.infinitepay.io/invoices/public/checkout/links', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify(payload),
-    })
-    const json = await resp.json()
-    if (!resp.ok || !json?.url) {
-      return NextResponse.json({ error: json?.message || "Falha ao criar link" }, { status: 400 })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Erro da InfinitePay:', errorData);
+      return NextResponse.json(
+        { error: errorData.message || 'Erro ao criar link de pagamento' },
+        { status: response.status }
+      );
     }
 
-    // Registra pending no servidor (REAS) e guarda order_nsu
-    const { data: payment, error: payErr } = await supabaseAdmin
-      .from("payments")
+    const data = await response.json();
+    console.log('Link criado:', data);
+
+    // Salva o pagamento pendente no banco
+    const supabaseAdmin = getSupabaseAdmin();
+    const { error: paymentError } = await supabaseAdmin
+      .from('payments')
       .insert([{
-        sale_id: saleIdNum,
-        amount: amountReais,                 // REAIS
-        status: "pending",
-        payment_method: "Link",
-        external_transaction_id: order_nsu,  // order_nsu
-        payment_link_url: json.url,
-      }])
-      .select("*")
-      .single()
+        sale_id: parseInt(String(saleId)),
+        amount: amount,
+        payment_method: 'Link',
+        external_transaction_id: payload.order_nsu,
+        payment_link_url: data.url,
+        status: 'pending',
+        paid_at: null,
+      }]);
 
-    if (payErr) {
-      return NextResponse.json({ error: payErr.message || "Falha ao registrar pagamento" }, { status: 400 })
+    if (paymentError) {
+      console.error('Erro ao salvar pagamento:', paymentError);
+      return NextResponse.json(
+        { error: 'Link criado mas falhou ao registrar no banco' },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json({ url: json.url, order_nsu, payment }, { status: 200 })
+    return NextResponse.json({ url: data.url, order_nsu: payload.order_nsu }, { status: 200 });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "Erro interno" }, { status: 400 })
+    console.error('Erro no endpoint:', e);
+    return NextResponse.json({ error: e?.message || 'Internal server error' }, { status: 500 });
   }
 }

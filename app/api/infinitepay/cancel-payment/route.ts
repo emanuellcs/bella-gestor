@@ -23,7 +23,11 @@ export async function POST(req: Request) {
     // Update payment status in Supabase
     const { data, error } = await supabaseAdmin
       .from("payments")
-      .update({ status: PaymentStatus.CANCELLED })
+      .update({
+        status: "cancelled",
+        payment_link_url: null,
+        updated_at: new Date().toISOString(),
+      })
       .eq("external_transaction_id", externalTransactionId)
       .select("*")
       .single();
