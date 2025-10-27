@@ -233,6 +233,7 @@ export interface Sale {
 export interface SaleItem {
   id: string
   serviceVariantId: string
+  serviceName?: string;
   serviceVariantName?: string
   quantity: number
   unitPrice: number
@@ -242,6 +243,9 @@ export interface SaleItem {
 export interface Payment {
   id: string
   saleId: string
+  clientName?: string
+  serviceName?: string
+  serviceVariantName?: string
   amount: number
   paymentMethod?: string
   externalTransactionId?: string

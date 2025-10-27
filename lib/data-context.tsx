@@ -86,7 +86,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         appointmentsData,
       ] = await Promise.all([
         // Ajuste estas chamadas para as funções reais que você já usa no projeto
-        api.getActiveClients?.() ?? api.getClients?.(),
+        api.getClients?.(),
         api.getServices?.(),
         api.getServiceVariants?.(),
         (api as any).getSales?.(),

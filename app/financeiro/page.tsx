@@ -767,7 +767,7 @@ export default function FinanceiroPage() {
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <div className="font-medium truncate">
-                                {s.clientName || "Cliente"} — Venda #{s.id}
+                                {s.clientName || "Cliente"} — {s.items[0]?.serviceName} {s.items[0]?.serviceVariantName}
                               </div>
                               <Badge
                                 variant={
@@ -889,7 +889,7 @@ export default function FinanceiroPage() {
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <div className="font-medium truncate">
-                              Pagamento #{p.id} {p.saleId ? `• Venda #${p.saleId}` : ""}
+                              {p.clientName || "Cliente"} — {p.serviceName} {p.serviceVariantName}
                             </div>
                             <Badge
                               variant={
@@ -1249,7 +1249,7 @@ export default function FinanceiroPage() {
                   </div>
                   {((selectedSale as any).items || []).map((it: any, idx: number) => (
                     <div key={`item-${(selectedSale as any).id}-${idx}`} className="grid grid-cols-12 gap-0 px-3 py-2 text-sm">
-                      <div className="col-span-6 truncate">{it.serviceVariantName || `Variante ${it.serviceVariantId}`}</div>
+                      <div className="col-span-6 truncate">{it.serviceName} {it.serviceVariantName}</div>
                       <div className="col-span-2 text-right">{it.quantity}</div>
                       <div className="col-span-2 text-right">{currency(it.unitPrice)}</div>
                       <div className="col-span-2 text-right">{currency(it.quantity * it.unitPrice)}</div>

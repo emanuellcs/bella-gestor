@@ -503,50 +503,43 @@ export async function deleteAppointment(id: string): Promise<boolean> {
 
 export async function getSales(): Promise<Sale[]> {
   try {
-    const { data: salesData, error: salesErr } = await supabase.from("sales").select("*").order("created_at", { ascending: false })
-    if (salesErr) {
-      const parsed = parseSupabaseError(salesErr)
+    const sixMonthsAgo = new Date()
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+
+    const { data, error } = await supabase
+      .from("sales")
+      .select(
+        `
+        *,
+        clients (full_name),
+        sale_items (
+          *,
+          service_variants (
+            variant_name,
+            services (name)
+          )
+        ),
+        payments (*)
+      `
+      )
+      .gte("created_at", sixMonthsAgo.toISOString())
+      .order("created_at", { ascending: false })
+
+    if (error) {
+      const parsed = parseSupabaseError(error)
       throw new Error(parsed.description)
     }
 
-    const saleIds = (salesData || []).map((s: any) => s.id)
-    const clientIds = (salesData || []).map((s: any) => s.client_id)
-
-    const [{ data: itemsData, error: itemsErr }, { data: paysData, error: paysErr }, { data: clientsData, error: clientsErr }] = await Promise.all([
-      saleIds.length ? supabase.from("sale_items").select("*").in("sale_id", saleIds) : Promise.resolve({ data: [], error: null } as any),
-      saleIds.length ? supabase.from("payments").select("*").in("sale_id", saleIds).order("created_at", { ascending: true }) : Promise.resolve({ data: [], error: null } as any),
-      clientIds.length ? supabase.from("clients").select("id, full_name").in("id", clientIds) : Promise.resolve({ data: [], error: null } as any),
-    ])
-    for (const e of [itemsErr, paysErr, clientsErr]) {
-      if (e) {
-        const parsed = parseSupabaseError(e)
-        throw new Error(parsed.description)
-      }
-    }
-
-    const clientNameById = new Map<number, string>()
-    ;(clientsData || []).forEach((c: any) => clientNameById.set(c.id, c.full_name))
-
-    const itemsBySale = new Map<number, any[]>()
-    ;(itemsData || []).forEach((it: any) => {
-      if (!itemsBySale.has(it.sale_id)) itemsBySale.set(it.sale_id, [])
-      itemsBySale.get(it.sale_id)!.push(it)
-    })
-
-    const paysBySale = new Map<number, any[]>()
-    ;(paysData || []).forEach((p: any) => {
-      if (!paysBySale.has(p.sale_id)) paysBySale.set(p.sale_id, [])
-      paysBySale.get(p.sale_id)!.push(p)
-    })
-
-    const result: Sale[] = (salesData || []).map((s: any) => ({
+    return (data || []).map((s: any) => ({
       id: s.id.toString(),
       clientId: s.client_id.toString(),
-      clientName: clientNameById.get(s.client_id) || "",
+      clientName: s.clients?.full_name || "",
       appointmentId: s.appointment_id ? s.appointment_id.toString() : undefined,
-      items: (itemsBySale.get(s.id) || []).map((it: any) => ({
+      items: (s.sale_items || []).map((it: any) => ({
         id: it.id.toString(),
         serviceVariantId: it.service_variant_id.toString(),
+        serviceName: it.service_variants?.services?.name || "",
+        serviceVariantName: it.service_variants?.variant_name || "",
         quantity: it.quantity,
         unitPrice: parseFloat(it.unit_price),
         subtotal: parseFloat(it.subtotal),
@@ -554,13 +547,13 @@ export async function getSales(): Promise<Sale[]> {
       totalAmount: parseFloat(s.total_amount),
       status: s.status,
       notes: s.notes || "",
-      payments: (paysBySale.get(s.id) || []).map((p: any) => ({
+      payments: (s.payments || []).map((p: any) => ({
         id: p.id.toString(),
         saleId: p.sale_id.toString(),
         amount: parseFloat(p.amount),
         paymentMethod: p.payment_method || undefined,
         externalTransactionId: p.external_transaction_id || undefined,
-        linkUrl: p.payment_link_url || undefined, // <- aqui
+        linkUrl: p.payment_link_url || undefined,
         status: p.status,
         paidAt: p.paid_at || undefined,
         created_at: p.created_at,
@@ -569,33 +562,73 @@ export async function getSales(): Promise<Sale[]> {
       created_at: s.created_at,
       updatedAt: s.updated_at || undefined,
     }))
-
-    return result
   } catch (error) {
     console.error("Error in getSales:", error)
     throw error
   }
 }
 
-export async function getPayments(): Promise<Payment[]> {
+export async function getPayments(
+  startDate?: string,
+  endDate?: string
+): Promise<Payment[]> {
   try {
-    const { data, error } = await supabase.from("payments").select("*").order("created_at", { ascending: false })
+    let query = supabase
+      .from("payments")
+      .select(
+        `
+        *,
+        sales (
+          client_id,
+          clients (full_name),
+          sale_items (
+            service_variant_id,
+            service_variants (
+              variant_name,
+              services (name)
+            )
+          )
+        )
+      `
+      )
+      .order("created_at", { ascending: false })
+
+    if (startDate) {
+      query = query.gte("created_at", startDate)
+    }
+    if (endDate) {
+      query = query.lte("created_at", endDate)
+    }
+
+    const { data, error } = await query
+
     if (error) {
       const parsed = parseSupabaseError(error)
       throw new Error(parsed.description)
     }
-    return (data || []).map((p: any): Payment => ({
-      id: p.id.toString(),
-      saleId: p.sale_id.toString(),
-      amount: parseFloat(p.amount),
-      paymentMethod: p.payment_method || undefined,
-      externalTransactionId: p.external_transaction_id || undefined,
-      linkUrl: p.payment_link_url || undefined, // <- aqui
-      status: p.status,
-      paidAt: p.paid_at || undefined,
-      created_at: p.created_at,
-      updatedAt: p.updated_at || undefined,
-    }))
+
+    return (data || []).map((p: any) => {
+      const sale: any = p.sales
+      const variant = sale?.sale_items?.[0]?.service_variants
+      const serviceName = variant?.services?.name
+      const clientName = sale?.clients?.full_name
+
+      return {
+        id: p.id.toString(),
+        saleId: p.sale_id.toString(),
+        clientName: clientName || "",
+        serviceName: serviceName || "",
+        serviceVariantName: variant?.variant_name || "",
+        amount: parseFloat(p.amount),
+        paymentMethod: p.payment_method || undefined,
+        externalTransactionId: p.external_transaction_id || undefined,
+        linkUrl: p.payment_link_url || undefined,
+        status: p.status,
+        paidAt: p.paid_at || undefined,
+        created_at: p.created_at,
+        updatedAt: p.updated_at || undefined,
+      }
+    })
   } catch (error) {
     console.error("Error in getPayments:", error)
     throw error
