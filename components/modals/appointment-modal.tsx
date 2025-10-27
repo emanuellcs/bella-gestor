@@ -27,6 +27,7 @@ import type { Appointment } from "@/lib/types"
 import { Loader2, Save, X, AlertCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { zonedNowForInput } from "@/lib/utils"
 
 interface AppointmentModalProps {
     open: boolean
@@ -56,7 +57,7 @@ export function AppointmentModal({
         professionalName: "",
         startTime: defaultDate && defaultTime
             ? `${defaultDate}T${defaultTime}`
-            : new Date().toISOString().slice(0, 16),
+            : zonedNowForInput(),
         endTime: "",
         status: AppointmentStatus.SCHEDULED,
         notes: "",
@@ -82,7 +83,7 @@ export function AppointmentModal({
                 professionalName: "",
                 startTime: defaultDate && defaultTime
                     ? `${defaultDate}T${defaultTime}`
-                    : new Date().toISOString().slice(0, 16),
+                    : zonedNowForInput(),
                 endTime: "",
                 status: AppointmentStatus.SCHEDULED,
                 notes: "",

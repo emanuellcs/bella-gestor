@@ -765,6 +765,50 @@ export async function createPayment(payment: Omit<Payment, "id">): Promise<Payme
   }
 }
 
+export async function updatePaymentStatus(id: string, status: PaymentStatus): Promise<Payment | null> {
+  try {
+    const { data, error } = await supabase
+      .from("payments")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("id", parseInt(id))
+      .select("*")
+      .single();
+
+    if (error) {
+      const parsed = parseSupabaseError(error);
+      throw new Error(parsed.description);
+    }
+    if (!data) return null;
+
+    return {
+      id: String(data.id),
+      saleId: String(data.sale_id),
+      amount: Number(data.amount),
+      paymentMethod: data.payment_method ?? undefined,
+      externalTransactionId: data.external_transaction_id ?? undefined,
+      linkUrl: data.payment_link_url ?? undefined,
+      status: data.status,
+      paidAt: data.paid_at ?? undefined,
+      created_at: data.created_at,
+      updatedAt: data.updated_at ?? undefined,
+    } as Payment;
+  } catch (e) {
+    console.error("Error in updatePaymentStatus:", e);
+    throw e;
+  }
+}
+
+export async function cancelInfinitePayPayment(externalTransactionId: string): Promise<any> {
+  const resp = await fetch("/api/infinitepay/cancel-payment", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ externalTransactionId }),
+  });
+  const out = await resp.json();
+  if (!resp.ok) throw new Error(out?.error || "Falha ao cancelar pagamento InfinitePay");
+  return out;
+}
+
 // Lista apenas serviços ativos (Service.active === true)
 export async function getActiveServices(): Promise<Service[]> {
   const all = await getServices()

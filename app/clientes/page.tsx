@@ -77,13 +77,16 @@ export default function ClientesPage() {
     refreshData()
   }, [])
 
-  const filteredClients = clients.filter((client) => {
-    const matchesSearch =
-      client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (client.email && client.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      client.phone.includes(searchTerm)
-    return matchesSearch
-  })
+  const filteredClients = clients
+    .filter((client) => client.status === 'active') // novo filtro
+    .filter((client) => {
+      const q = searchTerm.toLowerCase();
+      const matchesSearch =
+        client.name.toLowerCase().includes(q) ||
+        (client.email?.toLowerCase().includes(q) ?? false) ||
+        client.phone.includes(searchTerm);
+      return matchesSearch;
+  });
 
   const totalPages = Math.ceil(filteredClients.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage

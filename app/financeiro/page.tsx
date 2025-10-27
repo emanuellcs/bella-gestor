@@ -12,8 +12,9 @@ import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Command, CommandInput, CommandEmpty, CommandList, CommandGroup, CommandItem } from "@/components/ui/command";
 import { Check, ChevronsUpDown } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, zonedNowForInput } from "@/lib/utils";
 import { Trash } from "lucide-react";
+import * as XLSX from "xlsx"; // Import the xlsx library
 
 // shadcn/ui
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -183,6 +184,7 @@ export default function FinanceiroPage() {
   const [payOpen, setPayOpen] = useState(false)
   const [saleDetailsOpen, setSaleDetailsOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState<null | { sale: Sale; type: "paid" | "cancel" }>(null)
+  const [confirmPaymentCancelOpen, setConfirmPaymentCancelOpen] = useState<Payment | null>(null)
 
   // Forms
   const [linkForm, setLinkForm] = useState<LinkForm>({ amount: 0 })
@@ -291,7 +293,7 @@ export default function FinanceiroPage() {
       } else if (continueAfterCreate === "pay") {
         setPayForm({
           amount: Number(due.toFixed(2)),
-          paidAt: new Date().toISOString().slice(0, 16),
+          paidAt: zonedNowForInput(),
           paymentMethod: "",
           externalTransactionId: "",
         });
@@ -307,6 +309,12 @@ export default function FinanceiroPage() {
   function openSelectSale(intent: "link" | "pay") {
     setSelectIntent(intent)
     setSelectSaleOpen(true)
+  }
+
+  function openRegisterPaymentWithMethod(method: string) {
+    setSelectIntent('pay');
+    setPayForm(p => ({ ...p, paymentMethod: method }));
+    setSelectSaleOpen(true);
   }
 
   function handlePickSaleForAction(sale: Sale) {
@@ -325,7 +333,7 @@ export default function FinanceiroPage() {
       const defaultAmount = Number(balance(sale).toFixed(2))
       setPayForm({
         amount: defaultAmount,
-        paidAt: new Date().toISOString().slice(0, 16),
+        paidAt: zonedNowForInput(),
         paymentMethod: "",
         externalTransactionId: "",
       })
@@ -441,7 +449,7 @@ export default function FinanceiroPage() {
     const defaultAmount = Number(balance(sale).toFixed(2))
     setPayForm({
       amount: defaultAmount,
-      paidAt: new Date().toISOString().slice(0, 16),
+      paidAt: zonedNowForInput(),
       paymentMethod: "",
       externalTransactionId: "",
     })
@@ -488,15 +496,15 @@ export default function FinanceiroPage() {
     setSubmitting(true)
     setError(null)
     try {
+      const paymentStatus = payForm.paymentMethod === 'Link' ? PaymentStatus.PENDING : PaymentStatus.PAID;
+
       await api.createPayment({
         saleId: (selectedSale as any).id,
         amount: Number(payForm.amount),
-        status: PaymentStatus.PAID,
+        status: paymentStatus,
         paidAt: payForm.paidAt ? new Date(payForm.paidAt).toISOString() : new Date().toISOString(),
         paymentMethod: payForm.paymentMethod || undefined,
         externalTransactionId: payForm.externalTransactionId || undefined,
-        // Mantendo compatibilidade com seu backend atual sem remover nada
-        // Caso o tipo exija createdAt, o serviço pode preencher server-side
       } as any)
       await refreshAll()
       setPayOpen(false)
@@ -526,14 +534,36 @@ export default function FinanceiroPage() {
     }
   }
 
-  // Exportação CSV (cliente)
-  function exportCSV() {
+  function confirmCancelPayment(payment: Payment) {
+    setConfirmPaymentCancelOpen(payment)
+  }
+
+  async function applyCancelPayment() {
+    if (!confirmPaymentCancelOpen) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      if (confirmPaymentCancelOpen.paymentMethod === 'Link' && confirmPaymentCancelOpen.externalTransactionId) {
+        await api.cancelInfinitePayPayment(confirmPaymentCancelOpen.externalTransactionId);
+      }
+      await api.updatePaymentStatus(confirmPaymentCancelOpen.id, PaymentStatus.CANCELLED);
+      await refreshAll();
+      setConfirmPaymentCancelOpen(null);
+    } catch (e: any) {
+      setError(e?.message || "Falha ao cancelar pagamento");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // Exportação XLSX
+  function exportXLSX() {
     const headers =
       activeTab === "sales"
-        ? ["id", "cliente", "status", "total", "pago", "saldo", "criado_em"]
-        : ["id", "sale_id", "valor", "status", "metodo", "nsu", "criado_em"]
+        ? ["ID", "Cliente", "Status", "Total", "Pago", "Saldo", "Criado Em"]
+        : ["ID", "ID da Venda", "Valor", "Status", "Método", "NSU", "Criado Em"];
 
-    const rows =
+    const data =
       activeTab === "sales"
         ? filteredSales.map((s: any) => [
             s.id,
@@ -542,7 +572,7 @@ export default function FinanceiroPage() {
             Number(s.totalAmount).toFixed(2),
             paidAmount(s).toFixed(2),
             balance(s).toFixed(2),
-            (s.created_at || s.created_at || "").toString(),
+            new Date(s.created_at || s.created_at || "").toLocaleString("pt-BR"),
           ])
         : filteredPayments.map((p: any) => [
             p.id,
@@ -551,19 +581,13 @@ export default function FinanceiroPage() {
             p.status,
             p.paymentMethod || "",
             p.externalTransactionId || "",
-            (p.created_at || p.created_at || "").toString(),
-          ])
+            new Date(p.created_at || p.created_at || "").toLocaleString("pt-BR"),
+          ]);
 
-    const csv =
-      [headers.join(","), ...rows.map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(","))].join("\n")
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = activeTab === "sales" ? "vendas.csv" : "pagamentos.csv"
-    a.click()
-    URL.revokeObjectURL(url)
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, activeTab === "sales" ? "Vendas" : "Pagamentos");
+    XLSX.writeFile(wb, activeTab === "sales" ? "vendas.xlsx" : "pagamentos.xlsx");
   }
 
   // Quando muda a aba, resetar página
@@ -695,12 +719,12 @@ export default function FinanceiroPage() {
               <Button
                 variant="outline"
                 className="h-9 shrink-0"
-                onClick={exportCSV}
-                aria-label="Exportar CSV"
+                onClick={exportXLSX}
+                aria-label="Exportar"
               >
                 <Download className="mr-2 h-4 w-4" />
-                <span className="md:hidden whitespace-nowrap">Exp. CSV</span>
-                <span className="hidden md:inline">Exportar CSV</span>
+                <span className="md:hidden whitespace-nowrap">Exportar</span>
+                <span className="hidden md:inline">Exportar</span>
               </Button>
 
               {/* CTAs (abrev. no mobile, texto cheio no md+) */}
@@ -1133,11 +1157,23 @@ export default function FinanceiroPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm mb-1">Método (opcional)</label>
-                <Input
-                  placeholder="Pix, Cartão..."
-                  value={payForm.paymentMethod || ""}
-                  onChange={(e) => setPayForm((p) => ({ ...p, paymentMethod: e.target.value }))}
-                />
+                <Select
+                  value={payForm.paymentMethod || 'NA'}
+                  onValueChange={(v) =>
+                    setPayForm(p => ({ ...p, paymentMethod: v === 'NA' ? '' : v }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o método de pagamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NA">N/A</SelectItem>
+                    <SelectItem value="Pix">Pix</SelectItem>
+                    <SelectItem value="Cartão">Cartão</SelectItem>
+                    <SelectItem value="Dinheiro">Dinheiro</SelectItem>
+                    <SelectItem value="Boleto">Boleto</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <label className="block text-sm mb-1">Transação/NSU (opcional)</label>
@@ -1380,6 +1416,31 @@ export default function FinanceiroPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Modal: confirmação de cancelamento de pagamento */}
+      <Dialog open={!!confirmPaymentCancelOpen} onOpenChange={() => setConfirmPaymentCancelOpen(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Confirmar cancelamento</DialogTitle>
+            <DialogDescription>
+              Cancelar este pagamento? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setConfirmPaymentCancelOpen(null)} disabled={submitting}>
+              Fechar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={applyCancelPayment}
+              disabled={submitting}
+            >
+              {submitting ? "Cancelando..." : "Confirmar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* =========================
           NOVO MODAL: Selecionar venda
          ========================= */}
@@ -1422,7 +1483,8 @@ export default function FinanceiroPage() {
                           <div className="flex items-center justify-between">
                             <div className="truncate">
                               <div className="font-medium truncate">
-                                {(s as any).clientName || "Cliente"} — Venda #{(s as any).id}
+                                {s.clientName}
+                                {s.items?.[0] ? ` — ${s.items[0].serviceName} (${s.items[0].serviceVariantName})` : ""}
                               </div>
                               <div className="text-xs text-muted-foreground">
                                 Total {currency((s as any).totalAmount)} • Pago {currency(paid)} • Saldo {currency(due)}

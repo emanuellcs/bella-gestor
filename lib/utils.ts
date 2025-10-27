@@ -2,6 +2,8 @@ import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import type { Client, SupabaseClient } from './types'
 
+export const SAO_TZ = 'America/Sao_Paulo';
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -57,18 +59,35 @@ export function formatCurrency(value: number): string {
 
 export function formatDate(date: string): string {
   return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: SAO_TZ,
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
-  }).format(new Date(date))
+  }).format(new Date(date));
 }
 
 export function formatDateTime(date: string): string {
   return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: SAO_TZ,
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(date))
+  }).format(new Date(date));
+}
+
+// Para preencher <input type="datetime-local">
+export function zonedNowForInput(tz = SAO_TZ): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date())
+   .reduce((a: any, p) => (a[p.type] = p.value, a), {});
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 }
