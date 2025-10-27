@@ -43,6 +43,7 @@ import {
   Percent,
 } from "lucide-react"
 import type { Client, Appointment, Service, ServiceVariant, Sale, Payment } from "@/lib/types"
+import { SaleStatus } from "@/lib/types"
 import * as XLSX from "xlsx"
 
 interface PeriodData {
@@ -176,9 +177,14 @@ export default function RelatoriosPage() {
     const appointmentsChange =
       previousCompletedAppointments > 0 ? ((completedAppointments - previousCompletedAppointments) / previousCompletedAppointments) * 100 : 0
 
-    const totalAppointments = currentPeriod.appointments.length
-    const cancelledAppointments = currentPeriod.appointments.filter((a) => a.status === "cancelled").length
-    const cancellationRate = totalAppointments > 0 ? (cancelledAppointments / totalAppointments) * 100 : 0
+    const totalSales = currentPeriod.sales.length;
+    const cancelledSales = currentPeriod.sales.filter(
+      s => s.status === SaleStatus.CANCELLED // ou 'cancelled'
+    ).length;
+
+    const cancellationRate = totalSales
+      ? (cancelledSales / totalSales) * 100
+      : 0;
 
     const avgTicket = currentPeriod.payments.length > 0 ? revenue / currentPeriod.payments.length : 0
     const previousAvgTicket =

@@ -8,6 +8,13 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -33,6 +40,7 @@ export function CheckoutModal({
   const [loading, setLoading] = useState(false)
   const [discount, setDiscount] = useState<number>(0) // percentual (0–100)
   const [additional, setAdditional] = useState<number>(0) // acréscimos/serviços extras
+  const [paymentMethod, setPaymentMethod] = useState<string>("N/A") // Novo estado para o método de pagamento
   const [error, setError] = useState<string>("")
   const [checkoutUrl, setCheckoutUrl] = useState<string>("")
 
@@ -67,6 +75,7 @@ export function CheckoutModal({
             },
           ],
           customer,
+          paymentMethod, // Adiciona o método de pagamento
           // address: {...} // opcional
         }),
       })
@@ -88,6 +97,7 @@ export function CheckoutModal({
   function resetAndClose() {
     setDiscount(0)
     setAdditional(0)
+    setPaymentMethod("N/A") // Resetar o método de pagamento
     setError("")
     setCheckoutUrl("")
     onOpenChange(false)
@@ -129,6 +139,54 @@ export function CheckoutModal({
                 value={additional}
                 onChange={(e) => setAdditional(Number(e.target.value || 0))}
               />
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <Label className="text-sm">Método (opcional)</Label>
+              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o método de pagamento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="N/A">N/A</SelectItem>
+                  <SelectItem value="Pix">Pix</SelectItem>
+                  <SelectItem value="Cartão">Cartão</SelectItem>
+                  <SelectItem value="Dinheiro">Dinheiro</SelectItem>
+                  <SelectItem value="Boleto">Boleto</SelectItem>
+                  <SelectItem value="Link">Link</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <Label className="text-sm">Método (opcional)</Label>
+              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o método de pagamento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="N/A">N/A</SelectItem>
+                  <SelectItem value="Pix">Pix</SelectItem>
+                  <SelectItem value="Cartão">Cartão</SelectItem>
+                  <SelectItem value="Dinheiro">Dinheiro</SelectItem>
+                  <SelectItem value="Boleto">Boleto</SelectItem>
+                  <SelectItem value="Link">Link</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <Label className="text-sm">Método (opcional)</Label>
+              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o método de pagamento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="N/A">N/A</SelectItem>
+                  <SelectItem value="Pix">Pix</SelectItem>
+                  <SelectItem value="Cartão">Cartão</SelectItem>
+                  <SelectItem value="Dinheiro">Dinheiro</SelectItem>
+                  <SelectItem value="Boleto">Boleto</SelectItem>
+                  <SelectItem value="Link">Link</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

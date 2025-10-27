@@ -95,7 +95,7 @@ export async function POST(req: Request) {
         sale_id: saleIdNum,
         amount: amountReais,                 // REAIS
         status: "pending",
-        payment_method: null,
+        payment_method: "Link",
         external_transaction_id: order_nsu,  // order_nsu
         payment_link_url: json.url,
       }])
