@@ -46,6 +46,7 @@ export interface SupabaseClient {
   referral_source: string | null
   marketing_consent: boolean
   is_client: boolean
+  total_spent?: number
 }
 
 export interface SupabaseService {

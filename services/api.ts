@@ -17,9 +17,19 @@ import { parseSupabaseError } from "@/lib/error-handler"
    CLIENTES
    ========================= */
 
-export async function getClients(): Promise<Client[]> {
+export async function getClients(
+  searchTerm: string = "",
+  pageNumber: number = 1,
+  pageSize: number = 10,
+  isActive: boolean = true
+): Promise<Client[]> {
   try {
-    const { data, error } = await supabase.from("clients").select("*").order("created_at", { ascending: false })
+    const { data, error } = await supabase.rpc("get_clients_with_total_spent", {
+      search_term: searchTerm,
+      page_number: pageNumber,
+      page_size: pageSize,
+      filter_is_active: isActive,
+    })
     if (error) {
       const parsed = parseSupabaseError(error)
       throw new Error(parsed.description)
@@ -61,7 +71,7 @@ export async function getClientById(id: string): Promise<Client | null> {
   }
 }
 
-export async function createClient(client: Omit<Client, "id" | "totalSpent" | "registrationDate" | "status">): Promise<Client> {
+export async function createClient(client: Omit<Client, "id" | "registrationDate" | "status">): Promise<Client> {
   try {
     const payload = clientToSupabaseClient(client)
     const { data, error } = await supabase.from("clients").insert([payload]).select("*").single()

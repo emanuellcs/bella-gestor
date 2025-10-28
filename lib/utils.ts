@@ -8,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function supabaseClientToClient(supabaseClient: SupabaseClient): Client {
+export function supabaseClientToClient(supabaseClient: SupabaseClient & { total_spent?: number }): Client {
   return {
     id: supabaseClient.id.toString(),
     name: supabaseClient.full_name,
@@ -23,7 +23,7 @@ export function supabaseClientToClient(supabaseClient: SupabaseClient): Client {
     registrationDate: supabaseClient.created_at,
     lastVisit: supabaseClient.updated_at || undefined,
     status: supabaseClient.is_active ? 'active' : 'inactive',
-    totalSpent: 0,
+    totalSpent: supabaseClient.total_spent || 0,
     notes: supabaseClient.notes || undefined,
     services: supabaseClient.services || undefined,
   }
