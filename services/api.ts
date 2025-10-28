@@ -188,7 +188,7 @@ export async function getServices(): Promise<Service[]> {
   }
 }
 
-export async function createService(service: Omit<Service, "id" | "created_at" | "updatedAt">): Promise<Service> {
+export async function createService(service: Omit<Service, "id" | "created_at" | "updatedAt"> & { variants?: Omit<ServiceVariant, "id" | "serviceId" | "created_at" | "updatedAt">[] }): Promise<Service> {
   try {
     const payload: any = {
       name: service.name,
@@ -201,8 +201,30 @@ export async function createService(service: Omit<Service, "id" | "created_at" |
       const parsed = parseSupabaseError(error)
       throw new Error(parsed.description)
     }
+
+    const createdServiceId = data.id.toString()
+
+    if (service.variants && service.variants.length > 0) {
+      const variantsPayload = service.variants.map(variant => ({
+        service_id: parseInt(createdServiceId),
+        variant_name: variant.variantName,
+        price: variant.price,
+        duration_minutes: variant.duration,
+        is_active: variant.active ?? true,
+      }))
+
+      const { error: variantsError } = await supabase.from("service_variants").insert(variantsPayload)
+      if (variantsError) {
+        console.error("Error creating service variants:", variantsError)
+        // Optionally, roll back the service creation here if variants are critical
+        // For now, we'll just log and proceed, but a transaction might be better
+        const parsed = parseSupabaseError(variantsError)
+        throw new Error(`Service created, but failed to create variants: ${parsed.description}`)
+      }
+    }
+
     return {
-      id: data.id.toString(),
+      id: createdServiceId,
       name: data.name,
       description: data.description || "",
       category: data.category || "",
@@ -216,8 +238,9 @@ export async function createService(service: Omit<Service, "id" | "created_at" |
   }
 }
 
-export async function updateService(id: string, service: Partial<Service>): Promise<Service> {
+export async function updateService(id: string, service: Partial<Service> & { variants?: ServiceVariant[] }): Promise<Service> {
   try {
+    const serviceIdNum = parseInt(id)
     const payload: any = {
       ...(service.name !== undefined ? { name: service.name } : {}),
       ...(service.description !== undefined ? { description: service.description } : {}),
@@ -225,11 +248,67 @@ export async function updateService(id: string, service: Partial<Service>): Prom
       ...(service.active !== undefined ? { is_active: service.active } : {}),
       updated_at: new Date().toISOString(),
     }
-    const { data, error } = await supabase.from("services").update(payload).eq("id", parseInt(id)).select("*").single()
+    const { data, error } = await supabase.from("services").update(payload).eq("id", serviceIdNum).select("*").single()
     if (error) {
       const parsed = parseSupabaseError(error)
       throw new Error(parsed.description)
     }
+
+    // Handle variants
+    if (service.variants !== undefined) {
+      const existingVariants = await getServiceVariantsByServiceId(id)
+      const incomingVariants = service.variants
+
+      const variantsToCreate = incomingVariants.filter((v: ServiceVariant) => !v.id)
+      const variantsToUpdate = incomingVariants.filter((v: ServiceVariant) => v.id)
+      const variantsToDelete = existingVariants.filter((ev: ServiceVariant) => !incomingVariants.some((iv: ServiceVariant) => iv.id === ev.id))
+
+      // Create new variants
+      if (variantsToCreate.length > 0) {
+        const createPayload = variantsToCreate.map((variant: ServiceVariant) => ({
+          service_id: serviceIdNum,
+          variant_name: variant.variantName,
+          price: variant.price,
+          duration_minutes: variant.duration,
+          is_active: variant.active ?? true,
+        }))
+        const { error: createError } = await supabase.from("service_variants").insert(createPayload)
+        if (createError) {
+          console.error("Error creating service variants:", createError)
+          const parsed = parseSupabaseError(createError)
+          throw new Error(`Service updated, but failed to create new variants: ${parsed.description}`)
+        }
+      }
+
+      // Update existing variants
+      for (const variant of variantsToUpdate) {
+        const updatePayload: any = {
+          ...(variant.variantName !== undefined ? { variant_name: variant.variantName } : {}),
+          ...(variant.price !== undefined ? { price: variant.price } : {}),
+          ...(variant.duration !== undefined ? { duration_minutes: variant.duration } : {}),
+          ...(variant.active !== undefined ? { is_active: variant.active } : {}),
+          updated_at: new Date().toISOString(),
+        }
+        const { error: updateError } = await supabase.from("service_variants").update(updatePayload).eq("id", parseInt(variant.id))
+        if (updateError) {
+          console.error(`Error updating service variant ${variant.id}:`, updateError)
+          const parsed = parseSupabaseError(updateError)
+          throw new Error(`Service updated, but failed to update variant ${variant.id}: ${parsed.description}`)
+        }
+      }
+
+      // Delete removed variants
+      if (variantsToDelete.length > 0) {
+        const deleteIds = variantsToDelete.map((v: ServiceVariant) => parseInt(v.id))
+        const { error: deleteError } = await supabase.from("service_variants").delete().in("id", deleteIds)
+        if (deleteError) {
+          console.error("Error deleting service variants:", deleteError)
+          const parsed = parseSupabaseError(deleteError)
+          throw new Error(`Service updated, but failed to delete variants: ${parsed.description}`)
+        }
+      }
+    }
+
     return {
       id: data.id.toString(),
       name: data.name,
@@ -255,6 +334,29 @@ export async function deleteService(id: string): Promise<boolean> {
     return true
   } catch (error) {
     console.error("Error in deleteService:", error)
+    throw error
+  }
+}
+
+export async function getServiceVariantsByServiceId(serviceId: string): Promise<ServiceVariant[]> {
+  try {
+    const { data, error } = await supabase.from("service_variants").select("*").eq("service_id", parseInt(serviceId)).order("created_at", { ascending: false })
+    if (error) {
+      const parsed = parseSupabaseError(error)
+      throw new Error(parsed.description)
+    }
+    return (data || []).map((v: any): ServiceVariant => ({
+      id: v.id.toString(),
+      serviceId: v.service_id.toString(),
+      variantName: v.variant_name,
+      price: parseFloat(v.price),
+      duration: v.duration_minutes,
+      active: !!v.is_active,
+      created_at: v.created_at,
+      updatedAt: v.updated_at || undefined,
+    }))
+  } catch (error) {
+    console.error(`Error in getServiceVariantsByServiceId for service ${serviceId}:`, error)
     throw error
   }
 }

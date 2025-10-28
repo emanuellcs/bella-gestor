@@ -43,9 +43,10 @@ interface DataContextType {
   deleteAppointment: (id: string) => Promise<boolean>
 
   // Services
-  addService: (service: Omit<Service, "id" | "created_at" | "updatedAt">) => Promise<Service | null>
-  updateService: (id: string, service: Partial<Service>) => Promise<Service | null>
+  addService: (service: Omit<Service, "id" | "created_at" | "updatedAt"> & { variants?: Omit<ServiceVariant, "id" | "serviceId" | "created_at" | "updatedAt">[] }) => Promise<Service | null>
+  updateService: (id: string, service: Partial<Service> & { variants?: ServiceVariant[] }) => Promise<Service | null>
   deleteService: (id: string) => Promise<boolean>
+  getServiceVariantsByServiceId: (serviceId: string) => Promise<ServiceVariant[]>
   addServiceVariant: (variant: Omit<ServiceVariant, "id" | "created_at" | "updatedAt">) => Promise<ServiceVariant | null>
   updateServiceVariant: (id: string, variant: Partial<ServiceVariant>) => Promise<ServiceVariant | null>
   deleteServiceVariant: (id: string) => Promise<boolean>
@@ -314,9 +315,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const addService = async (service: Omit<Service, "id" | "created_at" | "updatedAt">): Promise<Service | null> => {
+  const addService = async (service: Omit<Service, "id" | "created_at" | "updatedAt"> & { variants?: Omit<ServiceVariant, "id" | "serviceId" | "created_at" | "updatedAt">[] }): Promise<Service | null> => {
     try {
-      const created = await api.createService?.(service as any)
+      const created = await api.createService?.(service)
       await refreshData()
       toast({ title: "Serviço criado", description: "O serviço foi adicionado com sucesso." })
       return created || null
@@ -328,7 +329,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const updateService = async (id: string, service: Partial<Service>): Promise<Service | null> => {
+  const updateService = async (id: string, service: Partial<Service> & { variants?: ServiceVariant[] }): Promise<Service | null> => {
     try {
       const updated = await api.updateService?.(id, service)
       await refreshData()
@@ -339,6 +340,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setError(msg)
       toast({ title: "Erro ao atualizar serviço", description: msg, variant: "destructive" })
       return null
+    }
+  }
+
+  const getServiceVariantsByServiceId = async (serviceId: string): Promise<ServiceVariant[]> => {
+    try {
+      const variants = await api.getServiceVariantsByServiceId?.(serviceId)
+      return variants || []
+    } catch (err: any) {
+      const msg = err?.message || "Não foi possível buscar as variantes do serviço."
+      setError(msg)
+      toast({ title: "Erro ao buscar variantes", description: msg, variant: "destructive" })
+      return []
     }
   }
 
@@ -431,6 +444,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     addService,
     updateService,
     deleteService,
+    getServiceVariantsByServiceId,
     addServiceVariant,
     updateServiceVariant,
     deleteServiceVariant,
