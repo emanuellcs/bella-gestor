@@ -79,7 +79,6 @@ export interface SupabaseAppointment {
   end_time: string
   status: AppointmentStatus
   notes: string | null
-  google_calendar_event_id: string | null
   created_at: string
   updated_at: string | null
   created_by: string | null
@@ -137,9 +136,6 @@ export interface SupabaseUserRole {
 export interface UserIntegration {
   id: string
   userId: string
-  googleCalendarAccessToken: string | null
-  googleCalendarRefreshToken: string | null
-  googleCalendarConnectedAt: string | null
   created_at: string
   updatedAt: string | null
 }
@@ -147,9 +143,6 @@ export interface UserIntegration {
 export interface SupabaseUserIntegration {
   id: number
   user_id: string
-  google_calendar_access_token: string | null
-  google_calendar_refresh_token: string | null
-  google_calendar_connected_at: string | null
   created_at: string
   updated_at: string | null
 }
@@ -209,7 +202,6 @@ export interface Appointment {
   notes?: string
   totalPrice: number
   saleId?: string
-  googleCalendarEventId?: string
   created_at: string
   updatedAt?: string
 }

@@ -379,7 +379,6 @@ export async function getAppointments(): Promise<Appointment[]> {
       status: apt.status,
       notes: apt.notes || "",
       totalPrice: 0,
-      googleCalendarEventId: apt.google_calendar_event_id || undefined,
       created_at: apt.created_at,
     }))
   } catch (error) {
@@ -411,7 +410,6 @@ export async function getAppointmentsByDateRange(startDate: string, endDate: str
       status: apt.status,
       notes: apt.notes || "",
       totalPrice: 0,
-      googleCalendarEventId: apt.google_calendar_event_id || undefined,
       created_at: apt.created_at,
     }))
   } catch (error) {
@@ -429,7 +427,6 @@ export async function createAppointment(appointment: Omit<Appointment, "id" | "c
       end_time: appointment.endTime,
       status: appointment.status,
       notes: appointment.notes || null,
-      google_calendar_event_id: appointment.googleCalendarEventId || null,
     }
     const { data, error } = await supabase.from("appointments").insert([payload]).select("*").single()
     if (error) {
@@ -447,7 +444,6 @@ export async function createAppointment(appointment: Omit<Appointment, "id" | "c
       status: data.status,
       notes: data.notes || "",
       totalPrice: 0,
-      googleCalendarEventId: data.google_calendar_event_id || undefined,
       created_at: data.created_at,
     }
   } catch (error) {
@@ -465,7 +461,6 @@ export async function updateAppointment(id: string, appointment: Partial<Appoint
       ...(appointment.endTime !== undefined ? { end_time: appointment.endTime } : {}),
       ...(appointment.status !== undefined ? { status: appointment.status } : {}),
       ...(appointment.notes !== undefined ? { notes: appointment.notes } : {}),
-      ...(appointment.googleCalendarEventId !== undefined ? { google_calendar_event_id: appointment.googleCalendarEventId } : {}),
       updated_at: new Date().toISOString(),
     }
     const { data, error } = await supabase.from("appointments").update(payload).eq("id", parseInt(id)).select("*").single()
@@ -484,7 +479,6 @@ export async function updateAppointment(id: string, appointment: Partial<Appoint
       status: data.status,
       notes: data.notes || "",
       totalPrice: 0,
-      googleCalendarEventId: data.google_calendar_event_id || undefined,
       created_at: data.created_at,
     }
   } catch (error) {
