@@ -6,6 +6,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Command, CommandInput, CommandEmpty, CommandList, CommandGroup, CommandItem } from "@/components/ui/command";
 import { ChevronsUpDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ScrollArea } from "./scroll-area";
 
 export type ComboItem = { value: string; label: string; hint?: string };
 
@@ -40,25 +41,27 @@ export function Combobox({
           <CommandInput placeholder={`Buscar ${placeholder.toLowerCase()}...`} />
           <CommandEmpty>{emptyText}</CommandEmpty>
           <CommandList>
-            <CommandGroup>
-              {items.map((it) => (
-                <CommandItem
-                  key={it.value}
-                  value={it.label}
-                  onSelect={() => {
-                    onChange(it.value);
-                    setOpen(false);
-                  }}
-                  className="flex items-center justify-between"
-                >
-                  <div className="flex items-center">
-                    <Check className={cn("mr-2 h-4 w-4", value === it.value ? "opacity-100" : "opacity-0")} />
-                    <span>{it.label}</span>
-                  </div>
-                  {it.hint ? <span className="text-xs text-muted-foreground">{it.hint}</span> : null}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            <ScrollArea className="max-h-[200px] overflow-y-auto">
+              <CommandGroup>
+                {items.map((it) => (
+                  <CommandItem
+                    key={it.value}
+                    value={it.label}
+                    onSelect={() => {
+                      onChange(it.value);
+                      setOpen(false);
+                    }}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex items-center">
+                      <Check className={cn("mr-2 h-4 w-4", value === it.value ? "opacity-100" : "opacity-0")} />
+                      <span>{it.label}</span>
+                    </div>
+                    {it.hint ? <span className="text-xs text-muted-foreground">{it.hint}</span> : null}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </ScrollArea>
           </CommandList>
         </Command>
       </PopoverContent>

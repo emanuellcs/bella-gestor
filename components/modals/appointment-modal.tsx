@@ -21,13 +21,15 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { useData } from "@/lib/data-context"
 import { AppointmentStatus } from "@/lib/types"
-import type { Appointment } from "@/lib/types"
+import type { Appointment, Service, ServiceVariant } from "@/lib/types"
 import { Loader2, Save, X, AlertCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { zonedNowForInput } from "@/lib/utils"
+import { getActiveServices } from "@/services/api"
 
 interface AppointmentModalProps {
     open: boolean
@@ -49,12 +51,17 @@ export function AppointmentModal({
     const { clients, addAppointment, updateAppointment } = useData()
     const { toast } = useToast()
     const [isLoading, setIsLoading] = useState(false)
+    const [services, setServices] = useState<Service[]>([])
+    const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null)
+    const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
 
     const [formData, setFormData] = useState({
         clientId: "",
         clientName: "",
         professionalId: "",
         professionalName: "",
+        serviceId: "", // New field for service
+        variantId: "", // New field for variant
         startTime: defaultDate && defaultTime
             ? `${defaultDate}T${defaultTime}`
             : zonedNowForInput(),
@@ -64,23 +71,51 @@ export function AppointmentModal({
     })
 
     useEffect(() => {
+        const fetchServices = async () => {
+            try {
+                const activeServices = await getActiveServices()
+                setServices(activeServices)
+            } catch (error) {
+                console.error("Error fetching active services:", error)
+                toast({
+                    title: "Erro",
+                    description: "Falha ao carregar serviços.",
+                    variant: "destructive",
+                })
+            }
+        }
+        fetchServices()
+    }, [toast])
+
+    useEffect(() => {
         if (appointment && mode === "edit") {
+            // Assuming appointment.serviceVariants holds the main service/variant for simplicity
+            const initialServiceVariant = appointment.serviceVariants?.[0]?.serviceVariantId
+            const service = services.find(s => s.variants?.some(v => v.id === initialServiceVariant))
+            const variant = service?.variants?.find(v => v.id === initialServiceVariant)
+
             setFormData({
                 clientId: appointment.clientId || "",
                 clientName: appointment.clientName || "",
                 professionalId: appointment.professionalId || "",
                 professionalName: appointment.professionalName || "",
+                serviceId: service?.id || "",
+                variantId: variant?.id || "",
                 startTime: appointment.startTime || "",
                 endTime: appointment.endTime || "",
                 status: appointment.status || AppointmentStatus.SCHEDULED,
                 notes: appointment.notes || "",
             })
+            setSelectedServiceId(service?.id || null)
+            setSelectedVariantId(variant?.id || null)
         } else if (mode === "create") {
             setFormData({
                 clientId: "",
                 clientName: "",
                 professionalId: "",
                 professionalName: "",
+                serviceId: "",
+                variantId: "",
                 startTime: defaultDate && defaultTime
                     ? `${defaultDate}T${defaultTime}`
                     : zonedNowForInput(),
@@ -88,8 +123,10 @@ export function AppointmentModal({
                 status: AppointmentStatus.SCHEDULED,
                 notes: "",
             })
+            setSelectedServiceId(null)
+            setSelectedVariantId(null)
         }
-    }, [appointment, mode, open, defaultDate, defaultTime])
+    }, [appointment, mode, open, defaultDate, defaultTime, services])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -100,11 +137,19 @@ export function AppointmentModal({
             variant: "destructive",
         })
 
-        // Quando implementar:
+        // When implementing:
+        // const newAppointment: Omit<Appointment, "id" | "created_at"> = {
+        //     ...formData,
+        //     serviceVariants: [{ serviceVariantId: selectedVariantId!, quantity: 1 }], // Assuming quantity 1 for now
+        //     totalPrice: 0, // This should be calculated based on the selected variant
+        //     clientName: clients.find(c => c.id === formData.clientId)?.name || "",
+        //     professionalName: "", // You'll need to fetch professional name
+        // };
+
         // if (mode === "create") {
-        //   await addAppointment(formData)
+        //   await addAppointment(newAppointment)
         // } else if (mode === "edit" && appointment) {
-        //   await updateAppointment(appointment.id, formData)
+        //   await updateAppointment(appointment.id, newAppointment)
         // }
         // onOpenChange(false)
     }
@@ -115,6 +160,20 @@ export function AppointmentModal({
             setFormData({ ...formData, clientId: client.id, clientName: client.name })
         }
     }
+
+    const handleServiceSelect = (serviceId: string) => {
+        setSelectedServiceId(serviceId)
+        setSelectedVariantId(null) // Reset variant when service changes
+        setFormData(prev => ({ ...prev, serviceId: serviceId, variantId: "" }))
+    }
+
+    const handleVariantSelect = (variantId: string) => {
+        setSelectedVariantId(variantId)
+        setFormData(prev => ({ ...prev, variantId: variantId }))
+    }
+
+    const selectedService = services.find(s => s.id === selectedServiceId)
+    const availableVariants = selectedService?.variants || []
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -157,6 +216,30 @@ export function AppointmentModal({
                                 ))}
                             </SelectContent>
                         </Select>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="service">Serviço *</Label>
+                            <Combobox
+                                placeholder="Selecione um serviço"
+                                items={services.map(s => ({ value: s.id, label: s.name }))}
+                                value={selectedServiceId || ""}
+                                onChange={handleServiceSelect}
+                                disabled={services.length === 0}
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="variant">Variante do Serviço *</Label>
+                            <Combobox
+                                placeholder="Selecione uma variante"
+                                items={availableVariants.map(v => ({ value: v.id, label: `${v.variantName} - R$${v.price.toFixed(2)} (${v.duration} min)` }))}
+                                value={selectedVariantId || ""}
+                                onChange={handleVariantSelect}
+                                disabled={!selectedServiceId || availableVariants.length === 0}
+                            />
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

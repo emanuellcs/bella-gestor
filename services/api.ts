@@ -941,8 +941,71 @@ export async function cancelInfinitePayPayment(externalTransactionId: string): P
 
 // Lista apenas serviços ativos (Service.active === true)
 export async function getActiveServices(): Promise<Service[]> {
-  const all = await getServices()
-  return all.filter(s => s.active)
+  try {
+    const { data, error } = await supabase
+      .from("services")
+      .select(
+        `
+        id,
+        name,
+        description,
+        category,
+        is_active,
+        created_at,
+        updated_at,
+        service_variants (
+          id,
+          service_id,
+          variant_name,
+          price,
+          duration_minutes,
+          is_active,
+          created_at,
+          updated_at
+        )
+      `
+      )
+      .eq("is_active", true)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      const parsed = parseSupabaseError(error);
+      throw new Error(parsed.description);
+    }
+
+    if (!data) {
+      return [];
+    }
+
+    const services: Service[] = data.map((s: any) => ({
+      id: s.id.toString(),
+      name: s.name,
+      description: s.description || "",
+      category: s.category || "",
+      active: !!s.is_active,
+      created_at: s.created_at,
+      updatedAt: s.updated_at || undefined,
+      variants: (s.service_variants || [])
+        .map((v: any): ServiceVariant => ({
+          id: v.id.toString(),
+          serviceId: v.service_id.toString(),
+          variantName: v.variant_name,
+          price: parseFloat(v.price),
+          duration: v.duration_minutes,
+          active: !!v.is_active,
+          created_at: v.created_at,
+          updatedAt: v.updated_at || undefined,
+        }))
+        .filter((variant: ServiceVariant) => variant.active),
+    }));
+
+    // Filter out services that have no active variants after the inner filter
+    return services.filter(service => service.variants && service.variants.length > 0);
+
+  } catch (error) {
+    console.error("Error in getActiveServices:", error);
+    throw error;
+  }
 }
 
 // Opcional: variantes ativas (se a Agenda usar)
