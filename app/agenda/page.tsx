@@ -53,6 +53,7 @@ import {
 } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 type ViewMode = "week" // fixo
 
@@ -111,23 +112,25 @@ function Combobox({
         <Command>
           <CommandInput placeholder="Buscar..." />
           <CommandList>
-            <CommandEmpty>{emptyText}</CommandEmpty>
-            <CommandGroup>
-              {items.map((it, i) => (
-                <CommandItem
-                  key={`${it.value}-${i}`}
-                  value={`${it.label} ${it.hint || ""}`}
-                  onSelect={() => {
-                    onChange(it.value)
-                    setOpen(false)
-                  }}
-                  className="flex items-center justify-between"
-                >
-                  <span className="truncate">{it.label}</span>
-                  {value === it.value ? <Check className="h-4 w-4" /> : null}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            <ScrollArea className="max-h-[200px] overflow-y-auto">
+              <CommandEmpty>{emptyText}</CommandEmpty>
+              <CommandGroup>
+                {items.map((it, i) => (
+                  <CommandItem
+                    key={`${it.value}-${i}`}
+                    value={`${it.label} ${it.hint || ""}`}
+                    onSelect={() => {
+                      onChange(it.value)
+                      setOpen(false)
+                    }}
+                    className="flex items-center justify-between"
+                  >
+                    <span className="truncate">{it.label}</span>
+                    {value === it.value ? <Check className="h-4 w-4" /> : null}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </ScrollArea>
           </CommandList>
         </Command>
       </PopoverContent>
