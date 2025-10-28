@@ -260,6 +260,16 @@ export default function AgendaPage() {
     d.setDate(d.getDate() + 7)
     setCurrentDate(d)
   }
+  function goPrevMonth() {
+    const d = new Date(currentDate)
+    d.setMonth(d.getMonth() - 1)
+    setCurrentDate(d)
+  }
+  function goNextMonth() {
+    const d = new Date(currentDate)
+    d.setMonth(d.getMonth() + 1)
+    setCurrentDate(d)
+  }
   function goToday() {
     setCurrentDate(new Date())
   }
@@ -492,13 +502,13 @@ export default function AgendaPage() {
             </CardHeader>
             <CardContent className="pt-0">
               <div className="flex items-center justify-between mb-3">
-                <Button variant="outline" size="icon" className="h-9" onClick={goPrevWeek}>
+                <Button variant="outline" size="icon" className="h-9" onClick={goPrevMonth}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <div className="text-sm font-medium">
                   {currentDate.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
                 </div>
-                <Button variant="outline" size="icon" className="h-9" onClick={goNextWeek}>
+                <Button variant="outline" size="icon" className="h-9" onClick={goNextMonth}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
