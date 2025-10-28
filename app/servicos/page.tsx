@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Plus, Edit, Trash2, MoreVertical, DollarSign, Clock, Search } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -190,9 +191,32 @@ export default function ConfiguracoesPage() {
                       <span className="font-medium">{getPriceRange(service.id)}</span>
                     </div>
                     <div className="flex items-center justify-between pt-2 border-t">
-                      <span className="text-xs text-muted-foreground">
-                        {variants.length} variante{variants.length !== 1 ? 's' : ''}
-                      </span>
+                      {variants.length > 0 ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" size="sm" className="h-7 text-xs">
+                              {variants.length} variante{variants.length !== 1 ? 's' : ''}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-64 p-2">
+                            <div className="space-y-1">
+                              <p className="text-sm font-semibold">Variantes:</p>
+                              {variants.map((variant: ServiceVariant) => (
+                                <div key={variant.id} className="text-sm text-muted-foreground flex justify-between items-center">
+                                  <span>{variant.variantName}</span>
+                                  <span className="font-medium">
+                                    {formatCurrency(variant.price)} / {variant.duration} min
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          Sem variantes
+                        </span>
+                      )}
                       <Badge variant={service.active ? "default" : "secondary"}>
                         {service.active ? "Ativo" : "Inativo"}
                       </Badge>
