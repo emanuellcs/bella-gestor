@@ -17,28 +17,42 @@ import { parseSupabaseError } from "@/lib/error-handler"
    CLIENTES
    ========================= */
 
-export async function getReferralSourceCounts(): Promise<Record<string, number>> {
+export async function getReferralSourceCounts(): Promise<{ [key: string]: number }> {
   try {
-    const { data, error } = await supabase
-      .from('clients')
-      .select('referral_source');
+    const allClients: Array<{ referral_source: string | null }> = []
+    let pageNumber = 0
+    let hasMore = true
+    const pageSize = 1000
 
-    if (error) {
-      console.error('Error fetching referral_source data:', error);
-      throw new Error(parseSupabaseError(error).description);
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('referral_source')
+        .range(pageNumber * pageSize, (pageNumber + 1) * pageSize - 1)
+
+      if (error) {
+        console.error('Error fetching referral_source data:', error)
+        throw new Error(parseSupabaseError(error).description)
+      }
+
+      if (!data || data.length === 0) {
+        hasMore = false
+      } else {
+        allClients.push(...(data as Array<{ referral_source: string | null }>))
+        pageNumber++
+      }
     }
 
-    const counts: { [key: string]: number } = {};
-    (data || []).forEach((client: { referral_source: string | null }) => {
+    const counts: { [key: string]: number } = {}
+    allClients.forEach((client) => {
       if (client.referral_source) {
-        counts[client.referral_source] = (counts[client.referral_source] || 0) + 1;
+        counts[client.referral_source] = (counts[client.referral_source] || 0) + 1
       }
-    });
-
-    return counts;
+    })
+    return counts
   } catch (error) {
-    console.error("Error in getReferralSourceCounts:", error);
-    throw error;
+    console.error("Error in getReferralSourceCounts:", error)
+    throw error
   }
 }
 
@@ -68,12 +82,33 @@ export async function getClients(
 
 export async function getActiveClients(): Promise<Client[]> {
   try {
-    const { data, error } = await supabase.from("clients").select("*").eq("is_active", true).order("created_at", { ascending: false })
-    if (error) {
-      const parsed = parseSupabaseError(error)
-      throw new Error(parsed.description)
+    const allClients: any[] = []
+    let pageNumber = 0
+    let hasMore = true
+    const pageSize = 1000
+
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("*")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .range(pageNumber * pageSize, (pageNumber + 1) * pageSize - 1)
+
+      if (error) {
+        const parsed = parseSupabaseError(error)
+        throw new Error(parsed.description)
+      }
+
+      if (!data || data.length === 0) {
+        hasMore = false
+      } else {
+        allClients.push(...data)
+        pageNumber++
+      }
     }
-    return (data || []).map(supabaseClientToClient)
+
+    return allClients.map(supabaseClientToClient)
   } catch (error) {
     console.error("Error in getActiveClients:", error)
     throw error
@@ -156,12 +191,33 @@ export async function reactivateClient(id: string): Promise<boolean> {
 
 export async function getInactiveClients(): Promise<Client[]> {
   try {
-    const { data, error } = await supabase.from("clients").select("*").eq("is_active", false).order("created_at", { ascending: false })
-    if (error) {
-      const parsed = parseSupabaseError(error)
-      throw new Error(parsed.description)
+    const allClients: any[] = []
+    let pageNumber = 0
+    let hasMore = true
+    const pageSize = 1000
+
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("*")
+        .eq("is_active", false)
+        .order("created_at", { ascending: false })
+        .range(pageNumber * pageSize, (pageNumber + 1) * pageSize - 1)
+
+      if (error) {
+        const parsed = parseSupabaseError(error)
+        throw new Error(parsed.description)
+      }
+
+      if (!data || data.length === 0) {
+        hasMore = false
+      } else {
+        allClients.push(...data)
+        pageNumber++
+      }
     }
-    return (data || []).map(supabaseClientToClient)
+
+    return allClients.map(supabaseClientToClient)
   } catch (error) {
     console.error("Error in getInactiveClients:", error)
     throw error
@@ -170,17 +226,34 @@ export async function getInactiveClients(): Promise<Client[]> {
 
 export async function searchClients(query: string): Promise<Client[]> {
   try {
+    const allClients: any[] = []
+    let pageNumber = 0
+    let hasMore = true
+    const pageSize = 1000
     const q = `%${query}%`
-    const { data, error } = await supabase
-      .from("clients")
-      .select("*")
-      .or(`full_name.ilike.${q},phone.ilike.${q},email.ilike.${q}`)
-      .order("created_at", { ascending: false })
-    if (error) {
-      const parsed = parseSupabaseError(error)
-      throw new Error(parsed.description)
+
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("*")
+        .or(`full_name.ilike.${q},phone.ilike.${q},email.ilike.${q}`)
+        .order("created_at", { ascending: false })
+        .range(pageNumber * pageSize, (pageNumber + 1) * pageSize - 1)
+
+      if (error) {
+        const parsed = parseSupabaseError(error)
+        throw new Error(parsed.description)
+      }
+
+      if (!data || data.length === 0) {
+        hasMore = false
+      } else {
+        allClients.push(...data)
+        pageNumber++
+      }
     }
-    return (data || []).map(supabaseClientToClient)
+
+    return allClients.map(supabaseClientToClient)
   } catch (error) {
     console.error("Error in searchClients:", error)
     throw error
