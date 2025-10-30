@@ -17,6 +17,31 @@ import { parseSupabaseError } from "@/lib/error-handler"
    CLIENTES
    ========================= */
 
+export async function getReferralSourceCounts(): Promise<Record<string, number>> {
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('referral_source');
+
+    if (error) {
+      console.error('Error fetching referral_source data:', error);
+      throw new Error(parseSupabaseError(error).description);
+    }
+
+    const counts: { [key: string]: number } = {};
+    (data || []).forEach((client: { referral_source: string | null }) => {
+      if (client.referral_source) {
+        counts[client.referral_source] = (counts[client.referral_source] || 0) + 1;
+      }
+    });
+
+    return counts;
+  } catch (error) {
+    console.error("Error in getReferralSourceCounts:", error);
+    throw error;
+  }
+}
+
 export async function getClients(
   searchTerm: string = "",
   pageNumber: number = 1,

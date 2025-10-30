@@ -156,7 +156,7 @@ export interface Client {
   birthDate?: string
   serviceLocation?: string
   preferredSchedule?: string
-  referralSource?: string
+  referral_source?: string
   marketingConsent?: boolean
   isClient?: boolean
   registrationDate: string

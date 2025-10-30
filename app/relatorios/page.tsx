@@ -45,6 +45,7 @@ import {
 import type { Client, Appointment, Service, ServiceVariant, Sale, Payment } from "@/lib/types"
 import { SaleStatus } from "@/lib/types"
 import * as XLSX from "xlsx"
+import { getReferralSourceCounts } from "@/services/api"
 
 interface PeriodData {
   clients: Client[]
@@ -109,6 +110,21 @@ export default function RelatoriosPage() {
     error,
     refreshData,
   } = useData()
+
+  const [referralSourceCounts, setReferralSourceCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const fetchReferralSourceCounts = async () => {
+      try {
+        const counts = await getReferralSourceCounts();
+        setReferralSourceCounts(counts);
+      } catch (err) {
+        console.error("Failed to fetch referral source counts:", err);
+      }
+    };
+
+    void fetchReferralSourceCounts();
+  }, []);
 
   const [periodFilter, setPeriodFilter] = useState<string>("30")
 
@@ -248,8 +264,9 @@ export default function RelatoriosPage() {
       retentionRate,
       totalClients,
       activeClients,
+      referralSourceCounts,
     }
-  }, [currentPeriod, previousPeriod, clients, services, serviceVariants])
+  }, [currentPeriod, previousPeriod, clients, appointments, sales, payments, services, serviceVariants, referralSourceCounts])
 
   function getPeriodLabel(): string {
     const labels: Record<string, string> = {
@@ -285,10 +302,20 @@ export default function RelatoriosPage() {
       "Data de Cadastro": formatDate(c.registrationDate),
       Cliente: c.isClient ? "Sim" : "Não",
       Status: c.status === "active" ? "Ativo" : "Inativo",
+      "Como Conheceu": c.referral_source || "Não informado",
     }))
     if (clientsData.length > 0) {
       const wsClients = XLSX.utils.json_to_sheet(clientsData)
       XLSX.utils.book_append_sheet(wb, wsClients, "Novos Clientes")
+    }
+
+    const referralSourceData = Object.entries(metrics.referralSourceCounts).map(([source, count]) => ({
+      "Como Conheceu": source,
+      "Quantidade de Clientes": count,
+    }));
+    if (referralSourceData.length > 0) {
+      const wsReferralSource = XLSX.utils.json_to_sheet(referralSourceData);
+      XLSX.utils.book_append_sheet(wb, wsReferralSource, "Como Conheceu");
     }
 
     const appointmentsData = currentPeriod.appointments.map((a) => ({
@@ -677,6 +704,29 @@ export default function RelatoriosPage() {
                 </Badge>
               </div>
             </div>
+          </Card>
+
+          <Card className="p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-semibold mb-4">Como os Clientes Conheceram</h3>
+            {Object.keys(metrics.referralSourceCounts).length === 0 ? (
+              <div className="text-sm text-muted-foreground">Nenhum dado disponível para "Como Conheceu"</div>
+            ) : (
+              <div className="space-y-2">
+                {Object.entries(metrics.referralSourceCounts)
+                  .sort(([, countA], [, countB]) => countB - countA)
+                  .map(([source, count]) => (
+                    <div key={source} className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{source}</p>
+                        </div>
+                      </div>
+                      <p className="font-semibold">{count}</p>
+                    </div>
+                  ))}
+              </div>
+            )}
           </Card>
         </TabsContent>
 

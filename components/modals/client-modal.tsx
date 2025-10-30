@@ -369,14 +369,27 @@ export function ClientModal({ open, onOpenChange, client, mode }: ClientModalPro
 
               <div className="space-y-2">
                 <Label htmlFor="referralSource">Como Conheceu</Label>
-                <Input
-                  id="referralSource"
-                  value={formData.referralSource}
-                  onChange={(e) => handleInputChange("referralSource", e.target.value)}
-                  placeholder="Ex: Instagram, Indicação de Maria, Google"
-                  readOnly={isReadOnly}
-                  className={isReadOnly ? "bg-muted/30 cursor-default" : ""}
-                />
+                {isReadOnly ? (
+                  <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted/30 px-3 py-2 text-sm">
+                    {formData.referralSource || "—"}
+                  </div>
+                ) : (
+                  <Select
+                    value={formData.referralSource}
+                    onValueChange={(value) => handleInputChange("referralSource", value)}
+                  >
+                    <SelectTrigger id="referralSource">
+                      <SelectValue placeholder="Selecione uma opção" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Orgânico Instagram">Orgânico Instagram</SelectItem>
+                      <SelectItem value="Tráfego Instagram">Tráfego Instagram</SelectItem>
+                      <SelectItem value="Tv Barueri">Tv Barueri</SelectItem>
+                      <SelectItem value="Fachada">Fachada</SelectItem>
+                      <SelectItem value="Indicação">Indicação</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
                 <p className="text-xs text-muted-foreground">Origem do lead</p>
               </div>
 
