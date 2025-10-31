@@ -29,7 +29,7 @@ export function Combobox({
   const selected = items.find((i) => i.value === value);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover modal open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between h-9" disabled={disabled}>
           {selected ? selected.label : placeholder}

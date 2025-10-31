@@ -54,7 +54,7 @@ import {
 } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { formatBrazilianPhone, unformatPhone } from "@/lib/utils"
 
 type ViewMode = "week" // fixo
 
@@ -98,40 +98,34 @@ function Combobox({
   const [open, setOpen] = useState(false)
   const selected = items.find((i) => i.value === value)
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover modal open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          className="w-full justify-between h-10"
-          disabled={disabled}
-        >
+        <Button variant="outline" role="combobox" className="w-full justify-between h-10" disabled={disabled}>
           <span className="truncate">{selected ? selected.label : placeholder}</span>
           <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0 max-h-[200px] overflow-y-auto">
+
+      {/* Remove overflow do Popover e deixa a lista controlar a rolagem */}
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
         <Command>
           <CommandInput placeholder="Buscar..." />
-          <CommandList>
+          {/* A rolagem fica aqui: evita barras duplas e libera roda do mouse/touch */}
+          <CommandList className="max-h-60 overflow-auto overscroll-contain">
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>
-              <ScrollArea>
-                {items.map((it, i) => (
-                  <CommandItem
-                    key={`${it.value}-${i}`}
-                    value={`${it.label} ${it.hint || ""}`}
-                    onSelect={() => {
-                      onChange(it.value)
-                      setOpen(false)
-                    }}
-                    className="flex items-center justify-between"
-                  >
-                    <span className="truncate">{it.label}</span>
-                    {value === it.value ? <Check className="h-4 w-4" /> : null}
-                  </CommandItem>
-                ))}
-              </ScrollArea>
+              {items.map((it, i) => (
+                <CommandItem
+                  key={`${it.value}-${i}`}
+                  // Inclui nome, telefone formatado e dígitos crus no 'value' para o filtro do Command
+                  value={[it.label, it.hint].filter(Boolean).join(" ")}
+                  onSelect={() => { onChange(it.value); setOpen(false) }}
+                  className="flex items-center justify-between"
+                >
+                  <span className="truncate">{it.label}</span>
+                  {value === it.value ? <Check className="h-4 w-4" /> : null}
+                </CommandItem>
+              ))}
             </CommandGroup>
           </CommandList>
         </Command>
@@ -477,11 +471,17 @@ export default function AgendaPage() {
   // Opções dos selects
   const clientItems = useMemo(
     () =>
-      (clients || []).map((c) => ({
-        value: c.id,
-        label: c.name || "(Sem nome)",
-        hint: c.phone || "",
-      })),
+      (clients || []).map((c) => {
+        const phoneLabel = c.phone ? formatBrazilianPhone(c.phone) : ""
+        const phoneDigits = c.phone ? unformatPhone(c.phone) : ""
+        return {
+          value: c.id,
+          // Exibe no botão e na lista
+          label: c.name ? `${c.name} - ${phoneLabel}` : `(Sem nome)${phoneLabel ? ` - ${phoneLabel}` : ""}`,
+          // Mantém um “hint” com os dígitos crus para facilitar a busca por números
+          hint: phoneDigits,
+        }
+      }),
     [clients]
   )
   const serviceItems = useMemo(
