@@ -57,25 +57,87 @@ export function formatCurrency(value: number): string {
   }).format(value)
 }
 
-export function formatDate(date: string): string {
-  return new Intl.DateTimeFormat('pt-BR', {
+// utils.ts
+
+export function formatDate(input: string | Date | null | undefined): string {
+  if (!input) return "";
+
+  // 1) Se for Date, apenas formata em pt-BR no fuso de SP
+  if (input instanceof Date) {
+    return new Intl.DateTimeFormat("pt-BR", {
+      timeZone: SAO_TZ,
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(input);
+  }
+
+  // 2) YYYY-MM-DD (date-only do Postgres/Supabase)
+  const mDateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(input);
+  if (mDateOnly) {
+    const [, y, mo, d] = mDateOnly;
+    return `${d}/${mo}/${y}`;
+  }
+
+  // 3) YYYY-MM-DDTHH:mm (datetime-local sem timezone, ex: vindo de input[type="datetime-local"])
+  const mLocal = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/.exec(input);
+  const hasExplicitTZ = /Z|[+-]\d{2}:\d{2}$/.test(input);
+  if (mLocal && !hasExplicitTZ) {
+    const [, y, mo, d] = mLocal;
+    // Para formatDate, mostramos apenas a data
+    return `${d}/${mo}/${y}`;
+  }
+
+  // 4) ISO com timezone (ou qualquer outra coisa): usar Date + fuso de SP
+  return new Intl.DateTimeFormat("pt-BR", {
     timeZone: SAO_TZ,
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(new Date(date));
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(input));
 }
 
-export function formatDateTime(date: string): string {
-  return new Intl.DateTimeFormat('pt-BR', {
+export function formatDateTime(input: string | Date | null | undefined): string {
+  if (!input) return "";
+
+  // 1) Se for Date, formata direto no fuso de SP
+  if (input instanceof Date) {
+    return new Intl.DateTimeFormat("pt-BR", {
+      timeZone: SAO_TZ,
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(input);
+  }
+
+  // 2) YYYY-MM-DD (date-only): manter a data e definir 00:00
+  const mDateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(input);
+  if (mDateOnly) {
+    const [, y, mo, d] = mDateOnly;
+    return `${d}/${mo}/${y} 00:00`;
+  }
+
+  // 3) YYYY-MM-DDTHH:mm (datetime-local sem timezone): tratar como horário local de SP
+  const mLocal = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/.exec(input);
+  const hasExplicitTZ = /Z|[+-]\d{2}:\d{2}$/.test(input);
+  if (mLocal && !hasExplicitTZ) {
+    const [, y, mo, d, hh, mm] = mLocal;
+    return `${d}/${mo}/${y} ${hh}:${mm}`;
+  }
+
+  // 4) ISO com timezone: usar Date + fuso de SP
+  return new Intl.DateTimeFormat("pt-BR", {
     timeZone: SAO_TZ,
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(date));
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(input));
 }
+
 
 // Para preencher <input type="datetime-local">
 export function zonedNowForInput(tz = SAO_TZ): string {

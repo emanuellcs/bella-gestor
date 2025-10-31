@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 
 // Backend existente (mantido)
-import { getActiveClients, getActiveServices } from "@/services/api"
+import { getActiveClients, getActiveServices } from "@/services/api-public"
 import {
   listCalendarEvents,
   createCalendarEvent,

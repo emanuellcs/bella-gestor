@@ -11,10 +11,13 @@ import type {
   Professional,
 } from "@/lib/types"
 import { SaleStatus, PaymentStatus } from "@/lib/types"
-import * as api from "@/services/api"
+import * as apiApp from "@/services/api"
+import * as apiPublic from "@/services/api-public";
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/auth-context"
 type NewSale = Omit<Sale, "id" | "payments" | "createdat" | "updatedAt" | "clientName"> & { totalAmount?: number };
+type Mode = "app" | "public";
+type ApiModule = typeof apiApp;
 
 interface DataContextType {
   // Estado
@@ -62,8 +65,9 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined)
 
-export function DataProvider({ children }: { children: ReactNode }) {
+export function DataProvider({ children, mode = "app", }: { children: ReactNode; mode?: Mode }) {
   const { isAuthenticated } = useAuth()
+  const api: ApiModule = mode === "public" ? (apiPublic as ApiModule) : apiApp;
 
   const { toast } = useToast()
 
@@ -469,8 +473,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    if (isAuthenticated) void refreshData()
-  }, [isAuthenticated])
+    if (mode === "public" || isAuthenticated) void refreshData()
+  }, [mode, isAuthenticated])
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>
 }

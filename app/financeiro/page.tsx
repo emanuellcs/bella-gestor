@@ -15,7 +15,7 @@ import { Command, CommandInput, CommandEmpty, CommandList, CommandGroup, Command
 import { Check, ChevronsUpDown, X } from "lucide-react";
 import { cn, zonedNowForInput } from "@/lib/utils";
 import { Trash } from "lucide-react";
-import { formatBrazilianPhone, formatCEP, formatPhoneForInfinitePay, unformatCEP } from "@/lib/utils";
+import { formatBrazilianPhone, formatCEP, formatPhoneForInfinitePay, unformatCEP, unformatPhone } from "@/lib/utils";
 import * as XLSX from "xlsx"; // Import the xlsx library
 
 // shadcn/ui
@@ -100,7 +100,7 @@ function ClientComboBox({
   const [open, setOpen] = useState(false);
   const selected = options.find(o => o.id === value);
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover modal open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between h-9" disabled={disabled}>
           {selected ? selected.name : "Selecione..."}
@@ -133,7 +133,7 @@ function VariantComboBox({
   const [open, setOpen] = useState(false);
   const selected = options.find(o => o.id === value);
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover modal open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between h-9" disabled={disabled}>
           {selected ? selected.label : "Selecione..."}
@@ -1655,11 +1655,14 @@ export default function FinanceiroPage() {
               <Label>Cliente</Label>
               <Combobox
                 placeholder="Cliente"
-                items={clients.map((c) => ({
-                  value: c.id,
-                  label: c.name,
-                  hint: c.phone || "",
-                }))}
+                items={(clients || []).map((c) => {
+                  const phoneLabel = c.phone ? formatBrazilianPhone(c.phone) : "";
+                  const phoneDigits = c.phone ? unformatPhone(c.phone) : "";
+                  return {
+                    value: c.id,
+                    label: c.phone ? `${c.name} - ${phoneLabel}` : c.name,
+                  };
+                })}
                 value={newSaleForm.clientId}
                 onChange={(v) => setNewSaleForm((f) => ({ ...f, clientId: v }))}
               />
