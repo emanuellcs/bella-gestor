@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
-    .from("user_roles")
+    .from("professionals")
     .select("user_id,role,email,full_name,function_title")
     .eq("role", AppRole.PROFESSIONAL)
     .order("created_at", { ascending: false });

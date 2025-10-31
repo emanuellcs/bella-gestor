@@ -562,7 +562,7 @@ export async function deleteServiceVariant(id: string): Promise<boolean> {
 export async function getProfessionals(): Promise<Professional[]> {
   try {
     const { data, error } = await supabase
-      .from("user_roles")
+      .from("professionals")
       .select("user_id, role, email, full_name, function_title")
       .eq("role", AppRole.PROFESSIONAL) // apenas colaboradoras
       .order("created_at", { ascending: false })
