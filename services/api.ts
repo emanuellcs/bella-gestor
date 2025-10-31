@@ -1136,7 +1136,7 @@ export async function getActiveServices(): Promise<Service[]> {
   }
 }
 
-// Opcional: variantes ativas (se a Agenda usar)
+// Opcional: tipos ativas (se a Agenda usar)
 export async function getActiveServiceVariants(): Promise<ServiceVariant[]> {
   const all = await getServiceVariants()
   return all.filter(v => v.active)

@@ -359,9 +359,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const variants = await api.getServiceVariantsByServiceId?.(serviceId)
       return variants || []
     } catch (err: any) {
-      const msg = err?.message || "Não foi possível buscar as variantes do serviço."
+      const msg = err?.message || "Não foi possível buscar os tipos do serviço."
       setError(msg)
-      toast({ title: "Erro ao buscar variantes", description: msg, variant: "destructive" })
+      toast({ title: "Erro ao buscar tipos", description: msg, variant: "destructive" })
       return []
     }
   }
@@ -386,12 +386,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try {
       const created = await api.createServiceVariant?.(variant as any)
       await refreshData()
-      toast({ title: "Tipo criada", description: "A variante foi adicionada com sucesso." })
+      toast({ title: "Tipo criado", description: "O tipo foi adicionado com sucesso." })
       return created || null
     } catch (err: any) {
-      const msg = err?.message || "Não foi possível criar a variante."
+      const msg = err?.message || "Não foi possível criar o tipo."
       setError(msg)
-      toast({ title: "Erro ao criar variante", description: msg, variant: "destructive" })
+      toast({ title: "Erro ao criar tipo", description: msg, variant: "destructive" })
       return null
     }
   }
@@ -400,12 +400,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try {
       const updated = await api.updateServiceVariant?.(id, variant)
       await refreshData()
-      toast({ title: "Tipo atualizada", description: "Os dados da variante foram atualizados." })
+      toast({ title: "Tipo atualizado", description: "Os dados do tipo foram atualizados." })
       return updated || null
     } catch (err: any) {
-      const msg = err?.message || "Não foi possível atualizar a variante."
+      const msg = err?.message || "Não foi possível atualizar o tipo."
       setError(msg)
-      toast({ title: "Erro ao atualizar variante", description: msg, variant: "destructive" })
+      toast({ title: "Erro ao atualizar tipo", description: msg, variant: "destructive" })
       return null
     }
   }
@@ -414,12 +414,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try {
       await (api as any).deleteServiceVariant?.(id)
       await refreshData()
-      toast({ title: "Tipo removida", description: "A variante foi removida com sucesso." })
+      toast({ title: "Tipo removido", description: "O tipo foi removido com sucesso." })
       return true
     } catch (err: any) {
-      const msg = err?.message || "Não foi possível remover a variante."
+      const msg = err?.message || "Não foi possível remover o tipo."
       setError(msg)
-      toast({ title: "Erro ao remover variante", description: msg, variant: "destructive" })
+      toast({ title: "Erro ao remover tipo", description: msg, variant: "destructive" })
       return false
     }
   }

@@ -142,7 +142,7 @@ function VariantComboBox({
       </PopoverTrigger>
       <PopoverContent className="p-0 w-[--radix-popover-trigger-width]">
         <Command>
-          <CommandInput placeholder="Buscar serviço/variante..." />
+          <CommandInput placeholder="Buscar serviço/tipo..." />
           <CommandEmpty>Nenhum serviço encontrado.</CommandEmpty>
           <CommandList>
             <CommandGroup>
@@ -376,7 +376,7 @@ export default function FinanceiroPage() {
         if (s) setServices(s as Service[]);
         if (v) setVariants(v as ServiceVariant[]);
       } catch (e) {
-        console.error("Erro ao carregar serviços/variantes:", e);
+        console.error("Erro ao carregar serviços/tipos:", e);
       }
     })()
   }, [])
@@ -1405,7 +1405,7 @@ export default function FinanceiroPage() {
                 <div className="mb-2 font-medium">Itens</div>
                 <div className="rounded-md border overflow-hidden">
                   <div className="grid grid-cols-12 gap-0 px-3 py-2 text-xs text-muted-foreground bg-muted/40">
-                    <div className="col-span-6">Serviço/variante</div>
+                    <div className="col-span-6">Serviço/tipo</div>
                     <div className="col-span-2 text-right">Qtd.</div>
                     <div className="col-span-2 text-right">Unitário</div>
                     <div className="col-span-2 text-right">Subtotal</div>
@@ -1693,11 +1693,11 @@ export default function FinanceiroPage() {
 
                 return (
                   <div key={it.rowId} className="grid grid-cols-12 gap-3">
-                    {/* Serviço/variante (6) */}
+                    {/* Serviço/tipo (6) */}
                     <div className="col-span-6 space-y-2">
-                      <Label>Serviço/variante</Label>
+                      <Label>Serviço/tipo</Label>
                       <Combobox
-                        placeholder="Serviço/variante"
+                        placeholder="Serviço/tipo"
                         items={variants.map((v) => {
                           const svc = services.find((s) => s.id === v.serviceId);
                           const svcName = svc ? svc.name : "Serviço";

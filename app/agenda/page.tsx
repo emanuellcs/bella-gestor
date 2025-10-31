@@ -418,7 +418,7 @@ export default function AgendaPage() {
     const professionalLine = selectedProfessional ? `\nProfissional: ${professionalDisplay(selectedProfessional)}` : ""
 
     if (!c || !s || !sv) {
-      setError("Cliente, serviço ou variante de serviço inválido")
+      setError("Cliente, serviço ou tipo de serviço inválido")
       return
     }
     setSaving(true)
@@ -815,14 +815,14 @@ export default function AgendaPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm mb-1">Tipo do Serviço</label>
+                <label className="block text-sm mb-1">Tipo de Serviço</label>
                 <Combobox
-                  placeholder="Selecione a variante"
+                  placeholder="Selecione o tipo"
                   items={availableVariants}
                   value={formData.serviceVariantId}
                   onChange={(v) => setFormData((p) => ({ ...p, serviceVariantId: v }))}
                   disabled={!formData.serviceId || availableVariants.length === 0}
-                  emptyText={formData.serviceId ? "Nenhuma variante encontrada" : "Selecione um serviço primeiro"}
+                  emptyText={formData.serviceId ? "Nenhum tipo encontrado" : "Selecione um serviço primeiro"}
                 />
               </div>
               <div>

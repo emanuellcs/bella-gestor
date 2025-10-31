@@ -104,24 +104,24 @@ export function ServiceModal({
 		for (const variant of variants) {
 			if (!variant.variantName?.trim()) {
 				toast({
-					title: "Tipo inválida",
-					description: "O nome da variante não pode estar vazio.",
+					title: "Tipo inválido",
+					description: "O nome do tipo não pode estar vazio.",
 					variant: "destructive",
 				})
 				return false
 			}
 			if (!variant.price || variant.price <= 0) {
 				toast({
-					title: "Tipo inválida",
-					description: `O preço da variante "${variant.variantName}" deve ser maior que zero.`,
+					title: "Tipo inválido",
+					description: `O preço do tipo "${variant.variantName}" deve ser maior que zero.`,
 					variant: "destructive",
 				})
 				return false
 			}
 			if (!variant.duration || variant.duration <= 0) {
 				toast({
-					title: "Tipo inválida",
-					description: `A duração da variante "${variant.variantName}" deve ser maior que zero.`,
+					title: "Tipo inválido",
+					description: `A duração do tipo "${variant.variantName}" deve ser maior que zero.`,
 					variant: "destructive",
 				})
 				return false
@@ -155,7 +155,7 @@ export function ServiceModal({
 				if (result) {
 					toast({
 						title: "Serviço criado",
-						description: "O serviço e suas variantes foram criados com sucesso.",
+						description: "O serviço e seus tipos foram criados com sucesso.",
 					})
 					onOpenChange(false)
 				} else {
@@ -171,7 +171,7 @@ export function ServiceModal({
 					toast({
 						title: "Serviço atualizado",
 						description:
-							"As informações do serviço e suas variantes foram atualizadas.",
+							"As informações do serviço e seus tipos foram atualizadas.",
 					})
 					onOpenChange(false)
 				} else {
@@ -203,8 +203,8 @@ export function ServiceModal({
 					</DialogTitle>
 					<DialogDescription>
 						{mode === "create"
-							? "Crie um novo serviço e adicione variantes com preços e durações."
-							: "Atualize as informações do serviço e suas variantes."}
+							? "Crie um novo serviço e adicione tipos com preços e durações."
+							: "Atualize as informações do serviço e seus tipos."}
 					</DialogDescription>
 				</DialogHeader>
 
@@ -269,7 +269,7 @@ export function ServiceModal({
 
 					<div className="space-y-4">
 						<div className="flex items-center justify-between">
-							<h3 className="text-lg font-medium">Tipos do Serviço</h3>
+							<h3 className="text-lg font-medium">Tipos de Serviço</h3>
 							<Button
 								type="button"
 								variant="outline"
@@ -283,7 +283,7 @@ export function ServiceModal({
 
 						{variants.length === 0 ? (
 							<p className="text-sm text-muted-foreground text-center py-4">
-								Nenhuma variante adicionada.
+								Nenhum tipo adicionado.
 							</p>
 						) : (
 							<div className="space-y-4">
@@ -302,7 +302,7 @@ export function ServiceModal({
 											<div className="space-y-4">
 												<div className="space-y-2">
 													<Label htmlFor={`variantName-${index}`}>
-														Nome da Tipo *
+														Nome do Tipo *
 													</Label>
 													<Input
 														id={`variantName-${index}`}
@@ -362,7 +362,7 @@ export function ServiceModal({
 														}
 													/>
 													<Label htmlFor={`variantActive-${index}`}>
-														Tipo Ativa
+														Tipo Ativo
 													</Label>
 												</div>
 											</div>
