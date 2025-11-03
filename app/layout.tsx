@@ -31,8 +31,11 @@ const _sourceSerif_4 = V0_Font_Source_Serif_4({
 const _inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Bella Gestor - CRM",
-  description: "Sistema de gestão completo para a Spaço Bellas.",
+  title: "Bella Gestor",
+  description: "Sistema de gerenciamento para salões de beleza e clínicas de estética",
+  icons: {
+    icon: '/favicon.ico',
+  },
 }
 
 export default function RootLayout({
