@@ -426,7 +426,7 @@ export default function AgendaPage() {
         location: "Spaço Bellas",
         startTime: new Date(formData.startTime).toISOString(),
         endTime: new Date(formData.endTime).toISOString(),
-        attendees: c.email ? [{ email: c.email }] : [],
+        attendees: [ ...(c.email ? [{ email: c.email }] : []), ...(selectedProfessional?.email ? [{ email: selectedProfessional.email }] : []) ],
       }
       if (selectedEvent) {
         const r = await updateCalendarEvent(selectedEvent.id, payload)
