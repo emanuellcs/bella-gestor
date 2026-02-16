@@ -1,0 +1,29 @@
+name: Keep Supabase Alive
+
+on:
+  schedule:
+    - cron: "0 0 */3 * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase Database
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          TABLE_NAME: "ping" 
+        run: |
+          echo "Sending ping to the table $TABLE_NAME..."
+          
+          response=$(curl -s -o /dev/null -w "%{http_code}" -X GET "$SUPABASE_URL/rest/v1/$TABLE_NAME?select=*&limit=1" \
+          -H "apikey: $SUPABASE_KEY" \
+          -H "Authorization: Bearer $SUPABASE_KEY")
+
+          if [ "$response" -eq 200 ] || [ "$response" -eq 206 ]; then
+            echo "Success! Supabase responded with code $response."
+          else
+            echo "Fail. Supabase responded with code $response."
+            exit 1
+          fi
