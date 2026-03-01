@@ -42,10 +42,10 @@ import {
   Star,
   Percent,
 } from "lucide-react"
-import type { Client, Appointment, Service, ServiceVariant, Sale, Payment } from "@/lib/types"
-import { SaleStatus } from "@/lib/types"
+import type { Client, Appointment, Service, ServiceVariant, Sale, Payment } from "@/types"
+import { SaleStatus } from "@/types"
 import * as XLSX from "xlsx"
-import { getReferralSourceCounts } from "@/services/api"
+import { getReferralSourceCounts } from "@/services/clients"
 
 interface PeriodData {
   clients: Client[]

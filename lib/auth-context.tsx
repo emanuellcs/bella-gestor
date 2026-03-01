@@ -1,9 +1,9 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import type { User } from "./types"
-import { AppRole } from "./types"
-import { supabase } from "./supabaseClient"
+import type { User } from "@/types"
+import { AppRole } from "@/types"
+import { supabase } from "@/lib/supabase/client"
 
 interface AuthContextType {
     user: User | null

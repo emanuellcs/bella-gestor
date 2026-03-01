@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { AppRole } from "@/lib/types";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { AppRole } from "@/types";
 import { jwtVerify } from "jose";
 
 const COOKIE = "pro_access";

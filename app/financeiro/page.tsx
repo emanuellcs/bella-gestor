@@ -1,12 +1,24 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+
 import { useEffect, useMemo, useState } from "react"
 import { Combobox, type ComboItem } from "@/components/ui/combobox";
-import type { Sale, Payment } from "@/lib/types"
+import type { Sale, Payment } from "@/types"
 import { useToast } from "@/hooks/use-toast";
-import type { Client, Service, ServiceVariant } from "@/lib/types";
-import { PaymentStatus, SaleStatus } from "@/lib/types"
-import * as api from "@/services/api"
+import type { Client, Service, ServiceVariant } from "@/types";
+import { PaymentStatus, SaleStatus } from "@/types"
+import * as clientsApi from "@/services/clients"
+import * as servicesApi from "@/services/services"
+import * as financeApi from "@/services/finance"
+import * as professionalsApi from "@/services/professionals"
+
+const api = {
+  ...clientsApi,
+  ...servicesApi,
+  ...financeApi,
+  ...professionalsApi
+}
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";

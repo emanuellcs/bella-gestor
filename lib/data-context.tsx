@@ -9,9 +9,21 @@ import type {
   Sale,
   Payment,
   Professional,
-} from "@/lib/types"
-import { SaleStatus, PaymentStatus } from "@/lib/types"
-import * as apiApp from "@/services/api"
+} from "@/types"
+import { SaleStatus, PaymentStatus } from "@/types"
+import * as clientsApi from "@/services/clients"
+import * as servicesApi from "@/services/services"
+import * as appointmentsApi from "@/services/appointments"
+import * as financeApi from "@/services/finance"
+import * as professionalsApi from "@/services/professionals"
+
+const apiApp = {
+  ...clientsApi,
+  ...servicesApi,
+  ...appointmentsApi,
+  ...financeApi,
+  ...professionalsApi
+}
 import * as apiPublic from "@/services/api-public";
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/auth-context"

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { PaymentStatus } from "@/lib/types";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { PaymentStatus } from "@/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

@@ -1,5 +1,5 @@
 // services/api-public.ts
-import type { Client, Service, Professional } from "@/lib/types";
+import type { Client, Service, Professional } from "@/types";
 
 export async function getActiveClients(): Promise<Client[]> {
   const r = await fetch("/api/admin/clients/active", { credentials: "include" });

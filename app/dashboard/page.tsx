@@ -24,7 +24,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts"
-import type { Sale } from "@/lib/types"
+import type { Sale } from "@/types"
 import { listCalendarEvents } from "@/services/googleCalendarAppsScript"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
