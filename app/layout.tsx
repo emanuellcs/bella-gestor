@@ -4,7 +4,8 @@ import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { AuthProvider } from "@/lib/auth-context"
 import { DataProvider } from "@/lib/data-context"
-import { Toaster } from "@/components/ui/toaster"
+import { Toaster } from "@/components/ui/sonner"
+import { Toaster as ToasterRadix } from "@/components/ui/toaster"
 import { 
   Inter, 
   Geist_Mono, 
@@ -49,7 +50,8 @@ export default function RootLayout({
         <AuthProvider>
           <DataProvider>
             {children}
-            <Toaster />
+            <Toaster position="top-right" richColors />
+            <ToasterRadix />
           </DataProvider>
         </AuthProvider>
         <Analytics />

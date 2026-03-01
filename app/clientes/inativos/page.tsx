@@ -23,7 +23,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Separator } from "@/components/ui/separator"
 import { useData } from "@/lib/data-context"
-import type { Client } from "@/lib/types"
+import type { Client } from "@/types"
 import { Search, ArrowLeft, Mail, Phone, MoreVertical, RefreshCw, Loader2, AlertCircle, MapPin, Clock, Bell, ChevronLeft, ChevronRight, X, Download, Users, LayoutGrid, LayoutList, Settings2, Grid3X3, Calendar } from "lucide-react"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"

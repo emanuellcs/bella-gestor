@@ -24,7 +24,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { ServiceModal } from "@/components/modals/service-modal"
-import type { Service, ServiceVariant } from "@/lib/types"
+import type { Service, ServiceVariant } from "@/types"
 import { formatCurrency } from "@/lib/utils"
 import { useData } from "@/lib/data-context"
 

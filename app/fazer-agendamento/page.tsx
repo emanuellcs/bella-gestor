@@ -7,7 +7,7 @@ import { getActiveClients, getActiveServices } from "@/services/api-public"
 import { createCalendarEvent } from "@/services/googleCalendarAppsScript"
 
 // Tipos e Contexto
-import type { Client, Service, Professional } from "@/lib/types"
+import type { Client, Service, Professional } from "@/types"
 import { useData } from "@/lib/data-context"
 
 // UI Components
