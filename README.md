@@ -44,7 +44,7 @@ Specifically designed for **Spaço Bellas**, this platform bridges the gap betwe
 - **Language:** [TypeScript](https://www.typescriptlang.org/)
 - **Database & Auth:** [Supabase](https://supabase.com/) (PostgreSQL)
 - **Styling:** [Tailwind CSS 4](https://tailwindcss.com/)
-- **UI Components:** [Radix UI](https://www.radix-ui.com/) & [Lucide Icons](https://lucide.dev/)
+- **UI Components:** [shadcn/ui](https://ui.shadcn.com/) & [Lucide Icons](https://lucide.dev/)
 - **State Management:** React Context API (Auth & Data Layers)
 - **Forms:** [React Hook Form](https://react-hook-form.com/) with [Zod](https://zod.dev/) validation
 - **Charts:** [Recharts](https://recharts.org/)
