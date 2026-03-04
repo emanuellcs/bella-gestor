@@ -62,9 +62,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <div>
               <h1 className="text-lg font-bold text-sidebar-foreground">
-                Spaço Bellas
+                Bella Gestor
               </h1>
-              <p className="text-xs text-muted-foreground">Bella Gestor</p>
+              <p className="text-xs text-muted-foreground">Spaço Bellas</p>
             </div>
           </div>
 
@@ -152,9 +152,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </div>
                 <div>
                   <h1 className="text-lg font-bold text-sidebar-foreground">
-                    Spaço Bellas
+                    Bella Gestor
                   </h1>
-                  <p className="text-xs text-muted-foreground">Bella Gestor</p>
+                  <p className="text-xs text-muted-foreground">Spaço Bellas</p>
                 </div>
               </div>
 
@@ -194,7 +194,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center justify-center w-8 h-8 bg-primary rounded-lg">
             <Sparkles className="w-4 h-4 text-primary-foreground" />
           </div>
-          <span className="text-lg font-bold">Spaço Bellas</span>
+          <span className="text-lg font-bold">Bella Gestor</span>
         </div>
 
         <DropdownMenu>

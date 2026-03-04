@@ -233,42 +233,58 @@ export default function AgendaPage() {
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-between gap-3 bg-card p-4 rounded-lg border">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => {
-              const d = new Date(currentDate);
-              d.setDate(d.getDate() - 7);
-              setCurrentDate(d);
-            }}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" onClick={() => setCurrentDate(new Date())}>
-            Hoje
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => {
-              const d = new Date(currentDate);
-              d.setDate(d.getDate() + 7);
-              setCurrentDate(d);
-            }}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-card p-4 rounded-lg border">
+        <div className="flex items-center justify-between w-full md:w-auto gap-4">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-9 w-9"
+              onClick={() => {
+                const d = new Date(currentDate);
+                d.setDate(d.getDate() - 7);
+                setCurrentDate(d);
+              }}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              onClick={() => setCurrentDate(new Date())}
+            >
+              Hoje
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-9 w-9"
+              onClick={() => {
+                const d = new Date(currentDate);
+                d.setDate(d.getDate() + 7);
+                setCurrentDate(d);
+              }}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="md:hidden text-lg font-semibold truncate">
+            {currentDate
+              .toLocaleDateString("pt-BR", { month: "short", year: "2-digit" })
+              .toUpperCase()}
+          </div>
         </div>
 
-        <div className="text-lg font-semibold">
+        <div className="hidden md:block text-lg font-semibold">
           {currentDate
             .toLocaleDateString("pt-BR", { month: "long", year: "numeric" })
             .toUpperCase()}
         </div>
 
         <Button
+          className="w-full md:w-auto"
           onClick={() => {
             setSelectedEvent(null);
             setIsModalOpen(true);

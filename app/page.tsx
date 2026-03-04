@@ -64,16 +64,16 @@ export default function LoginPage() {
         <Card className="shadow-xl border-purple-100">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold text-center">
-              Bem-vinda de volta
+              Bem-vindo(a) de volta
             </CardTitle>
             <CardDescription className="text-center">
-              Entre com suas credenciais para acessar o sistema
+              Entre com suas credenciais para acessar o sistema.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">E-mail</Label>
                 <Input
                   id="email"
                   type="email"
@@ -116,7 +116,8 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="text-center text-sm text-muted-foreground mt-8">
-          Spaço Bellas © 2025 - Todos os direitos reservados
+          Spaço Bellas © 2025 - {new Date().getFullYear()} • Todos os direitos
+          reservados
         </p>
       </div>
     </div>
