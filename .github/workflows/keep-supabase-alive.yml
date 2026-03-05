@@ -10,8 +10,8 @@ jobs:
     steps:
       - name: Ping Supabase (evita pausa do projeto)
         env:
-          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.sb_secret_XD_fE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: |
           echo "Starting ping on Supabase..."
           
