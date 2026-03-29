@@ -1,12 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSupabaseServer } from "@/lib/supabase/server";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { parseSupabaseError } from "@/lib/error-handler";
 import { Sale, SaleStatus, Payment, PaymentStatus } from "@/types";
-import { getSales } from "@/services/finance";
+import {
+  supabaseSaleToSale,
+  supabasePaymentToPayment,
+} from "@/lib/utils/mapping";
 
-type NewSale = Omit<
+export type NewSale = Omit<
   Sale,
   "id" | "payments" | "created_at" | "updatedAt" | "clientName" | "totalAmount"
 > & {
@@ -18,7 +21,17 @@ type NewSale = Omit<
  */
 export async function createSaleAction(sale: NewSale) {
   try {
-    const supabase = getSupabaseServer();
+    const supabase = getSupabaseAdmin();
+
+    // Get default commission
+    const { data: settingData } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", "default_commission_pct")
+      .single();
+
+    const defaultCommPct = settingData ? parseFloat(settingData.value) : 70;
+
     const computedTotal =
       sale.totalAmount ??
       sale.items.reduce((acc, it) => acc + it.quantity * it.unitPrice, 0);
@@ -31,6 +44,7 @@ export async function createSaleAction(sale: NewSale) {
           appointment_id: sale.appointmentId
             ? parseInt(sale.appointmentId)
             : null,
+          professional_id: sale.items[0]?.professionalId || null, // Primary professional
           total_amount: computedTotal,
           status: sale.status || "pending",
           notes: sale.notes || null,
@@ -44,21 +58,118 @@ export async function createSaleAction(sale: NewSale) {
     }
 
     if (sale.items.length) {
-      const itemsPayload = sale.items.map((it) => ({
-        sale_id: saleRow.id,
-        service_variant_id: parseInt(it.serviceVariantId),
-        quantity: it.quantity,
-        unit_price: it.unitPrice,
-      }));
-      await supabase.from("sale_items").insert(itemsPayload);
+      // Process items with commissions
+      const itemsPayload = await Promise.all(
+        sale.items.map(async (it) => {
+          let commPct = it.commissionPct;
+
+          // 1. Check Service Variant for override
+          if (commPct === undefined) {
+            const { data: variantData } = await supabase
+              .from("service_variants")
+              .select("commission_pct")
+              .eq("id", parseInt(it.serviceVariantId))
+              .single();
+
+            if (variantData?.commission_pct != null) {
+              const parsed = parseFloat(String(variantData.commission_pct));
+              if (!isNaN(parsed)) commPct = parsed;
+            }
+          }
+
+          // 2. Check Professional for override
+          if (commPct === undefined && it.professionalId) {
+            const { data: profData } = await supabase
+              .from("professionals")
+              .select("commission_pct")
+              .eq("user_id", it.professionalId)
+              .single();
+
+            if (profData?.commission_pct != null) {
+              const parsed = parseFloat(String(profData.commission_pct));
+              if (!isNaN(parsed)) commPct = parsed;
+            }
+          }
+
+          // 3. Fallback to Global Default
+          if (commPct === undefined) {
+            commPct = defaultCommPct;
+          }
+
+          const subtotal = it.quantity * it.unitPrice;
+          const commAmount = (subtotal * commPct) / 100;
+
+          return {
+            sale_id: saleRow.id,
+            service_variant_id: parseInt(it.serviceVariantId),
+            quantity: it.quantity,
+            unit_price: it.unitPrice,
+            professional_id: it.professionalId || null,
+            commission_pct: commPct,
+            commission_amount: commAmount,
+          };
+        }),
+      );
+
+      const { error: itemsErr } = await supabase
+        .from("sale_items")
+        .insert(itemsPayload);
+      if (itemsErr) {
+        return {
+          success: false,
+          error:
+            "Falha ao registrar itens da venda: " +
+            parseSupabaseError(itemsErr).description,
+        };
+      }
     }
 
+    // Re-fetch to get items and joined data
+    const { data: finalSale } = await supabase
+      .from("sales")
+      .select(
+        `*, client:clients(full_name), professional:professionals!sales_professional_id_fkey(full_name), items:sale_items(*, professional:professionals(full_name), variant:service_variants(variant_name, service:services(name))), payments(*)`,
+      )
+      .eq("id", saleRow.id)
+      .single();
+
     revalidatePath("/financeiro");
-    return { success: true, data: saleRow };
+    revalidatePath("/relatorios");
+    return { success: true, data: supabaseSaleToSale(finalSale || saleRow) };
   } catch (error: any) {
     console.error("Error in createSaleAction:", error);
     return { success: false, error: "Falha ao criar venda." };
   }
+}
+
+/**
+ * Helper to check if a sale is fully paid and update its status.
+ */
+async function syncSaleStatus(supabase: any, saleId: number) {
+  // Fetch fresh data including payments
+  const { data: sale } = await supabase
+    .from("sales")
+    .select("total_amount, payments(amount, status)")
+    .eq("id", saleId)
+    .single();
+
+  if (!sale) return;
+
+  // Use lowercase 'paid' to match database enum values
+  const totalPaid = (sale.payments || [])
+    .filter((p: any) => p.status === "paid")
+    .reduce((acc: number, p: any) => acc + Number(p.amount), 0);
+
+  // Consider it paid if totalPaid meets or exceeds total_amount
+  const newStatus = totalPaid >= Number(sale.total_amount) ? "paid" : "pending";
+
+  await supabase
+    .from("sales")
+    .update({
+      status: newStatus,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", saleId);
 }
 
 /**
@@ -70,7 +181,7 @@ export async function updateSaleStatusAction(
   updates?: Partial<Sale>,
 ) {
   try {
-    const supabase = getSupabaseServer();
+    const supabase = getSupabaseAdmin();
     const updateData: any = { status, updated_at: new Date().toISOString() };
     if (updates?.notes !== undefined) updateData.notes = updates.notes || null;
 
@@ -78,15 +189,26 @@ export async function updateSaleStatusAction(
       .from("sales")
       .update(updateData)
       .eq("id", parseInt(id))
-      .select("*")
+      .select(
+        `*, client:clients(full_name), professional:professionals!sales_professional_id_fkey(full_name), items:sale_items(*, professional:professionals(full_name), variant:service_variants(variant_name, service:services(name))), payments(*)`,
+      )
       .single();
 
     if (error) {
       return { success: false, error: parseSupabaseError(error).description };
     }
 
+    // If sale is cancelled, cancel/refund all associated payments
+    if (status === SaleStatus.CANCELLED) {
+      await supabase
+        .from("payments")
+        .update({ status: "cancelled", updated_at: new Date().toISOString() })
+        .eq("sale_id", parseInt(id));
+    }
+
     revalidatePath("/financeiro");
-    return { success: true, data };
+    revalidatePath("/relatorios");
+    return { success: true, data: supabaseSaleToSale(data) };
   } catch (error: any) {
     console.error("Error in updateSaleStatusAction:", error);
     return { success: false, error: "Falha ao atualizar status da venda." };
@@ -98,7 +220,7 @@ export async function updateSaleStatusAction(
  */
 export async function createPaymentAction(payment: Omit<Payment, "id">) {
   try {
-    const supabase = getSupabaseServer();
+    const supabase = getSupabaseAdmin();
     const payload: any = {
       sale_id: parseInt(String(payment.saleId), 10),
       amount: Number(payment.amount),
@@ -113,6 +235,7 @@ export async function createPaymentAction(payment: Omit<Payment, "id">) {
         payment.status === PaymentStatus.PAID
           ? (payment.paidAt ?? new Date().toISOString())
           : null,
+      professional_id: payment.professionalId || null,
     };
 
     const { data, error } = await supabase
@@ -125,8 +248,12 @@ export async function createPaymentAction(payment: Omit<Payment, "id">) {
       return { success: false, error: parseSupabaseError(error).description };
     }
 
+    // Update parent sale status if needed
+    await syncSaleStatus(supabase, payload.sale_id);
+
     revalidatePath("/financeiro");
-    return { success: true, data };
+    revalidatePath("/relatorios");
+    return { success: true, data: supabasePaymentToPayment(data) };
   } catch (error: any) {
     console.error("Error in createPaymentAction:", error);
     return { success: false, error: "Falha ao registrar pagamento." };
@@ -141,7 +268,7 @@ export async function updatePaymentStatusAction(
   status: PaymentStatus,
 ) {
   try {
-    const supabase = getSupabaseServer();
+    const supabase = getSupabaseAdmin();
     const patch: any = { status, updated_at: new Date().toISOString() };
     if (status === PaymentStatus.CANCELLED) {
       patch.payment_link_url = null;
@@ -158,8 +285,12 @@ export async function updatePaymentStatusAction(
       return { success: false, error: parseSupabaseError(error).description };
     }
 
+    // Update parent sale status if needed
+    await syncSaleStatus(supabase, data.sale_id);
+
     revalidatePath("/financeiro");
-    return { success: true, data };
+    revalidatePath("/relatorios");
+    return { success: true, data: supabasePaymentToPayment(data) };
   } catch (error: any) {
     console.error("Error in updatePaymentStatusAction:", error);
     return { success: false, error: "Falha ao atualizar status do pagamento." };

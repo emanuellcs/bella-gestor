@@ -3,11 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 
 // Backend
-import { getActiveClients, getActiveServices } from "@/services/api-public";
 import { createCalendarEvent } from "@/services/googleCalendarAppsScript";
 
 // Types and Context
-import type { Client, Service, Professional } from "@/types";
+import type { Professional } from "@/types";
 import { useData } from "@/lib/data-context";
 
 // UI Components
@@ -122,9 +121,22 @@ export default function CreateAppointmentPage() {
   const { toast } = useToast();
 
   // Global data
-  const [clients, setClients] = useState<Client[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
-  const { professionals } = useData();
+  const {
+    clients: allClients,
+    services: allServices,
+    professionals,
+    refreshData,
+  } = useData();
+
+  const clients = useMemo(
+    () => (allClients || []).filter((c) => c.status === "active"),
+    [allClients],
+  );
+
+  const services = useMemo(
+    () => (allServices || []).filter((s) => s.active),
+    [allServices],
+  );
 
   // Form state
   const [formOpen, setFormOpen] = useState(false);
@@ -145,25 +157,8 @@ export default function CreateAppointmentPage() {
 
   // Load initial data
   useEffect(() => {
-    (async () => {
-      try {
-        const [c, s] = await Promise.all([
-          getActiveClients(),
-          getActiveServices(),
-        ]);
-        setClients(c || []);
-        setServices(s || []);
-      } catch (e) {
-        console.error(e);
-        toast({
-          variant: "destructive",
-          title: "Erro de conexão",
-          description:
-            "Não foi possível carregar a lista de clientes ou serviços.",
-        });
-      }
-    })();
-  }, [toast]);
+    void refreshData();
+  }, [refreshData]);
 
   // Memoized form options
   const clientItems = useMemo(
@@ -196,8 +191,8 @@ export default function CreateAppointmentPage() {
       professionals.map((p) => ({
         value: p.id,
         label:
-          p.fullName && p.functionTitle
-            ? `${p.fullName} (${p.functionTitle})`
+          p.name && p.functionTitle
+            ? `${p.name} (${p.functionTitle})`
             : (p.email ?? "Sem e-mail"),
       })),
     [professionals],
@@ -220,8 +215,8 @@ export default function CreateAppointmentPage() {
 
   // Helper to display professional's name
   function professionalDisplay(p: Professional) {
-    return p.fullName && p.functionTitle
-      ? `${p.fullName} (${p.functionTitle})`
+    return p.name && p.functionTitle
+      ? `${p.name} (${p.functionTitle})`
       : (p.email ?? "Sem e-mail");
   }
 

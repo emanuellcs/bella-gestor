@@ -2,22 +2,13 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Combobox } from "@/components/ui/combobox";
-import type { Sale, Payment, Client, Service, ServiceVariant } from "@/types";
+import type { Sale, Payment } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { PaymentStatus, SaleStatus } from "@/types";
-import * as clientsApi from "@/services/clients";
-import * as servicesApi from "@/services/services";
-import * as financeApi from "@/services/finance";
-import * as professionalsApi from "@/services/professionals";
+import { useData } from "@/lib/data-context";
 
-const api = {
-  ...clientsApi,
-  ...servicesApi,
-  ...financeApi,
-  ...professionalsApi,
-};
 import {
   Select,
   SelectContent,
@@ -34,7 +25,7 @@ import {
   formatPhoneForInfinitePay,
   unformatCEP,
 } from "@/lib/utils";
-import * as XLSX from "xlsx"; // Import the xlsx library
+import * as XLSX from "xlsx";
 
 // shadcn/ui
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -93,6 +84,7 @@ type PaymentForm = {
   paymentMethod?: string;
   externalTransactionId?: string;
   paidAt?: string;
+  professionalId?: string;
 };
 
 type DateRange = {
@@ -114,35 +106,31 @@ function withinRange(iso: string, range: DateRange) {
   return true;
 }
 
-interface SaleApi {
-  createSale: (data: {
-    clientId: string;
-    items: Array<{
-      serviceVariantId: string;
-      quantity: number;
-      unitPrice: number;
-    }>;
-    notes?: string;
-    status: SaleStatus;
-  }) => Promise<Sale>;
-  createPaymentLink: (data: unknown) => Promise<{ url: string }>;
-  createPayment: (data: unknown) => Promise<Payment>;
-  updateSaleStatus: (
-    id: string,
-    status: SaleStatus,
-    updates?: Partial<Sale>,
-  ) => Promise<Sale>;
-  cancelInfinitePayPayment: (id: string) => Promise<void>;
-  updatePaymentStatus: (id: string, status: PaymentStatus) => Promise<void>;
-}
-
 export default function FinanceiroPage() {
   const { toast } = useToast();
-  // Base state
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    sales,
+    payments,
+    clients,
+    services,
+    serviceVariants: variants,
+    professionals,
+    isLoading: loading,
+    refreshData: refreshAll,
+    createSale,
+    createPayment,
+    updateSaleStatus,
+    cancelPayment,
+    appOptions,
+  } = useData();
+
+  const paymentMethods = useMemo(
+    () =>
+      (appOptions || []).filter(
+        (o) => o.optionType === "payment_method" && o.isActive,
+      ),
+    [appOptions],
+  );
 
   // Filters
   const [search, setSearch] = useState("");
@@ -179,6 +167,7 @@ export default function FinanceiroPage() {
     paidAt: "",
   });
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Global modal to select a sale before opening link/payment
   const [selectSaleOpen, setSelectSaleOpen] = useState(false);
@@ -189,16 +178,11 @@ export default function FinanceiroPage() {
   const [newSaleLoading, setNewSaleLoading] = useState(false);
   const [newSaleError, setNewSaleError] = useState<string | null>(null);
 
-  const [services, setServices] = useState<Service[]>([]);
-
-  // Auxiliary lists
-  const [clients, setClients] = useState<Client[]>([]);
-  const [variants, setVariants] = useState<ServiceVariant[]>([]);
-
   // New sale form
   type NewSaleItemForm = {
     rowId: string;
     serviceVariantId: string;
+    professionalId: string;
     quantity: number;
     unitPrice: number;
   };
@@ -217,25 +201,6 @@ export default function FinanceiroPage() {
     null | "link" | "pay"
   >(null);
 
-  useEffect(() => {
-    if (!newSaleOpen) return;
-    (async () => {
-      try {
-        const [c, s, v] = await Promise.all([
-          api.getActiveClients?.() ?? api.getClients?.(),
-          api.getActiveServices?.() ?? api.getServices?.(),
-          api.getServiceVariants?.(),
-        ]);
-
-        if (c) setClients(c as Client[]);
-        if (s) setServices(s as Service[]);
-        if (v) setVariants(v as ServiceVariant[]);
-      } catch {
-        // Silent: error is only shown on submission
-      }
-    })();
-  }, [newSaleOpen]);
-
   function addItemRow() {
     setNewSaleForm((f) => ({
       ...f,
@@ -244,6 +209,7 @@ export default function FinanceiroPage() {
         {
           rowId: crypto.randomUUID(),
           serviceVariantId: "",
+          professionalId: "",
           quantity: 1,
           unitPrice: 0,
         },
@@ -265,29 +231,16 @@ export default function FinanceiroPage() {
     }));
   }
 
-  // Load data
-  const refreshAll = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [s, p] = await Promise.all([api.getSales(), api.getPayments()]);
-      setSales(s || []);
-      setPayments(p || []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Falha ao carregar financeiro");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   // Value helpers
-  function paidAmount(sale: Sale) {
+  function paidAmount(sale?: Sale | null) {
+    if (!sale) return 0;
     return (sale.payments || [])
       .filter((p) => p.status === PaymentStatus.PAID)
       .reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
   }
 
-  function balance(sale: Sale) {
+  function balance(sale?: Sale | null) {
+    if (!sale) return 0;
     return Math.max(0, Number(sale.totalAmount) - paidAmount(sale));
   }
 
@@ -299,10 +252,11 @@ export default function FinanceiroPage() {
         throw new Error("Selecione o cliente e adicione pelo menos 1 item");
       }
       // Calculate total locally; backend also recalculates
-      const created = await (api as unknown as SaleApi).createSale({
+      const created = await createSale({
         clientId: newSaleForm.clientId,
         items: newSaleForm.items.map((it) => ({
           serviceVariantId: it.serviceVariantId,
+          professionalId: it.professionalId,
           quantity: Number(it.quantity || 1),
           unitPrice: Number(it.unitPrice || 0),
         })),
@@ -310,7 +264,7 @@ export default function FinanceiroPage() {
         status: SaleStatus.PENDING,
       });
       if (!created) throw new Error("Falha ao criar venda");
-      await refreshAll();
+
       setNewSaleOpen(false);
       setSelectedSale(created);
 
@@ -364,29 +318,11 @@ export default function FinanceiroPage() {
         paidAt: zonedNowForInput(),
         paymentMethod: "",
         externalTransactionId: "",
+        professionalId: sale.professionalId,
       });
       setPayOpen(true);
     }
   }
-  // =========================
-
-  useEffect(() => {
-    void refreshAll();
-
-    // Load services and variants globally
-    (async () => {
-      try {
-        const [s, v] = await Promise.all([
-          api.getActiveServices?.() ?? api.getServices?.(),
-          api.getServiceVariants?.(),
-        ]);
-        if (s) setServices(s as Service[]);
-        if (v) setVariants(v as ServiceVariant[]);
-      } catch (e) {
-        console.error("Erro ao carregar serviços/tipos:", e);
-      }
-    })();
-  }, [refreshAll]);
 
   // Memoized filters
   const filteredSales = useMemo(() => {
@@ -476,6 +412,7 @@ export default function FinanceiroPage() {
       paidAt: zonedNowForInput(),
       paymentMethod: "",
       externalTransactionId: "",
+      professionalId: sale.professionalId,
     });
     setPayOpen(true);
   }
@@ -496,38 +433,47 @@ export default function FinanceiroPage() {
     setError(null);
 
     try {
-      const out = await (api as unknown as SaleApi).createPaymentLink({
-        saleId: selectedSale.id,
-        amount: Number(linkForm.amount),
-        items: (selectedSale.items || []).map((it) => {
-          const variant = variants.find((v) => v.id === it.serviceVariantId);
-          const service = services.find((s) => s.id === variant?.serviceId);
-          return {
-            quantity: it.quantity,
-            price: Math.round(Number(it.unitPrice) * 100), // cents
-            description: `${service?.name || "Serviço"} - ${variant?.variantName || "Tipo"}`,
-          };
+      const resp = await fetch("/api/infinitepay/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          saleId: selectedSale.id,
+          amount: Number(linkForm.amount),
+          items: (selectedSale.items || []).map((it) => {
+            const variant = variants.find((v) => v.id === it.serviceVariantId);
+            const service = services.find((s) => s.id === variant?.serviceId);
+            return {
+              quantity: it.quantity,
+              price: Math.round(Number(it.unitPrice) * 100), // cents
+              description: `${service?.name || "Serviço"} - ${variant?.variantName || "Tipo"}`,
+            };
+          }),
+          customer: {
+            name: linkForm.customerName || undefined,
+            email: linkForm.customerEmail || undefined,
+            phone_number: linkForm.customerPhone
+              ? formatPhoneForInfinitePay(linkForm.customerPhone)
+              : undefined,
+          },
+          address:
+            linkForm.addressCep && linkForm.addressNumber
+              ? {
+                  cep: unformatCEP(linkForm.addressCep),
+                  street: linkForm.addressStreet || undefined,
+                  number: linkForm.addressNumber,
+                  neighborhood: linkForm.addressNeighborhood || undefined,
+                  complement: linkForm.addressComplement || undefined,
+                }
+              : undefined,
         }),
-        customer: {
-          name: linkForm.customerName || undefined,
-          email: linkForm.customerEmail || undefined,
-          phone_number: linkForm.customerPhone
-            ? formatPhoneForInfinitePay(linkForm.customerPhone)
-            : undefined,
-        },
-        address:
-          linkForm.addressCep && linkForm.addressNumber
-            ? {
-                cep: unformatCEP(linkForm.addressCep),
-                street: linkForm.addressStreet || undefined,
-                number: linkForm.addressNumber,
-                neighborhood: linkForm.addressNeighborhood || undefined,
-                complement: linkForm.addressComplement || undefined,
-              }
-            : undefined,
       });
 
-      window.open(out.url, "_blank", "noopener,noreferrer");
+      const json = await resp.json();
+      if (!resp.ok || !json?.url) {
+        throw new Error(json?.error || "Falha ao gerar link de pagamento");
+      }
+
+      window.open(json.url, "_blank", "noopener,noreferrer");
       await refreshAll();
       setLinkOpen(false);
 
@@ -558,7 +504,7 @@ export default function FinanceiroPage() {
           ? PaymentStatus.PENDING
           : PaymentStatus.PAID;
 
-      await (api as unknown as SaleApi).createPayment({
+      await createPayment({
         saleId: selectedSale.id,
         amount: Number(payForm.amount),
         status: paymentStatus,
@@ -567,8 +513,8 @@ export default function FinanceiroPage() {
           : new Date().toISOString(),
         paymentMethod: payForm.paymentMethod || undefined,
         externalTransactionId: payForm.externalTransactionId || undefined,
+        professionalId: payForm.professionalId || undefined,
       });
-      await refreshAll();
       setPayOpen(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Falha ao registrar pagamento");
@@ -583,17 +529,10 @@ export default function FinanceiroPage() {
     setError(null);
     try {
       if (confirmOpen.type === "paid") {
-        await (api as unknown as SaleApi).updateSaleStatus(
-          confirmOpen.sale.id,
-          SaleStatus.PAID,
-        );
+        await updateSaleStatus(confirmOpen.sale.id, SaleStatus.PAID);
       } else {
-        await (api as unknown as SaleApi).updateSaleStatus(
-          confirmOpen.sale.id,
-          SaleStatus.CANCELLED,
-        );
+        await updateSaleStatus(confirmOpen.sale.id, SaleStatus.CANCELLED);
       }
-      await refreshAll();
       setConfirmOpen(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Falha ao atualizar status");
@@ -616,20 +555,17 @@ export default function FinanceiroPage() {
         confirmPaymentCancelOpen.paymentMethod === "Link" &&
         confirmPaymentCancelOpen.externalTransactionId
       ) {
-        // 1. Cancel on endpoint (mark as cancelled and clear link)
-        await (api as unknown as SaleApi).cancelInfinitePayPayment(
-          confirmPaymentCancelOpen.externalTransactionId,
-        );
-
-        // 2. Update locally for immediate consistency
-        await (api as unknown as SaleApi).updatePaymentStatus(
-          confirmPaymentCancelOpen.id,
-          PaymentStatus.CANCELLED,
-        );
+        // Use external API to cancel on InfinitePay first
+        await fetch("/api/infinitepay/cancel-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            externalId: confirmPaymentCancelOpen.externalTransactionId,
+          }),
+        });
       }
 
-      // 3. Display success if no exceptions occurred
-      await refreshAll();
+      await cancelPayment(confirmPaymentCancelOpen.id);
       setConfirmPaymentCancelOpen(null);
       toast({
         title: "Sucesso!",
@@ -972,24 +908,33 @@ export default function FinanceiroPage() {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => openRegisterPayment(s)}
+                                  disabled={
+                                    due <= 0 ||
+                                    s.status === SaleStatus.CANCELLED
+                                  }
                                 >
                                   <CreditCard className="h-4 w-4 mr-2" />
                                   Registrar pagamento
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => confirmStatus(s, "paid")}
-                                  disabled={s.status === SaleStatus.PAID}
+                                  disabled={
+                                    s.status === SaleStatus.PAID ||
+                                    s.status === SaleStatus.CANCELLED
+                                  }
                                 >
                                   <CheckCircle2 className="h-4 w-4 mr-2" />
                                   Marcar como pago
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                  className="text-destructive"
+                                  className="text-destructive focus:text-destructive"
                                   onClick={() => confirmStatus(s, "cancel")}
                                   disabled={s.status === SaleStatus.CANCELLED}
                                 >
                                   <XCircle className="h-4 w-4 mr-2" />
-                                  Cancelar venda
+                                  {paid > 0
+                                    ? "Estornar venda"
+                                    : "Cancelar venda"}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -1209,7 +1154,7 @@ export default function FinanceiroPage() {
             >
               <div className="font-medium">Usar venda existente</div>
               <div className="text-sm text-muted-foreground">
-                Gerar the link com base na venda selecionada
+                Gerar link com base na venda selecionada
               </div>
             </button>
 
@@ -1471,10 +1416,11 @@ export default function FinanceiroPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="NA">N/A</SelectItem>
-                    <SelectItem value="Pix">Pix</SelectItem>
-                    <SelectItem value="Cartão">Cartão</SelectItem>
-                    <SelectItem value="Dinheiro">Dinheiro</SelectItem>
-                    <SelectItem value="Boleto">Boleto</SelectItem>
+                    {paymentMethods.map((opt) => (
+                      <SelectItem key={opt.id} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1493,6 +1439,23 @@ export default function FinanceiroPage() {
                   }
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm mb-1">
+                Profissional (opcional)
+              </label>
+              <Combobox
+                placeholder="Selecione o profissional"
+                items={(professionals || []).map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                }))}
+                value={payForm.professionalId || ""}
+                onChange={(v) =>
+                  setPayForm((p) => ({ ...p, professionalId: v }))
+                }
+              />
             </div>
 
             <div>
@@ -1541,7 +1504,9 @@ export default function FinanceiroPage() {
             <DialogDescription>
               {confirmOpen?.type === "paid"
                 ? "Marcar esta venda como PAGA?"
-                : "Cancelar esta venda? Esta ação não pode ser desfeita."}
+                : paidAmount(confirmOpen?.sale as Sale) > 0
+                  ? "Estornar esta venda? Todos os pagamentos realizados serão marcados como estornados e o valor será deduzido da receita."
+                  : "Cancelar esta venda? Esta ação não pode ser desfeita."}
             </DialogDescription>
           </DialogHeader>
 
@@ -1609,24 +1574,28 @@ export default function FinanceiroPage() {
                 <div className="mb-2 font-medium">Itens</div>
                 <div className="rounded-md border overflow-hidden">
                   <div className="grid grid-cols-12 gap-0 px-3 py-2 text-xs text-muted-foreground bg-muted/40">
-                    <div className="col-span-6">Serviço/tipo</div>
-                    <div className="col-span-2 text-right">Qtd.</div>
+                    <div className="col-span-4">Serviço/tipo</div>
+                    <div className="col-span-3">Profissional</div>
+                    <div className="col-span-1 text-right">Qtd.</div>
                     <div className="col-span-2 text-right">Unitário</div>
                     <div className="col-span-2 text-right">Subtotal</div>
                   </div>
                   {(selectedSale.items || []).map((it, idx) => (
                     <div
                       key={`item-${selectedSale.id}-${idx}`}
-                      className="grid grid-cols-12 gap-0 px-3 py-2 text-sm"
+                      className="grid grid-cols-12 gap-0 px-3 py-2 text-sm items-center"
                     >
-                      <div className="col-span-6 truncate">
+                      <div className="col-span-4 truncate">
                         {it.serviceName} {it.serviceVariantName}
                       </div>
-                      <div className="col-span-2 text-right">{it.quantity}</div>
+                      <div className="col-span-3 truncate text-muted-foreground">
+                        {it.professionalName || "—"}
+                      </div>
+                      <div className="col-span-1 text-right">{it.quantity}</div>
                       <div className="col-span-2 text-right">
                         {currency(it.unitPrice)}
                       </div>
-                      <div className="col-span-2 text-right">
+                      <div className="col-span-2 text-right font-medium">
                         {currency(it.quantity * it.unitPrice)}
                       </div>
                     </div>
@@ -1715,7 +1684,7 @@ export default function FinanceiroPage() {
         open={!!selectedPayment}
         onOpenChange={() => setSelectedPayment(null)}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalhes do pagamento</DialogTitle>
             <DialogDescription>
@@ -1724,21 +1693,21 @@ export default function FinanceiroPage() {
           </DialogHeader>
 
           {selectedPayment ? (
-            <div className="space-y-3 text-sm">
+            <div className="space-y-4 text-sm">
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-md border p-3">
-                  <div className="text-muted-foreground">ID</div>
+                  <div className="text-muted-foreground">ID Pagamento</div>
                   <div className="font-medium">{selectedPayment.id}</div>
                 </div>
                 <div className="rounded-md border p-3">
-                  <div className="text-muted-foreground">Venda</div>
+                  <div className="text-muted-foreground">Venda ID</div>
                   <div className="font-medium">
                     {selectedPayment.saleId || "—"}
                   </div>
                 </div>
                 <div className="rounded-md border p-3">
                   <div className="text-muted-foreground">Valor</div>
-                  <div className="font-medium">
+                  <div className="font-medium text-primary font-bold">
                     {currency(selectedPayment.amount)}
                   </div>
                 </div>
@@ -1755,25 +1724,97 @@ export default function FinanceiroPage() {
                   </div>
                 </div>
                 <div className="rounded-md border p-3">
-                  <div className="text-muted-foreground">NSU</div>
+                  <div className="text-muted-foreground">NSU / Ref</div>
                   <div className="font-medium">
                     {selectedPayment.externalTransactionId || "—"}
                   </div>
                 </div>
               </div>
 
+              {/* Joined Sale Info */}
+              {(() => {
+                const parentSale = sales.find(
+                  (s) => s.id === selectedPayment.saleId,
+                );
+                if (!parentSale) return null;
+
+                // Unique professionals in this sale
+                const profs = new Set(
+                  (parentSale.items || [])
+                    .map((it) => {
+                      const p = professionals.find(
+                        (p) => p.id === it.professionalId,
+                      );
+                      return p ? p.name : null;
+                    })
+                    .filter(Boolean),
+                );
+
+                return (
+                  <div className="space-y-3">
+                    <Separator />
+                    <div>
+                      <div className="font-semibold mb-1">
+                        Informações da Venda
+                      </div>
+                      <div className="text-muted-foreground">
+                        Cliente:{" "}
+                        <span className="text-foreground font-medium">
+                          {parentSale.clientName}
+                        </span>
+                      </div>
+                      <div className="text-muted-foreground">
+                        Profissional(is):{" "}
+                        <span className="text-foreground font-medium">
+                          {Array.from(profs).join(", ") ||
+                            parentSale.professionalName ||
+                            "—"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Serviços na Venda
+                      </div>
+                      <div className="rounded-md border divide-y overflow-hidden">
+                        {(parentSale.items || []).map((it, idx) => (
+                          <div
+                            key={idx}
+                            className="p-2 flex justify-between bg-muted/10"
+                          >
+                            <div>
+                              <div className="font-medium">
+                                {it.serviceName}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {it.serviceVariantName} x{it.quantity}
+                              </div>
+                            </div>
+                            <div className="text-right font-medium">
+                              {currency(it.subtotal)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="rounded-md border p-3">
-                <div className="text-muted-foreground">Criado em</div>
+                <div className="text-muted-foreground">Data do Pagamento</div>
                 <div className="font-medium">
-                  {new Date(selectedPayment.created_at || "").toLocaleString(
-                    "pt-BR",
-                  )}
+                  {new Date(
+                    selectedPayment.paidAt || selectedPayment.created_at || "",
+                  ).toLocaleString("pt-BR")}
                 </div>
               </div>
 
               {selectedPayment.linkUrl ? (
                 <Button
                   variant="outline"
+                  className="w-full"
                   onClick={() =>
                     window.open(
                       selectedPayment.linkUrl as string,
@@ -1783,14 +1824,18 @@ export default function FinanceiroPage() {
                   }
                 >
                   <Receipt className="h-4 w-4 mr-2" />
-                  Abrir link
+                  Visualizar Link de Pagamento
                 </Button>
               ) : null}
             </div>
           ) : null}
 
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setSelectedPayment(null)}>
+            <Button
+              variant="outline"
+              onClick={() => setSelectedPayment(null)}
+              className="w-full sm:w-auto"
+            >
               Fechar
             </Button>
           </DialogFooter>
@@ -1965,8 +2010,10 @@ export default function FinanceiroPage() {
 
             <div className="space-y-3">
               {newSaleForm.items.map((it, idx) => {
-                const variantItems = variants.map((v) => {
-                  const svc = services.find((s) => s.id === v.serviceId);
+                const variantItems = (variants || []).map((v) => {
+                  const svc = (services || []).find(
+                    (s) => s.id === v.serviceId,
+                  );
                   const svcName = svc ? svc.name : "Serviço";
                   return {
                     value: v.id,
@@ -1975,65 +2022,90 @@ export default function FinanceiroPage() {
                   };
                 });
 
+                const professionalItems = (professionals || []).map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                }));
+
                 return (
-                  <div key={it.rowId} className="grid grid-cols-12 gap-3">
-                    {/* Service/type (6) */}
-                    <div className="col-span-6 space-y-2">
-                      <Label>Serviço/tipo</Label>
-                      <Combobox
-                        placeholder="Serviço/tipo"
-                        items={variantItems}
-                        value={it.serviceVariantId}
-                        onChange={(v) => {
-                          const matched = variants.find((vv) => vv.id === v);
-                          onChangeItem(idx, {
-                            serviceVariantId: v,
-                            unitPrice: matched ? Number(matched.price) : 0,
-                          });
-                        }}
-                      />
+                  <div
+                    key={it.rowId}
+                    className="space-y-3 p-3 border rounded-lg bg-muted/30"
+                  >
+                    <div className="grid grid-cols-12 gap-3">
+                      {/* Service/type (11) */}
+                      <div className="col-span-11 space-y-2">
+                        <Label>Serviço/tipo</Label>
+                        <Combobox
+                          placeholder="Serviço/tipo"
+                          items={variantItems}
+                          value={it.serviceVariantId}
+                          onChange={(v) => {
+                            const matched = variants.find((vv) => vv.id === v);
+                            onChangeItem(idx, {
+                              serviceVariantId: v,
+                              unitPrice: matched ? Number(matched.price) : 0,
+                            });
+                          }}
+                        />
+                      </div>
+
+                      {/* Remove (1) */}
+                      <div className="col-span-1 flex items-end pb-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive h-9 w-9"
+                          onClick={() => removeItemRow(idx)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
 
-                    {/* Quantity (2) */}
-                    <div className="col-span-2 space-y-2">
-                      <Label>Qtd.</Label>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={it.quantity}
-                        onChange={(e) =>
-                          onChangeItem(idx, {
-                            quantity: Number(e.target.value),
-                          })
-                        }
-                      />
-                    </div>
+                    <div className="grid grid-cols-12 gap-3">
+                      {/* Professional (6) */}
+                      <div className="col-span-6 space-y-2">
+                        <Label>Profissional</Label>
+                        <Combobox
+                          placeholder="Profissional"
+                          items={professionalItems}
+                          value={it.professionalId}
+                          onChange={(v) =>
+                            onChangeItem(idx, { professionalId: v })
+                          }
+                        />
+                      </div>
 
-                    {/* Unit Price (3) */}
-                    <div className="col-span-3 space-y-2">
-                      <Label>Preço</Label>
-                      <Input
-                        type="number"
-                        value={it.unitPrice}
-                        onChange={(e) =>
-                          onChangeItem(idx, {
-                            unitPrice: Number(e.target.value),
-                          })
-                        }
-                      />
-                    </div>
+                      {/* Quantity (2) */}
+                      <div className="col-span-2 space-y-2">
+                        <Label>Qtd.</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={it.quantity}
+                          onChange={(e) =>
+                            onChangeItem(idx, {
+                              quantity: Number(e.target.value),
+                            })
+                          }
+                        />
+                      </div>
 
-                    {/* Remove (1) */}
-                    <div className="col-span-1 flex items-end pb-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive h-9 w-9"
-                        onClick={() => removeItemRow(idx)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {/* Unit Price (4) */}
+                      <div className="col-span-4 space-y-2">
+                        <Label>Preço</Label>
+                        <Input
+                          type="number"
+                          value={it.unitPrice}
+                          onChange={(e) =>
+                            onChangeItem(idx, {
+                              unitPrice: Number(e.target.value),
+                            })
+                          }
+                        />
+                      </div>
                     </div>
                   </div>
                 );

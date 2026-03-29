@@ -8,9 +8,7 @@ import {
   updateCalendarEvent,
   deleteCalendarEvent,
 } from "@/services/googleCalendarAppsScript";
-import { useClients } from "@/hooks/features/use-clients";
-import { useServices } from "@/hooks/features/use-services";
-import { useData } from "@/lib/data-context"; // Still needed for professionals until refactored
+import { useData } from "@/lib/data-context";
 
 import { CalendarView } from "@/components/features/agenda/calendar-view";
 import { AppointmentFormModal } from "@/components/features/agenda/appointment-form-modal";
@@ -29,12 +27,18 @@ interface GoogleCalendarEvent {
 }
 
 export default function AgendaPage() {
-  const { clients, refreshClients } = useClients();
-  const { services, refreshServices } = useServices();
-  const { professionals } = useData();
+  const {
+    clients,
+    services,
+    professionals,
+    isLoading: dataLoading,
+    refreshData,
+  } = useData();
   const [appointments, setAppointments] = useState<GoogleCalendarEvent[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
+
+  const isLoading = dataLoading || isLoadingEvents;
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -47,12 +51,11 @@ export default function AgendaPage() {
     useState<GoogleCalendarEvent | null>(null);
 
   useEffect(() => {
-    refreshClients();
-    refreshServices(true); // only active
-  }, [refreshClients, refreshServices]);
+    void refreshData();
+  }, [refreshData]);
 
   const fetchEvents = useCallback(async () => {
-    setIsLoading(true);
+    setIsLoadingEvents(true);
     try {
       const start = new Date(currentDate);
       start.setDate(start.getDate() - currentDate.getDay());
@@ -73,7 +76,7 @@ export default function AgendaPage() {
     } catch {
       toast.error("Erro de conexão com o calendário");
     } finally {
-      setIsLoading(false);
+      setIsLoadingEvents(false);
     }
   }, [currentDate]);
 
@@ -132,7 +135,7 @@ export default function AgendaPage() {
       );
 
       const professionalLine = professional
-        ? `\nProfissional: ${professional.fullName} (${professional.functionTitle})`
+        ? `\nProfissional: ${professional.name} (${professional.functionTitle})`
         : "";
 
       const payload = {

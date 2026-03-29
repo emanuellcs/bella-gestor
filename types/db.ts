@@ -50,6 +50,7 @@ export interface SupabaseServiceVariant {
   price: number;
   duration_minutes: number;
   is_active: boolean;
+  commission_pct: number | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -94,6 +95,9 @@ export interface SupabaseSaleItem {
   quantity: number;
   unit_price: number;
   subtotal: number;
+  professional_id: string | null;
+  commission_pct: number | null;
+  commission_amount: number | null;
   created_at: string;
 }
 
@@ -106,6 +110,7 @@ export interface SupabasePayment {
   payment_link_url: string | null;
   status: PaymentStatus;
   paid_at: string | null;
+  professional_id: string | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -114,6 +119,33 @@ export interface SupabaseUserRole {
   user_id: string;
   role: AppRole;
   created_at: string;
+}
+
+export interface SupabaseProfessional {
+  user_id: string;
+  role: AppRole;
+  full_name: string | null;
+  email: string | null;
+  function_title: string | null;
+  commission_pct: number | null;
+  created_at: string;
+}
+
+export interface SupabaseAppOption {
+  id: number;
+  option_type: string;
+  label: string;
+  value: string;
+  is_active: boolean;
+  display_order: number;
+  created_at: string;
+}
+
+export interface SupabaseAppSetting {
+  key: string;
+  value: string;
+  created_at: string;
+  updated_at: string | null;
 }
 
 export interface SupabaseUserIntegration {

@@ -69,6 +69,7 @@ export interface ServiceVariant {
   price: number;
   duration: number;
   active: boolean;
+  commissionPct?: number; // optional override for this specific variant
   created_at: string;
   updatedAt?: string;
 }
@@ -101,6 +102,8 @@ export interface Sale {
   clientId: string;
   clientName: string;
   appointmentId?: string;
+  professionalId?: string;
+  professionalName?: string;
   items: SaleItem[];
   totalAmount: number;
   status: SaleStatus;
@@ -118,6 +121,10 @@ export interface SaleItem {
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  professionalId?: string; // assigned professional for this item
+  professionalName?: string;
+  commissionPct?: number; // % at the time of sale
+  commissionAmount?: number; // calculated amount
 }
 
 export interface Payment {
@@ -132,6 +139,8 @@ export interface Payment {
   linkUrl?: string;
   status: PaymentStatus;
   paidAt?: string;
+  professionalId?: string;
+  professionalName?: string;
   created_at: string;
   updatedAt?: string;
 }
@@ -145,10 +154,26 @@ export interface User {
 
 export interface Professional {
   id: string; // user_id
+  name: string;
   email?: string;
-  fullName?: string;
   functionTitle?: string;
   role: AppRole;
+  commissionPct?: number; // % commission for this professional
+  created_at: string;
+}
+
+export interface AppOption {
+  id: number;
+  optionType: string;
+  label: string;
+  value: string;
+  isActive: boolean;
+  displayOrder: number;
+}
+
+export interface AppSetting {
+  key: string;
+  value: string;
 }
 
 export interface CalendarEvent {

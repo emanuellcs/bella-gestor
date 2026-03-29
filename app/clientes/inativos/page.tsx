@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,7 +51,6 @@ import {
 } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 import { useData } from "@/lib/data-context";
-import type { Client } from "@/types";
 import {
   Search,
   ArrowLeft,
@@ -95,11 +94,9 @@ interface VisibleColumns {
 
 export default function ClientesInativosPage() {
   const router = useRouter();
-  const { getInactiveClients, reactivateClient } = useData();
+  const { clients, isLoading, refreshData, reactivateClient } = useData();
   const { toast } = useToast();
-  const [inactiveClients, setInactiveClients] = useState<Client[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [reactivateDialogOpen, setReactivateDialogOpen] = useState(false);
   const [clientToReactivate, setClientToReactivate] = useState<string | null>(
@@ -126,35 +123,20 @@ export default function ClientesInativosPage() {
     notes: true,
   });
 
-  const loadInactiveClients = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const clients = await getInactiveClients();
-      setInactiveClients(clients);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Erro ao carregar clientes inativos",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [getInactiveClients]);
+  const inactiveClients = useMemo(() => {
+    return (clients || []).filter((c) => c.status === "inactive");
+  }, [clients]);
 
-  useEffect(() => {
-    loadInactiveClients();
-  }, [loadInactiveClients]);
-
-  const filteredClients = inactiveClients.filter((client) => {
-    const matchesSearch =
-      client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (client.email &&
-        client.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      client.phone.includes(searchTerm);
-    return matchesSearch;
-  });
+  const filteredClients = useMemo(() => {
+    return inactiveClients.filter((client) => {
+      const matchesSearch =
+        client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (client.email &&
+          client.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        client.phone.includes(searchTerm);
+      return matchesSearch;
+    });
+  }, [inactiveClients, searchTerm]);
 
   const totalPages = Math.ceil(filteredClients.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -278,7 +260,6 @@ export default function ClientesInativosPage() {
       });
       handleClearSelection();
       setBulkActionDialogOpen(false);
-      await loadInactiveClients();
     } catch {
       toast({
         title: "Erro ao reativar",
@@ -301,14 +282,8 @@ export default function ClientesInativosPage() {
     try {
       const success = await reactivateClient(clientToReactivate);
       if (success) {
-        toast({
-          title: "Cliente reativado",
-          description:
-            "O cliente foi reativado com sucesso e voltará a aparecer na lista de clientes ativos.",
-        });
         setReactivateDialogOpen(false);
         setClientToReactivate(null);
-        await loadInactiveClients();
       } else {
         toast({
           title: "Erro ao reativar",
@@ -331,7 +306,7 @@ export default function ClientesInativosPage() {
     setVisibleColumns((prev) => ({ ...prev, [column]: !prev[column] }));
   };
 
-  if (isLoading) {
+  if (isLoading && inactiveClients.length === 0) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -340,26 +315,6 @@ export default function ClientesInativosPage() {
             Carregando clientes inativos...
           </p>
         </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Card className="p-8 max-w-md">
-          <div className="flex flex-col items-center gap-4 text-center">
-            <AlertCircle className="h-12 w-12 text-destructive" />
-            <h2 className="text-2xl font-semibold">
-              Erro ao carregar clientes inativos
-            </h2>
-            <p className="text-muted-foreground">{error}</p>
-            <Button onClick={loadInactiveClients} variant="outline">
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Tentar novamente
-            </Button>
-          </div>
-        </Card>
       </div>
     );
   }
@@ -377,13 +332,25 @@ export default function ClientesInativosPage() {
             <ArrowLeft className="mr-2 h-4 w-4" />
             Voltar para Clientes Ativos
           </Button>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              Clientes Inativos
-            </h1>
-            <p className="text-base text-muted-foreground mt-1">
-              Clientes que foram desativados e podem ser reativados
-            </p>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">
+                Clientes Inativos
+              </h1>
+              <p className="text-base text-muted-foreground mt-1">
+                Clientes que foram desativados e podem ser reativados
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => refreshData()}
+              disabled={isLoading}
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+              />
+            </Button>
           </div>
 
           <Card className="p-4 md:p-6">

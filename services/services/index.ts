@@ -58,6 +58,8 @@ export async function getServiceVariantsByServiceId(
         price: parseFloat(v.price),
         duration: v.duration_minutes,
         active: !!v.is_active,
+        commissionPct:
+          v.commission_pct !== null ? parseFloat(v.commission_pct) : undefined,
         created_at: v.created_at,
         updatedAt: v.updated_at || undefined,
       }),
@@ -93,6 +95,8 @@ export async function getServiceVariants(): Promise<ServiceVariant[]> {
         price: parseFloat(v.price),
         duration: v.duration_minutes,
         active: !!v.is_active,
+        commissionPct:
+          v.commission_pct !== null ? parseFloat(v.commission_pct) : undefined,
         created_at: v.created_at,
         updatedAt: v.updated_at || undefined,
       }),
@@ -126,6 +130,7 @@ export async function getActiveServices(): Promise<Service[]> {
           price,
           duration_minutes,
           is_active,
+          commission_pct,
           created_at,
           updated_at
         )
@@ -157,6 +162,10 @@ export async function getActiveServices(): Promise<Service[]> {
             price: parseFloat(v.price),
             duration: v.duration_minutes,
             active: !!v.is_active,
+            commissionPct:
+              v.commission_pct !== null
+                ? parseFloat(v.commission_pct)
+                : undefined,
             created_at: v.created_at,
             updatedAt: v.updated_at || undefined,
           }),

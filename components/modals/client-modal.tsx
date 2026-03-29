@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -43,9 +43,25 @@ export function ClientModal({
   client,
   mode,
 }: ClientModalProps) {
-  const { addClient, updateClient } = useData();
+  const { addClient, updateClient, appOptions } = useData();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+
+  const referralSources = useMemo(
+    () =>
+      (appOptions || []).filter(
+        (o) => o.optionType === "referral_source" && o.isActive,
+      ),
+    [appOptions],
+  );
+
+  const leadOrigins = useMemo(
+    () =>
+      (appOptions || []).filter(
+        (o) => o.optionType === "lead_origin" && o.isActive,
+      ),
+    [appOptions],
+  );
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
   >({});
@@ -108,9 +124,9 @@ export function ClientModal({
         marketingConsent: false,
         isClient: false,
       });
+      setOriginOption("");
+      setOriginDetail("");
     }
-    setOriginOption("");
-    setOriginDetail("");
     setValidationErrors({});
   }, [client, mode, open]);
 
@@ -289,7 +305,7 @@ export function ClientModal({
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <Input
@@ -331,7 +347,7 @@ export function ClientModal({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="birthDate">Data de Nascimento</Label>
                   <Input
@@ -381,17 +397,11 @@ export function ClientModal({
                       <SelectValue placeholder="Selecione uma opção" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="Instagram">Instagram</SelectItem>
-                        <SelectItem value="Profissional Bellas">Profissional Bellas</SelectItem>
-                        <SelectItem value="Igreja">Igreja</SelectItem>
-                        <SelectItem value="WhatsApp">WhatsApp</SelectItem>
-                        <SelectItem value="Google">Google</SelectItem>
-                        <SelectItem value="Indicação Cliente">Indicação Cliente</SelectItem>
-                        <SelectItem value="Fachada">Fachada</SelectItem>
-                        <SelectItem value="Parceria Empresa/Condomínio">Parceria Empresa/Condomínio</SelectItem>
-                        <SelectItem value="Evento/Ação">Evento/Ação</SelectItem>
-                        <SelectItem value="TV">TV</SelectItem>
-                        <SelectItem value="Outro">Outro</SelectItem>
+                      {referralSources.map((opt) => (
+                        <SelectItem key={opt.id} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
 
@@ -446,17 +456,11 @@ export function ClientModal({
                       <SelectValue placeholder="Selecione uma opção" />
                     </SelectTrigger>
                     <SelectContent>
-                          <SelectItem value="Viu conteúdo e se interessou">Viu conteúdo e se interessou</SelectItem>
-                          <SelectItem value="Clicou em anúncio">Clicou em anúncio</SelectItem>
-                          <SelectItem value="Recebeu indicação direta">Recebeu indicação direta</SelectItem>
-                          <SelectItem value="Foi convidada por profissional">Foi convidada por profissional</SelectItem>
-                          <SelectItem value="Participou de evento">Participou de evento</SelectItem>
-                          <SelectItem value="Já conhecia a marca">Já conhecia a marca</SelectItem>
-                          <SelectItem value="Passou em frente e entrou">Passou em frente e entrou</SelectItem>
-                          <SelectItem value="Procurou no Google">Procurou no Google</SelectItem>
-                          <SelectItem value="Recebeu mensagem/oferta">Recebeu mensagem/oferta</SelectItem>
-                          <SelectItem value="Ganhou presente/voucher">Ganhou presente/voucher</SelectItem>
-                          <SelectItem value="Outro">Outro</SelectItem>
+                      {leadOrigins.map((opt) => (
+                        <SelectItem key={opt.id} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 )}

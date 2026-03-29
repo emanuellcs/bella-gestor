@@ -1,10 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSupabaseServer } from "@/lib/supabase/server";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { parseSupabaseError } from "@/lib/error-handler";
 import { Service, ServiceVariant } from "@/types";
 import { getServiceVariantsByServiceId } from "@/services/services";
+import {
+  supabaseServiceToService,
+  supabaseVariantToVariant,
+} from "@/lib/utils/mapping";
 
 /**
  * Creates a new service with optional variants.
@@ -18,7 +22,7 @@ export async function createServiceAction(
   },
 ) {
   try {
-    const supabase = getSupabaseServer();
+    const supabase = getSupabaseAdmin();
     const payload = {
       name: service.name,
       description: service.description || null,
@@ -54,14 +58,14 @@ export async function createServiceAction(
       if (variantsError) {
         return {
           success: true,
-          data,
+          data: supabaseServiceToService(data),
           warning: `Serviço criado, mas falha ao criar variantes: ${parseSupabaseError(variantsError).description}`,
         };
       }
     }
 
     revalidatePath("/servicos");
-    return { success: true, data };
+    return { success: true, data: supabaseServiceToService(data) };
   } catch (error: any) {
     console.error("Error in createServiceAction:", error);
     return { success: false, error: "Falha ao criar serviço." };
@@ -76,7 +80,7 @@ export async function updateServiceAction(
   service: Partial<Service> & { variants?: ServiceVariant[] },
 ) {
   try {
-    const supabase = getSupabaseServer();
+    const supabase = getSupabaseAdmin();
     const serviceIdNum = parseInt(id);
     const payload: any = {
       ...(service.name !== undefined ? { name: service.name } : {}),
@@ -147,7 +151,7 @@ export async function updateServiceAction(
     }
 
     revalidatePath("/servicos");
-    return { success: true, data };
+    return { success: true, data: supabaseServiceToService(data) };
   } catch (error: any) {
     console.error("Error in updateServiceAction:", error);
     return { success: false, error: "Falha ao atualizar serviço." };
@@ -159,7 +163,7 @@ export async function updateServiceAction(
  */
 export async function deleteServiceAction(id: string) {
   try {
-    const supabase = getSupabaseServer();
+    const supabase = getSupabaseAdmin();
     const { error } = await supabase
       .from("services")
       .delete()
@@ -184,7 +188,7 @@ export async function createServiceVariantAction(
   variant: Omit<ServiceVariant, "id" | "created_at" | "updatedAt">,
 ) {
   try {
-    const supabase = getSupabaseServer();
+    const supabase = getSupabaseAdmin();
     const payload = {
       service_id: parseInt(variant.serviceId),
       variant_name: variant.variantName,
@@ -204,7 +208,7 @@ export async function createServiceVariantAction(
     }
 
     revalidatePath("/servicos");
-    return { success: true, data };
+    return { success: true, data: supabaseVariantToVariant(data) };
   } catch (error: any) {
     console.error("Error in createServiceVariantAction:", error);
     return { success: false, error: "Falha ao criar variante de serviço." };
@@ -219,7 +223,7 @@ export async function updateServiceVariantAction(
   variant: Partial<ServiceVariant>,
 ) {
   try {
-    const supabase = getSupabaseServer();
+    const supabase = getSupabaseAdmin();
     const payload: any = {
       ...(variant.serviceId !== undefined
         ? { service_id: parseInt(variant.serviceId) }
@@ -247,7 +251,7 @@ export async function updateServiceVariantAction(
     }
 
     revalidatePath("/servicos");
-    return { success: true, data };
+    return { success: true, data: supabaseVariantToVariant(data) };
   } catch (error: any) {
     console.error("Error in updateServiceVariantAction:", error);
     return { success: false, error: "Falha ao atualizar variante de serviço." };
@@ -259,7 +263,7 @@ export async function updateServiceVariantAction(
  */
 export async function deleteServiceVariantAction(id: string) {
   try {
-    const supabase = getSupabaseServer();
+    const supabase = getSupabaseAdmin();
     const { error } = await supabase
       .from("service_variants")
       .delete()

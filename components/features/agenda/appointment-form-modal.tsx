@@ -115,9 +115,9 @@ export function AppointmentFormModal({
         const service = services.find((s) => s.name === serviceName);
         const professional = professionals.find(
           (p) =>
-            (p.fullName &&
+            (p.name &&
               p.functionTitle &&
-              `${p.fullName} (${p.functionTitle})` === professionalText) ||
+              `${p.name} (${p.functionTitle})` === professionalText) ||
             p.email === professionalText,
         );
 
@@ -178,8 +178,8 @@ export function AppointmentFormModal({
       professionals.map((p) => ({
         value: p.id,
         label:
-          p.fullName && p.functionTitle
-            ? `${p.fullName} (${p.functionTitle})`
+          p.name && p.functionTitle
+            ? `${p.name} (${p.functionTitle})`
             : p.email || "Profissional",
       })),
     [professionals],

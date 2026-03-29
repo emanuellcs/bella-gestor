@@ -86,153 +86,169 @@ export function ClientList({
 
   if (viewMode === "table") {
     return (
-      <Table>
-        <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b-2 border-primary/10">
-          <TableRow>
-            <TableHead className="w-12">
-              <Checkbox
-                checked={isAllSelected}
-                onCheckedChange={onSelectAll}
-                className="h-5 w-5"
-              />
-            </TableHead>
-            <TableHead className="min-w-[180px] font-semibold">Nome</TableHead>
-            <TableHead className="min-w-[220px] font-semibold">
-              Contato
-            </TableHead>
-            {visibleColumns.birthDate && <TableHead>Nascimento</TableHead>}
-            {visibleColumns.registrationDate && <TableHead>Cadastro</TableHead>}
-            {visibleColumns.totalSpent && <TableHead>Total Gasto</TableHead>}
-            {visibleColumns.serviceLocation && <TableHead>Local</TableHead>}
-            {visibleColumns.preferredSchedule && <TableHead>Horário</TableHead>}
-            {visibleColumns.referral_source && <TableHead>Indicação</TableHead>}
-            {visibleColumns.status && <TableHead>Status</TableHead>}
-            {visibleColumns.notes && <TableHead>Observações</TableHead>}
-            <TableHead className="w-[80px] sticky right-0 bg-background/95">
-              Ações
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {clients.length === 0 ? (
+      <div className="rounded-md border overflow-x-auto">
+        <Table>
+          <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b-2 border-primary/10">
             <TableRow>
-              <TableCell colSpan={12} className="h-64 text-center">
-                <div className="flex flex-col items-center gap-2">
-                  <AlertCircle className="h-8 w-8 text-muted-foreground" />
-                  <p className="text-muted-foreground">
-                    Nenhum cliente encontrado
-                  </p>
-                  <Button
-                    onClick={onCreate}
-                    variant="outline"
-                    size="sm"
-                    className="mt-2"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Adicionar cliente
-                  </Button>
-                </div>
-              </TableCell>
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={isAllSelected}
+                  onCheckedChange={onSelectAll}
+                  className="h-5 w-5"
+                />
+              </TableHead>
+              <TableHead className="min-w-[180px] font-semibold">
+                Nome
+              </TableHead>
+              <TableHead className="min-w-[220px] font-semibold">
+                Contato
+              </TableHead>
+              {visibleColumns.birthDate && <TableHead>Nascimento</TableHead>}
+              {visibleColumns.registrationDate && (
+                <TableHead>Cadastro</TableHead>
+              )}
+              {visibleColumns.totalSpent && <TableHead>Total Gasto</TableHead>}
+              {visibleColumns.serviceLocation && <TableHead>Local</TableHead>}
+              {visibleColumns.preferredSchedule && (
+                <TableHead>Horário</TableHead>
+              )}
+              {visibleColumns.referral_source && (
+                <TableHead>Indicação</TableHead>
+              )}
+              {visibleColumns.status && <TableHead>Status</TableHead>}
+              {visibleColumns.notes && <TableHead>Observações</TableHead>}
+              <TableHead className="w-[80px] sticky right-0 bg-background/95">
+                Ações
+              </TableHead>
             </TableRow>
-          ) : (
-            clients.map((client, index) => (
-              <TableRow key={client.id} className="hover:bg-muted/50">
-                <TableCell>
-                  <Checkbox
-                    checked={selectedIds.has(client.id)}
-                    onCheckedChange={(e) => onSelectOne(client.id, index, e)}
-                    className="h-5 w-5"
-                  />
-                </TableCell>
-                <TableCell className="font-medium">
-                  <div className="flex items-center gap-2">
-                    <span>{client.name}</span>
-                    {client.marketingConsent && (
-                      <Bell className="h-4 w-4 text-primary" />
-                    )}
+          </TableHeader>
+          <TableBody>
+            {clients.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={12} className="h-64 text-center">
+                  <div className="flex flex-col items-center gap-2">
+                    <AlertCircle className="h-8 w-8 text-muted-foreground" />
+                    <p className="text-muted-foreground">
+                      Nenhum cliente encontrado
+                    </p>
+                    <Button
+                      onClick={onCreate}
+                      variant="outline"
+                      size="sm"
+                      className="mt-2"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Adicionar cliente
+                    </Button>
                   </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-col gap-1 text-sm">
-                    {client.email && (
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-3 w-3 text-muted-foreground" />
-                        <span className="truncate max-w-[150px]">
-                          {client.email}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-3 w-3 text-muted-foreground" />
-                      <span>{client.phone}</span>
-                    </div>
-                  </div>
-                </TableCell>
-                {visibleColumns.birthDate && (
-                  <TableCell>
-                    {client.birthDate ? formatDate(client.birthDate) : "—"}
-                  </TableCell>
-                )}
-                {visibleColumns.registrationDate && (
-                  <TableCell>{formatDate(client.registrationDate)}</TableCell>
-                )}
-                {visibleColumns.totalSpent && (
-                  <TableCell className="font-semibold">
-                    {formatCurrency(client.totalSpent)}
-                  </TableCell>
-                )}
-                {visibleColumns.serviceLocation && (
-                  <TableCell>{client.serviceLocation || "—"}</TableCell>
-                )}
-                {visibleColumns.preferredSchedule && (
-                  <TableCell>{client.preferredSchedule || "—"}</TableCell>
-                )}
-                {visibleColumns.referral_source && (
-                  <TableCell>{client.referral_source || "—"}</TableCell>
-                )}
-                {visibleColumns.status && (
-                  <TableCell>
-                    <Badge variant={client.isClient ? "default" : "secondary"}>
-                      {client.isClient ? "Comprou" : "Não comprou"}
-                    </Badge>
-                  </TableCell>
-                )}
-                {visibleColumns.notes && (
-                  <TableCell className="max-w-[150px] truncate">
-                    {client.notes || "—"}
-                  </TableCell>
-                )}
-                <TableCell className="sticky right-0 bg-background/95">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onView(client)}>
-                        <Eye className="mr-2 h-4 w-4" />
-                        Ver Detalhes
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onEdit(client)}>
-                        <Edit className="mr-2 h-4 w-4" />
-                        Editar
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => onDeactivate(client.id)}
-                        className="text-destructive"
-                      >
-                        <Archive className="mr-2 h-4 w-4" />
-                        Desativar
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 </TableCell>
               </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+            ) : (
+              clients.map((client, index) => (
+                <TableRow key={client.id} className="hover:bg-muted/50">
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.has(client.id)}
+                      onCheckedChange={(e) => onSelectOne(client.id, index, e)}
+                      className="h-5 w-5"
+                    />
+                  </TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      <span>{client.name}</span>
+                      {client.marketingConsent && (
+                        <Bell className="h-4 w-4 text-primary" />
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1 text-sm">
+                      {client.email && (
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-3 w-3 text-muted-foreground" />
+                          <span className="truncate max-w-[150px]">
+                            {client.email}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-3 w-3 text-muted-foreground" />
+                        <span>{client.phone}</span>
+                      </div>
+                    </div>
+                  </TableCell>
+                  {visibleColumns.birthDate && (
+                    <TableCell>
+                      {client.birthDate ? formatDate(client.birthDate) : "—"}
+                    </TableCell>
+                  )}
+                  {visibleColumns.registrationDate && (
+                    <TableCell>{formatDate(client.registrationDate)}</TableCell>
+                  )}
+                  {visibleColumns.totalSpent && (
+                    <TableCell className="font-semibold">
+                      {formatCurrency(client.totalSpent)}
+                    </TableCell>
+                  )}
+                  {visibleColumns.serviceLocation && (
+                    <TableCell>{client.serviceLocation || "—"}</TableCell>
+                  )}
+                  {visibleColumns.preferredSchedule && (
+                    <TableCell>{client.preferredSchedule || "—"}</TableCell>
+                  )}
+                  {visibleColumns.referral_source && (
+                    <TableCell>{client.referral_source || "—"}</TableCell>
+                  )}
+                  {visibleColumns.status && (
+                    <TableCell>
+                      <Badge
+                        variant={client.isClient ? "default" : "secondary"}
+                      >
+                        {client.isClient ? "Comprou" : "Não comprou"}
+                      </Badge>
+                    </TableCell>
+                  )}
+                  {visibleColumns.notes && (
+                    <TableCell className="max-w-[150px] truncate">
+                      {client.notes || "—"}
+                    </TableCell>
+                  )}
+                  <TableCell className="sticky right-0 bg-background/95">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onView(client)}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          Ver Detalhes
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onEdit(client)}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => onDeactivate(client.id)}
+                          className="text-destructive"
+                        >
+                          <Archive className="mr-2 h-4 w-4" />
+                          Desativar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
     );
   }
 

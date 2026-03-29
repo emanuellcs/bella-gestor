@@ -24,12 +24,11 @@ import {
 import { Combobox } from "@/components/ui/combobox";
 import { useData } from "@/lib/data-context";
 import { AppointmentStatus } from "@/types";
-import type { Appointment, Service } from "@/types";
+import type { Appointment } from "@/types";
 import { Loader2, Save, X, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { zonedNowForInput } from "@/lib/utils";
-import { getActiveServices } from "@/services/api";
 
 interface AppointmentModalProps {
   open: boolean;
@@ -48,10 +47,8 @@ export function AppointmentModal({
   defaultDate,
   defaultTime,
 }: AppointmentModalProps) {
-  const { clients } = useData();
+  const { clients, services, professionals } = useData();
   const { toast } = useToast();
-  const [isLoading] = useState(false);
-  const [services, setServices] = useState<Service[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(
     null,
   );
@@ -63,7 +60,6 @@ export function AppointmentModal({
     clientId: "",
     clientName: "",
     professionalId: "",
-    professionalName: "",
     serviceId: "", // New field for service
     variantId: "", // New field for variant
     startTime:
@@ -74,23 +70,6 @@ export function AppointmentModal({
     status: AppointmentStatus.SCHEDULED,
     notes: "",
   });
-
-  useEffect(() => {
-    const fetchServices = async () => {
-      try {
-        const activeServices = await getActiveServices();
-        setServices(activeServices);
-      } catch (error) {
-        console.error("Error fetching active services:", error);
-        toast({
-          title: "Erro",
-          description: "Falha ao carregar serviços.",
-          variant: "destructive",
-        });
-      }
-    };
-    fetchServices();
-  }, [toast]);
 
   useEffect(() => {
     if (appointment && mode === "edit") {
@@ -108,7 +87,6 @@ export function AppointmentModal({
         clientId: appointment.clientId || "",
         clientName: appointment.clientName || "",
         professionalId: appointment.professionalId || "",
-        professionalName: appointment.professionalName || "",
         serviceId: service?.id || "",
         variantId: variant?.id || "",
         startTime: appointment.startTime || "",
@@ -123,7 +101,6 @@ export function AppointmentModal({
         clientId: "",
         clientName: "",
         professionalId: "",
-        professionalName: "",
         serviceId: "",
         variantId: "",
         startTime:
@@ -214,27 +191,40 @@ export function AppointmentModal({
         </Alert>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="client">Cliente *</Label>
-            <Select
-              value={formData.clientId}
-              onValueChange={handleClientSelect}
-              disabled={clients.length === 0}
-            >
-              <SelectTrigger id="client">
-                <SelectValue placeholder="Selecione um cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                {clients.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.name} - {client.phone}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="client">Cliente *</Label>
+              <Combobox
+                placeholder="Selecione um cliente"
+                items={clients.map((c) => ({
+                  value: c.id,
+                  label: `${c.name} - ${c.phone}`,
+                }))}
+                value={formData.clientId}
+                onChange={handleClientSelect}
+                disabled={clients.length === 0}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="professional">Profissional *</Label>
+              <Combobox
+                placeholder="Selecione a profissional"
+                items={professionals.map((p) => ({
+                  value: p.id,
+                  label:
+                    p.name + (p.functionTitle ? ` (${p.functionTitle})` : ""),
+                }))}
+                value={formData.professionalId}
+                onChange={(val) =>
+                  setFormData({ ...formData, professionalId: val })
+                }
+                disabled={professionals.length === 0}
+              />
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="service">Serviço *</Label>
               <Combobox
@@ -261,7 +251,7 @@ export function AppointmentModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="startTime">Data e Hora de Início *</Label>
               <Input

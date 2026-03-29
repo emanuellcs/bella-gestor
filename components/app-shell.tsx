@@ -27,6 +27,8 @@ import {
   Menu,
   LogOut,
   Sparkles,
+  Briefcase,
+  UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -34,9 +36,11 @@ const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Clientes", href: "/clientes", icon: Users },
   { name: "Agenda", href: "/agenda", icon: Calendar },
+  { name: "Serviços", href: "/servicos", icon: Briefcase },
+  { name: "Profissionais", href: "/profissionais", icon: UserCog },
   { name: "Financeiro", href: "/financeiro", icon: DollarSign },
   { name: "Relatórios", href: "/relatorios", icon: BarChart3 },
-  { name: "Serviços", href: "/servicos", icon: Settings },
+  { name: "Configurações", href: "/configuracoes", icon: Settings },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

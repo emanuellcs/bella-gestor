@@ -16,13 +16,54 @@ import type {
   Sale,
   Payment,
   Professional,
+  AppOption,
 } from "@/types";
-import { SaleStatus } from "@/types";
+import { SaleStatus, PaymentStatus } from "@/types";
 import * as clientsApi from "@/services/clients";
 import * as servicesApi from "@/services/services";
 import * as appointmentsApi from "@/services/appointments";
 import * as financeApi from "@/services/finance";
 import * as professionalsApi from "@/services/professionals";
+
+import {
+  createClientAction,
+  updateClientAction,
+  deactivateClientAction,
+  reactivateClientAction,
+} from "@/actions/clients";
+import {
+  createAppointmentAction,
+  updateAppointmentAction,
+  deleteAppointmentAction,
+} from "@/actions/appointments";
+import {
+  createServiceAction,
+  updateServiceAction,
+  deleteServiceAction,
+  createServiceVariantAction,
+  updateServiceVariantAction,
+  deleteServiceVariantAction,
+} from "@/actions/services";
+import {
+  createSaleAction,
+  updateSaleStatusAction,
+  createPaymentAction,
+  updatePaymentStatusAction,
+  NewSale,
+} from "@/actions/finance";
+import {
+  createProfessionalAction,
+  updateProfessionalAction,
+  deleteProfessionalAction,
+} from "@/actions/professionals";
+import {
+  getAppOptionsAction,
+  upsertAppOptionAction,
+  deleteAppOptionAction,
+  updateAppOptionsOrderAction,
+  getAppSettingsAction,
+  updateAppSettingAction,
+} from "@/actions/options";
 
 const apiApp = {
   ...clientsApi,
@@ -47,6 +88,8 @@ interface DataContextType {
   sales: Sale[];
   payments: Payment[];
   professionals: Professional[];
+  appOptions: AppOption[];
+  appSettings: Record<string, string>;
   isLoading: boolean;
   error: string | null;
 
@@ -103,11 +146,38 @@ interface DataContextType {
   getSales: () => Promise<Sale[]>;
   getPayments: () => Promise<Payment[]>;
   createPayment: (payment: Omit<Payment, "id">) => Promise<Payment | null>;
+  cancelPayment: (id: string) => Promise<boolean>;
   updateSaleStatus: (
     id: string,
     status: SaleStatus,
     updates?: Partial<Sale>,
   ) => Promise<Sale | null>;
+  createSale: (sale: NewSale) => Promise<Sale | null>;
+
+  // Professionals
+  addProfessional: (
+    professional: Omit<Professional, "id" | "created_at">,
+  ) => Promise<Professional | null>;
+  updateProfessional: (
+    id: string,
+    professional: Partial<Professional>,
+  ) => Promise<Professional | null>;
+  deleteProfessional: (id: string) => Promise<boolean>;
+
+  // App Options & Settings
+  upsertAppOption: (option: {
+    id?: number;
+    option_type: string;
+    label: string;
+    value: string;
+    is_active?: boolean;
+    display_order?: number;
+  }) => Promise<boolean>;
+  deleteAppOption: (id: number) => Promise<boolean>;
+  updateAppOptionsOrder: (
+    options: { id: number; display_order: number }[],
+  ) => Promise<boolean>;
+  updateAppSetting: (key: string, value: string) => Promise<boolean>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -133,6 +203,8 @@ export function DataProvider({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
+  const [appOptions, setAppOptions] = useState<AppOption[]>([]);
+  const [appSettings, setAppSettings] = useState<Record<string, string>>({});
 
   // Loads all necessary application data, including financial records
   const refreshData = useCallback(async () => {
@@ -147,6 +219,8 @@ export function DataProvider({
         paymentsData,
         appointmentsData,
         professionalsData,
+        optionsRes,
+        settingsRes,
       ] = await Promise.all([
         api.getActiveClients?.(),
         api.getInactiveClients?.(),
@@ -160,6 +234,8 @@ export function DataProvider({
           api as unknown as Record<string, () => Promise<Appointment[]>>
         ).getAppointments?.(),
         api.getProfessionals(),
+        getAppOptionsAction(),
+        getAppSettingsAction(),
       ]);
 
       // Combines active and inactive clients into a single array
@@ -172,8 +248,20 @@ export function DataProvider({
       if (paymentsData) setPayments(paymentsData);
       if (appointmentsData) setAppointments(appointmentsData);
       if (professionalsData) setProfessionals(professionalsData);
+
+      if (optionsRes.success && optionsRes.data) {
+        setAppOptions(optionsRes.data as AppOption[]);
+      } else if (optionsRes.error) {
+        console.error("Options loading error:", optionsRes.error);
+      }
+
+      if (settingsRes.success && settingsRes.data) {
+        setAppSettings(settingsRes.data);
+      }
+
       setError(null);
     } catch (err) {
+      console.error("refreshData caught error:", err);
       const msg =
         err instanceof Error ? err.message : "Falha ao carregar dados";
       setError(msg);
@@ -224,24 +312,39 @@ export function DataProvider({
     }
   };
 
+  const createSale = async (sale: NewSale): Promise<Sale | null> => {
+    try {
+      const res = await createSaleAction(sale);
+      if (!res.success) throw new Error(res.error);
+      await refreshData();
+      toast({
+        title: "Venda criada",
+        description: "A venda foi criada com sucesso.",
+      });
+      return res.data as unknown as Sale;
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Não foi possível criar a venda.";
+      setError(msg);
+      toast({ title: "Erro", description: msg, variant: "destructive" });
+      return null;
+    }
+  };
+
   // Payment creation: accepts externalTransactionId (order_nsu) and paymentLinkUrl for link generation
   const createPayment = async (
     payment: Omit<Payment, "id">,
   ): Promise<Payment | null> => {
     try {
-      const created = await (
-        api as unknown as Record<
-          string,
-          (p: Omit<Payment, "id">) => Promise<Payment>
-        >
-      ).createPayment?.(payment);
+      const res = await createPaymentAction(payment);
+      if (!res.success) throw new Error(res.error);
       // Refresh to update paid/balance aggregates
       await refreshData();
       toast({
         title: "Pagamento registrado",
         description: "O pagamento foi registrado com sucesso.",
       });
-      return created || null;
+      return res.data as unknown as Payment;
     } catch (err) {
       const msg =
         err instanceof Error
@@ -253,24 +356,41 @@ export function DataProvider({
     }
   };
 
+  const cancelPayment = async (id: string): Promise<boolean> => {
+    try {
+      const res = await updatePaymentStatusAction(id, PaymentStatus.CANCELLED);
+      if (!res.success) throw new Error(res.error);
+      await refreshData();
+      toast({
+        title: "Pagamento cancelado",
+        description: "O pagamento foi cancelado com sucesso.",
+      });
+      return true;
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Não foi possível cancelar o pagamento.";
+      setError(msg);
+      toast({ title: "Erro", description: msg, variant: "destructive" });
+      return false;
+    }
+  };
+
   const updateSaleStatus = async (
     id: string,
     status: SaleStatus,
     updates?: Partial<Sale>,
   ): Promise<Sale | null> => {
     try {
-      const updated = await (
-        api as unknown as Record<
-          string,
-          (id: string, s: SaleStatus, u?: Partial<Sale>) => Promise<Sale>
-        >
-      ).updateSaleStatus?.(id, status, updates);
+      const res = await updateSaleStatusAction(id, status, updates);
+      if (!res.success) throw new Error(res.error);
       await refreshData();
       toast({
         title: "Status atualizado",
         description: "O status da venda foi atualizado.",
       });
-      return updated || null;
+      return res.data as unknown as Sale;
     } catch (err) {
       const msg =
         err instanceof Error
@@ -288,18 +408,19 @@ export function DataProvider({
     client: Omit<Client, "id" | "totalSpent" | "registrationDate" | "status">,
   ): Promise<Client | null> => {
     try {
-      const created = await api.createClient?.(client as unknown as Client);
+      const res = await createClientAction(client);
+      if (!res.success) throw new Error(res.error);
       await refreshData();
       toast({
         title: "Cliente criado",
         description: "O cliente foi adicionado com sucesso.",
       });
-      return created || null;
+      return res.data as unknown as Client;
     } catch (err) {
       const msg =
         err instanceof Error
           ? err.message
-          : "Não foi possível criar the cliente.";
+          : "Não foi possível criar o cliente.";
       setError(msg);
       toast({
         title: "Erro ao criar cliente",
@@ -315,18 +436,19 @@ export function DataProvider({
     client: Partial<Client>,
   ): Promise<Client | null> => {
     try {
-      const updated = await api.updateClient?.(id, client);
+      const res = await updateClientAction(id, client);
+      if (!res.success) throw new Error(res.error);
       await refreshData();
       toast({
         title: "Cliente atualizado",
         description: "Os dados do cliente foram atualizados.",
       });
-      return updated || null;
+      return res.data as unknown as Client;
     } catch (err) {
       const msg =
         err instanceof Error
           ? err.message
-          : "Não foi possível atualizar the cliente.";
+          : "Não foi possível atualizar le cliente.";
       setError(msg);
       toast({
         title: "Erro ao atualizar cliente",
@@ -339,7 +461,8 @@ export function DataProvider({
 
   const deactivateClient = async (id: string): Promise<boolean> => {
     try {
-      await api.deactivateClient?.(id);
+      const res = await deactivateClientAction(id);
+      if (!res.success) throw new Error(res.error);
       await refreshData();
       toast({
         title: "Cliente desativado",
@@ -350,7 +473,7 @@ export function DataProvider({
       const msg =
         err instanceof Error
           ? err.message
-          : "Não foi possível desativar the cliente.";
+          : "Não foi possível desativar le cliente.";
       setError(msg);
       toast({
         title: "Erro ao desativar cliente",
@@ -363,7 +486,8 @@ export function DataProvider({
 
   const reactivateClient = async (id: string): Promise<boolean> => {
     try {
-      await api.reactivateClient?.(id);
+      const res = await reactivateClientAction(id);
+      if (!res.success) throw new Error(res.error);
       await refreshData();
       toast({
         title: "Cliente reativado",
@@ -374,7 +498,7 @@ export function DataProvider({
       const msg =
         err instanceof Error
           ? err.message
-          : "Não foi possível reativar the cliente.";
+          : "Não foi possível reativar le cliente.";
       setError(msg);
       toast({
         title: "Erro ao reativar cliente",
@@ -427,15 +551,14 @@ export function DataProvider({
     appointment: Omit<Appointment, "id" | "created_at">,
   ): Promise<Appointment | null> => {
     try {
-      const created = await api.createAppointment?.(
-        appointment as unknown as Appointment,
-      );
+      const res = await createAppointmentAction(appointment);
+      if (!res.success) throw new Error(res.error);
       await refreshData();
       toast({
         title: "Agendamento criado",
         description: "O agendamento foi adicionado com sucesso.",
       });
-      return created || null;
+      return res.data as unknown as Appointment;
     } catch (err) {
       const msg =
         err instanceof Error
@@ -456,13 +579,14 @@ export function DataProvider({
     appointment: Partial<Appointment>,
   ): Promise<Appointment | null> => {
     try {
-      const updated = await api.updateAppointment?.(id, appointment);
+      const res = await updateAppointmentAction(id, appointment);
+      if (!res.success) throw new Error(res.error);
       await refreshData();
       toast({
         title: "Agendamento atualizado",
         description: "Os dados do agendamento foram atualizados.",
       });
-      return updated || null;
+      return res.data as unknown as Appointment;
     } catch (err) {
       const msg =
         err instanceof Error
@@ -480,7 +604,8 @@ export function DataProvider({
 
   const deleteAppointment = async (id: string): Promise<boolean> => {
     try {
-      await api.deleteAppointment?.(id);
+      const res = await deleteAppointmentAction(id);
+      if (!res.success) throw new Error(res.error);
       await refreshData();
       toast({
         title: "Agendamento removido",
@@ -511,13 +636,14 @@ export function DataProvider({
     },
   ): Promise<Service | null> => {
     try {
-      const created = await api.createService?.(service);
+      const res = await createServiceAction(service);
+      if (!res.success) throw new Error(res.error);
       await refreshData();
       toast({
         title: "Serviço criado",
         description: "O serviço foi adicionado com sucesso.",
       });
-      return created || null;
+      return res.data as unknown as Service;
     } catch (err) {
       const msg =
         err instanceof Error
@@ -538,18 +664,19 @@ export function DataProvider({
     service: Partial<Service> & { variants?: ServiceVariant[] },
   ): Promise<Service | null> => {
     try {
-      const updated = await api.updateService?.(id, service);
+      const res = await updateServiceAction(id, service);
+      if (!res.success) throw new Error(res.error);
       await refreshData();
       toast({
         title: "Serviço atualizado",
         description: "Os dados do serviço foram atualizados.",
       });
-      return updated || null;
+      return res.data as unknown as Service;
     } catch (err) {
       const msg =
         err instanceof Error
           ? err.message
-          : "Não foi possível atualizar o serviço.";
+          : "Não foi possível atualizar le serviço.";
       setError(msg);
       toast({
         title: "Erro ao atualizar serviço",
@@ -583,7 +710,8 @@ export function DataProvider({
 
   const deleteService = async (id: string): Promise<boolean> => {
     try {
-      await api.deleteService?.(id);
+      const res = await deleteServiceAction(id);
+      if (!res.success) throw new Error(res.error);
       await refreshData();
       toast({
         title: "Serviço removido",
@@ -609,18 +737,17 @@ export function DataProvider({
     variant: Omit<ServiceVariant, "id" | "created_at" | "updatedAt">,
   ): Promise<ServiceVariant | null> => {
     try {
-      const created = await api.createServiceVariant?.(
-        variant as unknown as ServiceVariant,
-      );
+      const res = await createServiceVariantAction(variant);
+      if (!res.success) throw new Error(res.error);
       await refreshData();
       toast({
         title: "Tipo criado",
         description: "O tipo foi adicionado com sucesso.",
       });
-      return created || null;
+      return res.data as unknown as ServiceVariant;
     } catch (err) {
       const msg =
-        err instanceof Error ? err.message : "Não foi possível criar o tipo.";
+        err instanceof Error ? err.message : "Não foi possível criar le tipo.";
       setError(msg);
       toast({
         title: "Erro ao criar tipo",
@@ -636,18 +763,19 @@ export function DataProvider({
     variant: Partial<ServiceVariant>,
   ): Promise<ServiceVariant | null> => {
     try {
-      const updated = await api.updateServiceVariant?.(id, variant);
+      const res = await updateServiceVariantAction(id, variant);
+      if (!res.success) throw new Error(res.error);
       await refreshData();
       toast({
         title: "Tipo atualizado",
         description: "Os dados do tipo foram atualizados.",
       });
-      return updated || null;
+      return res.data as unknown as ServiceVariant;
     } catch (err) {
       const msg =
         err instanceof Error
           ? err.message
-          : "Não foi possível atualizar o tipo.";
+          : "Não foi possível atualizar le tipo.";
       setError(msg);
       toast({
         title: "Erro ao atualizar tipo",
@@ -660,9 +788,8 @@ export function DataProvider({
 
   const deleteServiceVariant = async (id: string): Promise<boolean> => {
     try {
-      await (
-        api as unknown as Record<string, (id: string) => Promise<void>>
-      ).deleteServiceVariant?.(id);
+      const res = await deleteServiceVariantAction(id);
+      if (!res.success) throw new Error(res.error);
       await refreshData();
       toast({
         title: "Tipo removido",
@@ -671,13 +798,159 @@ export function DataProvider({
       return true;
     } catch (err) {
       const msg =
-        err instanceof Error ? err.message : "Não foi possível remover o tipo.";
+        err instanceof Error
+          ? err.message
+          : "Não foi possível remover le tipo.";
       setError(msg);
       toast({
         title: "Erro ao remover tipo",
         description: msg,
         variant: "destructive",
       });
+      return false;
+    }
+  };
+
+  // Professional methods
+  const addProfessional = async (
+    professional: Omit<Professional, "id" | "created_at">,
+  ): Promise<Professional | null> => {
+    try {
+      const res = await createProfessionalAction(professional);
+      if (!res.success) throw new Error(res.error);
+      await refreshData();
+      toast({
+        title: "Profissional criado",
+        description: "O profissional foi adicionado com sucesso.",
+      });
+      return res.data;
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Não foi possível criar o profissional.";
+      setError(msg);
+      toast({ title: "Erro", description: msg, variant: "destructive" });
+      return null;
+    }
+  };
+
+  const updateProfessional = async (
+    id: string,
+    professional: Partial<Professional>,
+  ): Promise<Professional | null> => {
+    try {
+      const res = await updateProfessionalAction(id, professional);
+      if (!res.success) throw new Error(res.error);
+      await refreshData();
+      toast({
+        title: "Profissional atualizado",
+        description: "Os dados do profissional foram atualizados.",
+      });
+      return res.data;
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Não foi possível atualizar o profissional.";
+      setError(msg);
+      toast({ title: "Erro", description: msg, variant: "destructive" });
+      return null;
+    }
+  };
+
+  const deleteProfessional = async (id: string): Promise<boolean> => {
+    try {
+      const res = await deleteProfessionalAction(id);
+      if (!res.success) throw new Error(res.error);
+      await refreshData();
+      toast({
+        title: "Profissional removido",
+        description: "O profissional foi removido com sucesso.",
+      });
+      return true;
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Não foi possível remover o profissional.";
+      setError(msg);
+      toast({ title: "Erro", description: msg, variant: "destructive" });
+      return false;
+    }
+  };
+
+  // App Options & Settings methods
+  const upsertAppOption = async (option: {
+    id?: number;
+    option_type: string;
+    label: string;
+    value: string;
+    is_active?: boolean;
+    display_order?: number;
+  }): Promise<boolean> => {
+    try {
+      const res = await upsertAppOptionAction(option);
+      if (!res.success) throw new Error(res.error);
+      await refreshData();
+      return true;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro ao salvar opção.";
+      setError(msg);
+      toast({ title: "Erro", description: msg, variant: "destructive" });
+      return false;
+    }
+  };
+
+  const deleteAppOption = async (id: number): Promise<boolean> => {
+    try {
+      const res = await deleteAppOptionAction(id);
+      if (!res.success) throw new Error(res.error);
+      await refreshData();
+      return true;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro ao excluir opção.";
+      setError(msg);
+      toast({ title: "Erro", description: msg, variant: "destructive" });
+      return false;
+    }
+  };
+
+  const updateAppOptionsOrder = async (
+    options: { id: number; display_order: number }[],
+  ): Promise<boolean> => {
+    try {
+      const res = await updateAppOptionsOrderAction(options);
+      if (!res.success) throw new Error(res.error);
+      await refreshData();
+      toast({
+        title: "Ordem atualizada",
+        description: "A ordem das opções foi salva com sucesso.",
+      });
+      return true;
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Erro ao atualizar ordem.";
+      setError(msg);
+      toast({ title: "Erro", description: msg, variant: "destructive" });
+      return false;
+    }
+  };
+
+  const updateAppSetting = async (
+    key: string,
+    value: string,
+  ): Promise<boolean> => {
+    try {
+      const res = await updateAppSettingAction(key, value);
+      if (!res.success) throw new Error(res.error);
+      await refreshData();
+      return true;
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Erro ao atualizar configuração.";
+      setError(msg);
+      toast({ title: "Erro", description: msg, variant: "destructive" });
       return false;
     }
   };
@@ -691,6 +964,8 @@ export function DataProvider({
     sales,
     payments,
     professionals,
+    appOptions,
+    appSettings,
     isLoading,
     error,
 
@@ -723,7 +998,20 @@ export function DataProvider({
     getSales,
     getPayments,
     createPayment,
+    cancelPayment,
     updateSaleStatus,
+    createSale,
+
+    // professionals
+    addProfessional,
+    updateProfessional,
+    deleteProfessional,
+
+    // app options
+    upsertAppOption,
+    deleteAppOption,
+    updateAppOptionsOrder,
+    updateAppSetting,
   };
 
   useEffect(() => {

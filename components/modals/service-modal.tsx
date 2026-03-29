@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useData } from "@/lib/data-context";
 import type { Service, ServiceVariant } from "@/types";
 import { Loader2, Plus, Save, Trash2, X } from "lucide-react";
@@ -34,9 +41,17 @@ export function ServiceModal({
   service,
   mode,
 }: ServiceModalProps) {
-  const { addService, updateService, serviceVariants } = useData();
+  const { addService, updateService, serviceVariants, appOptions } = useData();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+
+  const categories = useMemo(
+    () =>
+      (appOptions || []).filter(
+        (o) => o.optionType === "service_category" && o.isActive,
+      ),
+    [appOptions],
+  );
 
   const [formData, setFormData] = useState({
     name: "",
@@ -85,7 +100,11 @@ export function ServiceModal({
   ) => {
     const newVariants = [...variants];
     const variant = newVariants[index];
-    if (field === "price" || field === "duration") {
+    if (
+      field === "price" ||
+      field === "duration" ||
+      field === "commissionPct"
+    ) {
       const numValue = Number(value);
       // @ts-expect-error - value is dynamically handled
       variant[field] = Number.isNaN(numValue) ? 0 : numValue;
@@ -228,14 +247,21 @@ export function ServiceModal({
 
             <div className="space-y-2">
               <Label htmlFor="category">Categoria</Label>
-              <Input
-                id="category"
+              <Select
                 value={formData.category}
-                onChange={(e) =>
-                  setFormData({ ...formData, category: e.target.value })
-                }
-                placeholder="Ex: Massoterapia, Estética Facial"
-              />
+                onValueChange={(v) => setFormData({ ...formData, category: v })}
+              >
+                <SelectTrigger id="category">
+                  <SelectValue placeholder="Selecione uma categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((opt) => (
+                    <SelectItem key={opt.id} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -320,7 +346,7 @@ export function ServiceModal({
                             placeholder="Ex: 30 minutos"
                           />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor={`price-${index}`}>
                               Preço (R$) *
@@ -355,6 +381,27 @@ export function ServiceModal({
                                 )
                               }
                               placeholder="30"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`commission-${index}`}>
+                              Comissão (%)
+                            </Label>
+                            <Input
+                              id={`commission-${index}`}
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.1"
+                              value={variant.commissionPct || ""}
+                              onChange={(e) =>
+                                handleVariantChange(
+                                  index,
+                                  "commissionPct",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="Padrão"
                             />
                           </div>
                         </div>

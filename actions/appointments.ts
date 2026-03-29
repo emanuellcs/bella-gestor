@@ -1,9 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSupabaseServer } from "@/lib/supabase/server";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { parseSupabaseError } from "@/lib/error-handler";
 import { Appointment } from "@/types";
+import { supabaseAppointmentToAppointment } from "@/lib/utils/mapping";
 
 /**
  * Creates a new appointment.
@@ -12,7 +13,7 @@ export async function createAppointmentAction(
   appointment: Omit<Appointment, "id" | "created_at">,
 ) {
   try {
-    const supabase = getSupabaseServer();
+    const supabase = getSupabaseAdmin();
     const payload = {
       client_id: parseInt(appointment.clientId),
       professional_id: appointment.professionalId,
@@ -25,7 +26,7 @@ export async function createAppointmentAction(
     const { data, error } = await supabase
       .from("appointments")
       .insert([payload])
-      .select("*")
+      .select(`*, clients(full_name)`)
       .single();
 
     if (error) {
@@ -33,7 +34,7 @@ export async function createAppointmentAction(
     }
 
     revalidatePath("/agenda");
-    return { success: true, data };
+    return { success: true, data: supabaseAppointmentToAppointment(data) };
   } catch (error: any) {
     console.error("Error in createAppointmentAction:", error);
     return { success: false, error: "Falha ao criar agendamento." };
@@ -48,7 +49,7 @@ export async function updateAppointmentAction(
   appointment: Partial<Appointment>,
 ) {
   try {
-    const supabase = getSupabaseServer();
+    const supabase = getSupabaseAdmin();
     const payload: any = {
       ...(appointment.clientId !== undefined
         ? { client_id: parseInt(appointment.clientId) }
@@ -73,7 +74,7 @@ export async function updateAppointmentAction(
       .from("appointments")
       .update(payload)
       .eq("id", parseInt(id))
-      .select("*")
+      .select(`*, clients(full_name)`)
       .single();
 
     if (error) {
@@ -81,7 +82,7 @@ export async function updateAppointmentAction(
     }
 
     revalidatePath("/agenda");
-    return { success: true, data };
+    return { success: true, data: supabaseAppointmentToAppointment(data) };
   } catch (error: any) {
     console.error("Error in updateAppointmentAction:", error);
     return { success: false, error: "Falha ao atualizar agendamento." };
@@ -93,7 +94,7 @@ export async function updateAppointmentAction(
  */
 export async function deleteAppointmentAction(id: string) {
   try {
-    const supabase = getSupabaseServer();
+    const supabase = getSupabaseAdmin();
     const { error } = await supabase
       .from("appointments")
       .delete()

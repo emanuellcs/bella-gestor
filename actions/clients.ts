@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSupabaseServer } from "@/lib/supabase/server";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { clientToSupabaseClient, supabaseClientToClient } from "@/lib/utils";
 import { parseSupabaseError } from "@/lib/error-handler";
 import { Client } from "@/types";
@@ -10,10 +10,10 @@ import { Client } from "@/types";
  * Creates a new client.
  */
 export async function createClientAction(
-  client: Omit<Client, "id" | "registrationDate" | "status">,
+  client: Omit<Client, "id" | "registrationDate" | "status" | "totalSpent">,
 ) {
   try {
-    const supabase = getSupabaseServer();
+    const supabase = getSupabaseAdmin();
     const payload = clientToSupabaseClient(client);
 
     const { data, error } = await supabase
@@ -39,7 +39,7 @@ export async function createClientAction(
  */
 export async function updateClientAction(id: string, client: Partial<Client>) {
   try {
-    const supabase = getSupabaseServer();
+    const supabase = getSupabaseAdmin();
     const payload = clientToSupabaseClient(client);
 
     const { data, error } = await supabase
@@ -66,7 +66,7 @@ export async function updateClientAction(id: string, client: Partial<Client>) {
  */
 export async function deactivateClientAction(id: string) {
   try {
-    const supabase = getSupabaseServer();
+    const supabase = getSupabaseAdmin();
     const { error } = await supabase
       .from("clients")
       .update({ is_active: false })
@@ -89,7 +89,7 @@ export async function deactivateClientAction(id: string) {
  */
 export async function reactivateClientAction(id: string) {
   try {
-    const supabase = getSupabaseServer();
+    const supabase = getSupabaseAdmin();
     const { error } = await supabase
       .from("clients")
       .update({ is_active: true })

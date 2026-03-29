@@ -13,20 +13,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useData } from "@/lib/data-context";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import {
-  BarChart3,
   TrendingUp,
   Users,
   Calendar,
   DollarSign,
   Package,
-  Clock,
   Download,
-  FileText,
   AlertCircle,
-  Target,
-  UserCheck,
   ShoppingBag,
   Wallet,
   CreditCard,
@@ -35,12 +30,11 @@ import {
   ArrowDownRight,
   Activity,
   Star,
-  Percent,
+  RefreshCw,
 } from "lucide-react";
 import type { Client, Appointment, Sale, Payment } from "@/types";
 import { SaleStatus } from "@/types";
 import * as XLSX from "xlsx";
-import { getReferralSourceCounts } from "@/services/clients";
 
 interface PeriodData {
   clients: Client[];
@@ -49,56 +43,45 @@ interface PeriodData {
   payments: Payment[];
 }
 
-interface StatCardProps {
+function StatCard({
+  title,
+  value,
+  subtitle,
+  icon,
+  trend,
+}: {
   title: string;
-  value: string | number;
+  value: string;
   subtitle?: string;
   icon: React.ReactNode;
-  trend?: { value: number; positive: boolean };
-}
-
-function StatCard({ title, value, subtitle, icon, trend }: StatCardProps) {
+  trend?: { value: number; isPositive: boolean };
+}) {
   return (
-    <Card className="p-4 sm:p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1 sm:space-y-2 flex-1 min-w-0">
-          <p className="text-xs sm:text-sm font-medium text-muted-foreground">
-            {title}
-          </p>
-          <h3 className="text-xl sm:text-2xl font-bold tracking-tight truncate">
+    <Card className="p-4 sm:p-6 overflow-hidden relative group hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between">
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <h3 className="text-xl sm:text-2xl font-bold tracking-tight">
             {value}
           </h3>
-          {subtitle ? (
-            <p className="text-xs text-muted-foreground line-clamp-1">
-              {subtitle}
-            </p>
-          ) : null}
-          {trend ? (
-            <div className="flex items-center gap-1 text-xs sm:text-sm flex-wrap">
-              {trend.positive ? (
-                <>
-                  <ArrowUpRight className="h-3 w-3 sm:h-4 sm:w-4 text-green-500 flex-shrink-0" />
-                  <span className="text-green-500 font-medium">
-                    {trend.value.toFixed(1)}%
-                  </span>
-                </>
+          {subtitle && (
+            <p className="text-xs text-muted-foreground">{subtitle}</p>
+          )}
+          {trend && (
+            <div
+              className={`flex items-center text-xs mt-1 font-medium ${trend.isPositive ? "text-emerald-600" : "text-rose-600"}`}
+            >
+              {trend.isPositive ? (
+                <ArrowUpRight className="h-3 w-3 mr-1" />
               ) : (
-                <>
-                  <ArrowDownRight className="h-3 w-3 sm:h-4 sm:w-4 text-red-500 flex-shrink-0" />
-                  <span className="text-red-500 font-medium">
-                    {trend.value.toFixed(1)}%
-                  </span>
-                </>
+                <ArrowDownRight className="h-3 w-3 mr-1" />
               )}
-              <span className="text-muted-foreground text-xs">
-                vs. mês anterior
-              </span>
+              {Math.abs(trend.value).toFixed(1)}%
             </div>
-          ) : null}
+          )}
         </div>
-
-        <div className="rounded-full bg-primary/10 p-2 sm:p-3 flex-shrink-0">
-          <div className="h-4 w-4 sm:h-5 sm:w-5">{icon}</div>
+        <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-primary/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+          <div className="h-5 w-5 sm:h-6 sm:w-6 text-primary">{icon}</div>
         </div>
       </div>
     </Card>
@@ -113,27 +96,10 @@ export default function RelatoriosPage() {
     serviceVariants,
     sales,
     payments,
+    professionals,
     isLoading,
-    error,
     refreshData,
   } = useData();
-
-  const [referral_sourceCounts, setReferralSourceCounts] = useState<
-    Record<string, number>
-  >({});
-
-  useEffect(() => {
-    const fetchReferralSourceCounts = async () => {
-      try {
-        const counts = await getReferralSourceCounts();
-        setReferralSourceCounts(counts);
-      } catch (err) {
-        console.error("Failed to fetch referral source counts:", err);
-      }
-    };
-
-    void fetchReferralSourceCounts();
-  }, []);
 
   const [periodFilter, setPeriodFilter] = useState<string>("30");
 
@@ -195,31 +161,43 @@ export default function RelatoriosPage() {
   }, [periodFilter, clients, appointments, sales, payments]);
 
   const metrics = useMemo(() => {
-    const revenue = currentPeriod.payments.reduce(
-      (acc, p) => acc + Number(p.amount),
+    // Referral Source Counts
+    const refSourceCounts: Record<string, number> = {};
+    (clients || []).forEach((c) => {
+      if (c.referral_source) {
+        refSourceCounts[c.referral_source] =
+          (refSourceCounts[c.referral_source] || 0) + 1;
+      }
+    });
+
+    const revenue = (currentPeriod?.payments || []).reduce(
+      (acc, p) => acc + (Number(p.amount) || 0),
       0,
     );
     const previousRevenue =
-      previousPeriod?.payments.reduce((acc, p) => acc + Number(p.amount), 0) ??
-      0;
+      (previousPeriod?.payments || []).reduce(
+        (acc, p) => acc + (Number(p.amount) || 0),
+        0,
+      ) ?? 0;
     const revenueChange =
       previousRevenue > 0
         ? ((revenue - previousRevenue) / previousRevenue) * 100
         : 0;
 
-    const newClients = currentPeriod.clients.length;
-    const previousClients = previousPeriod?.clients.length ?? 0;
+    const newClients = (currentPeriod?.clients || []).length;
+    const previousClients = (previousPeriod?.clients || []).length ?? 0;
     const clientsChange =
       previousClients > 0
         ? ((newClients - previousClients) / previousClients) * 100
         : 0;
 
-    const completedAppointments = currentPeriod.appointments.filter(
+    const completedAppointments = (currentPeriod?.appointments || []).filter(
       (a) => a.status === "completed",
     ).length;
     const previousCompletedAppointments =
-      previousPeriod?.appointments.filter((a) => a.status === "completed")
-        .length ?? 0;
+      (previousPeriod?.appointments || []).filter(
+        (a) => a.status === "completed",
+      ).length ?? 0;
     const appointmentsChange =
       previousCompletedAppointments > 0
         ? ((completedAppointments - previousCompletedAppointments) /
@@ -227,8 +205,8 @@ export default function RelatoriosPage() {
           100
         : 0;
 
-    const totalSales = currentPeriod.sales.length;
-    const cancelledSales = currentPeriod.sales.filter(
+    const totalSales = (currentPeriod?.sales || []).length;
+    const cancelledSales = (currentPeriod?.sales || []).filter(
       (s) => s.status === SaleStatus.CANCELLED,
     ).length;
 
@@ -237,33 +215,33 @@ export default function RelatoriosPage() {
       : 0;
 
     const avgTicket =
-      currentPeriod.payments.length > 0
-        ? revenue / currentPeriod.payments.length
+      (currentPeriod?.payments || []).length > 0
+        ? revenue / (currentPeriod?.payments || []).length
         : 0;
     const previousAvgTicket =
-      previousPeriod && previousPeriod.payments.length > 0
-        ? previousRevenue / previousPeriod.payments.length
+      previousPeriod && (previousPeriod?.payments || []).length > 0
+        ? previousRevenue / (previousPeriod?.payments || []).length
         : 0;
     const avgTicketChange =
       previousAvgTicket > 0
         ? ((avgTicket - previousAvgTicket) / previousAvgTicket) * 100
         : 0;
 
-    const servicesSold = currentPeriod.sales.reduce((acc, s) => {
+    const servicesSold = (currentPeriod?.sales || []).reduce((acc, s) => {
       return (
         acc +
         (s.items || []).reduce(
-          (itemAcc, item) => itemAcc + Number(item.quantity),
+          (itemAcc, item) => itemAcc + (Number(item.quantity) || 0),
           0,
         )
       );
     }, 0);
     const previousServicesSold =
-      previousPeriod?.sales.reduce((acc, s) => {
+      (previousPeriod?.sales || []).reduce((acc, s) => {
         return (
           acc +
           (s.items || []).reduce(
-            (itemAcc, item) => itemAcc + Number(item.quantity),
+            (itemAcc, item) => itemAcc + (Number(item.quantity) || 0),
             0,
           )
         );
@@ -273,35 +251,43 @@ export default function RelatoriosPage() {
         ? ((servicesSold - previousServicesSold) / previousServicesSold) * 100
         : 0;
 
-    const paymentsByMethod = currentPeriod.payments
+    const paymentsByMethod = (currentPeriod?.payments || [])
       .filter((p) => !!p.paymentMethod)
       .reduce(
         (acc, p) => {
           const method = p.paymentMethod || "Outros";
-          acc[method] = (acc[method] || 0) + Number(p.amount);
+          acc[method] = (acc[method] || 0) + (Number(p.amount) || 0);
           return acc;
         },
         {} as Record<string, number>,
       );
 
-    // Top services by revenue using sale items (considers subtotal)
-    const topServices = currentPeriod.sales.reduce(
+    // Top services by revenue using sale items
+    const topServices = (currentPeriod?.sales || []).reduce(
       (acc, sale) => {
         (sale.items || []).forEach((item) => {
-          const variant = (serviceVariants || []).find(
-            (v) => v.id === item.serviceVariantId,
-          );
-          if (!variant) return;
-          const service = (services || []).find(
-            (s) => s.id === variant.serviceId,
-          );
-          if (!service) return;
-          const key = `${service.name} — ${variant.variantName}`;
-          if (!acc[key]) acc[key] = { quantity: 0, revenue: 0 };
-          acc[key].quantity += Number(item.quantity);
-          acc[key].revenue += Number(
-            item.subtotal ?? item.quantity * item.unitPrice,
-          );
+          let name = "";
+          if (item.serviceName) {
+            name =
+              item.serviceName +
+              (item.serviceVariantName ? ` — ${item.serviceVariantName}` : "");
+          } else {
+            // Fallback to global lists if item names are missing
+            const variant = (serviceVariants || []).find(
+              (v) => v.id === item.serviceVariantId,
+            );
+            if (!variant) return;
+            const service = (services || []).find(
+              (s) => s.id === variant.serviceId,
+            );
+            if (!service) return;
+            name = `${service.name} — ${variant.variantName}`;
+          }
+
+          if (!acc[name]) acc[name] = { quantity: 0, revenue: 0 };
+          acc[name].quantity += Number(item.quantity) || 0;
+          acc[name].revenue +=
+            Number(item.subtotal ?? item.quantity * item.unitPrice) || 0;
         });
         return acc;
       },
@@ -310,8 +296,74 @@ export default function RelatoriosPage() {
 
     const topServicesArray = Object.entries(topServices)
       .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 5);
+      .sort((a, b) => b.revenue - a.revenue);
+
+    // Commissions breakdown
+    const professionalCommissions = (currentPeriod?.sales || []).reduce(
+      (acc, sale) => {
+        if (sale.status === SaleStatus.CANCELLED) return acc;
+
+        (sale.items || []).forEach((item) => {
+          // Use professionalId from item as priority, then fallback
+          let profId = item.professionalId;
+
+          // Fallback: If still no profId, try professionalId directly on sale
+          if (!profId && sale.professionalId) {
+            profId = sale.professionalId;
+          }
+
+          // Fallback: Try parent appointment
+          if (!profId && sale.appointmentId) {
+            const apt = (appointments || []).find(
+              (a) => a.id === sale.appointmentId,
+            );
+            if (apt) {
+              profId = apt.professionalId;
+            }
+          }
+
+          // We need an ID to group by, but we can also group by name if ID is missing
+          const groupingId = profId || item.professionalName || "unknown";
+
+          const prof = profId
+            ? (professionals || []).find((p) => p.id === profId)
+            : null;
+
+          let commAmount = item.commissionAmount
+            ? Number(item.commissionAmount)
+            : 0;
+
+          // Fallback: Estimate if amount is missing
+          if (!commAmount) {
+            const subtotal =
+              Number(item.subtotal) ||
+              (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+
+            // Try to find professional's default commission
+            const commPct = item.commissionPct ?? prof?.commissionPct ?? 70;
+            commAmount = (subtotal * commPct) / 100;
+          }
+
+          const profName = prof
+            ? prof.name
+            : item.professionalName || "Profissional s/ nome";
+
+          if (!acc[groupingId]) {
+            acc[groupingId] = { name: profName, amount: 0, count: 0 };
+          }
+          acc[groupingId].amount += commAmount;
+          acc[groupingId].count += 1;
+        });
+        return acc;
+      },
+      {} as Record<string, { name: string; amount: number; count: number }>,
+    );
+
+    const totalProfessionalCommission = Object.values(
+      professionalCommissions,
+    ).reduce((acc, curr) => acc + curr.amount, 0);
+
+    const companyNetRevenue = revenue - totalProfessionalCommission;
 
     const totalClients = (clients || []).length;
     const activeClients = (clients || []).filter(
@@ -340,15 +392,19 @@ export default function RelatoriosPage() {
       retentionRate,
       totalClients,
       activeClients,
-      referral_sourceCounts,
+      referral_sourceCounts: refSourceCounts,
+      professionalCommissions,
+      totalProfessionalCommission,
+      companyNetRevenue,
     };
   }, [
     currentPeriod,
     previousPeriod,
     clients,
+    appointments,
     services,
     serviceVariants,
-    referral_sourceCounts,
+    professionals,
   ]);
 
   function getPeriodLabel(): string {
@@ -357,158 +413,77 @@ export default function RelatoriosPage() {
       "30": "últimos 30 dias",
       "90": "últimos 90 dias",
       "365": "último ano",
-      all: "todo o período",
     };
-    return labels[periodFilter] ?? "período";
+    return labels[periodFilter] || "período selecionado";
   }
 
-  function exportComprehensive() {
-    const wb = XLSX.utils.book_new();
-
-    const summaryData = [
-      { Métrica: "Período", Valor: getPeriodLabel() },
-      { Métrica: "Receita Total", Valor: formatCurrency(metrics.revenue) },
-      { Métrica: "Novos Clientes", Valor: metrics.newClients },
-      {
-        Métrica: "Agendamentos Concluídos",
-        Valor: metrics.completedAppointments,
-      },
-      {
-        Métrica: "Taxa de Cancelamento",
-        Valor: `${metrics.cancellationRate.toFixed(1)}%`,
-      },
-      { Métrica: "Ticket Médio", Valor: formatCurrency(metrics.avgTicket) },
-      { Métrica: "Serviços Vendidos", Valor: metrics.servicesSold },
-      {
-        Métrica: "Taxa de Retenção",
-        Valor: `${metrics.retentionRate.toFixed(1)}%`,
-      },
+  const exportComprehensive = () => {
+    const data = [
+      ["Relatório Gerencial - Bella Gestor"],
+      ["Período:", getPeriodLabel()],
+      ["Data de Geração:", new Date().toLocaleString("pt-BR")],
+      [],
+      ["Visão Geral"],
+      ["Receita Bruta", formatCurrency(metrics.revenue)],
+      ["Receita Líquida (Empresa)", formatCurrency(metrics.companyNetRevenue)],
+      ["Total Comissões", formatCurrency(metrics.totalProfessionalCommission)],
+      ["Novos Clientes", metrics.newClients],
+      ["Ticket Médio", formatCurrency(metrics.avgTicket)],
+      ["Taxa de Cancelamento", `${metrics.cancellationRate.toFixed(1)}%`],
+      [],
+      ["Comissões por Profissional"],
+      ["Profissional", "Valor", "Serviços"],
+      ...Object.values(metrics.professionalCommissions).map((p) => [
+        p.name,
+        p.amount,
+        p.count,
+      ]),
+      [],
+      ["Serviços Mais Vendidos"],
+      ["Serviço", "Quantidade", "Receita"],
+      ...metrics.topServices.map((s) => [s.name, s.quantity, s.revenue]),
     ];
-    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(wb, wsSummary, "Resumo");
 
-    const clientsData = currentPeriod.clients.map((c) => ({
-      Nome: c.name,
-      Email: c.email,
-      Telefone: c.phone,
-      "Data de Cadastro": formatDate(c.registrationDate),
-      Cliente: c.isClient ? "Sim" : "Não",
-      Status: c.status === "active" ? "Ativo" : "Inativo",
-      "Como Conheceu": c.referral_source || "Não informado",
-    }));
-    if (clientsData.length > 0) {
-      const wsClients = XLSX.utils.json_to_sheet(clientsData);
-      XLSX.utils.book_append_sheet(wb, wsClients, "Novos Clientes");
-    }
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Relatório Geral");
+    XLSX.writeFile(wb, `relatorio_bella_${periodFilter}dias.xlsx`);
+  };
 
-    const referral_sourceData = Object.entries(
-      metrics.referral_sourceCounts,
-    ).map(([source, count]) => ({
-      "Como Conheceu": source,
-      "Quantidade de Clientes": count,
-    }));
-    if (referral_sourceData.length > 0) {
-      const wsReferralSource = XLSX.utils.json_to_sheet(referral_sourceData);
-      XLSX.utils.book_append_sheet(wb, wsReferralSource, "Como Conheceu");
-    }
-
-    const appointmentsData = currentPeriod.appointments.map((a) => ({
-      "Data/Hora": formatDate(a.startTime),
-      Cliente: (clients || []).find((c) => c.id === a.clientId)?.name,
-      Status: a.status,
-      Observações: a.notes,
-    }));
-    if (appointmentsData.length > 0) {
-      const wsAppointments = XLSX.utils.json_to_sheet(appointmentsData);
-      XLSX.utils.book_append_sheet(wb, wsAppointments, "Agendamentos");
-    }
-
-    const servicesData = metrics.topServices.map((s) => ({
-      Serviço: s.name,
-      "Quantidade Vendida": s.quantity,
-      Receita: formatCurrency(s.revenue),
-    }));
-    if (servicesData.length > 0) {
-      const wsServices = XLSX.utils.json_to_sheet(servicesData);
-      XLSX.utils.book_append_sheet(wb, wsServices, "Top Serviços");
-    }
-
-    const paymentsData = Object.entries(metrics.paymentsByMethod).map(
-      ([method, amount]) => ({
-        "Método de Pagamento": method,
-        Valor: formatCurrency(amount),
-        Percentual: `${((amount / Math.max(1, metrics.revenue)) * 100).toFixed(1)}%`,
-      }),
-    );
-    if (paymentsData.length > 0) {
-      const wsPayments = XLSX.utils.json_to_sheet(paymentsData);
-      XLSX.utils.book_append_sheet(wb, wsPayments, "Métodos de Pagamento");
-    }
-
-    XLSX.writeFile(
-      wb,
-      `relatorio-completo-${new Date().toISOString().split("T")[0]}.xlsx`,
-    );
-  }
-
-  if (isLoading && (clients?.length ?? 0) === 0) {
+  if (isLoading && (!sales || sales.length === 0)) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex items-center justify-center h-[60vh]">
         <div className="flex flex-col items-center gap-4">
-          <Clock className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Carregando relatórios...</p>
+          <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Processando relatórios...</p>
         </div>
-      </div>
-    );
-  }
-
-  if (error && (clients?.length ?? 0) === 0) {
-    return (
-      <div className="flex h-screen items-center justify-center p-4">
-        <Card className="p-6 sm:p-8 max-w-md w-full">
-          <div className="flex flex-col items-center gap-4 text-center">
-            <AlertCircle className="h-12 w-12 text-destructive" />
-            <h2 className="text-xl sm:text-2xl font-semibold">
-              Erro ao carregar dados
-            </h2>
-            <p className="text-sm sm:text-base text-muted-foreground">
-              {error}
-            </p>
-            <Button
-              onClick={() => void refreshData()}
-              variant="outline"
-              size="sm"
-            >
-              Tentar novamente
-            </Button>
-          </div>
-        </Card>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6 p-3 sm:p-4 md:p-6">
-      <div className="flex flex-col gap-3 sm:gap-4">
+    <div className="p-4 sm:p-6 space-y-6 sm:space-y-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
             Relatórios
           </h1>
-          <p className="text-sm sm:text-base text-muted-foreground mt-1">
-            Análises detalhadas e insights do seu negócio
+          <p className="text-sm sm:text-base text-muted-foreground">
+            Acompanhe o desempenho do seu negócio em tempo real
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Select value={periodFilter} onValueChange={setPeriodFilter}>
-            <SelectTrigger className="w-full sm:w-[200px] h-10">
+            <SelectTrigger className="w-[160px] sm:w-[180px] bg-card shadow-sm">
+              <Calendar className="h-4 w-4 mr-2 text-primary" />
               <SelectValue placeholder="Período" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="7">últimos 7 dias</SelectItem>
-              <SelectItem value="30">últimos 30 dias</SelectItem>
-              <SelectItem value="90">últimos 90 dias</SelectItem>
-              <SelectItem value="365">último ano</SelectItem>
+              <SelectItem value="7">Últimos 7 dias</SelectItem>
+              <SelectItem value="30">Últimos 30 dias</SelectItem>
+              <SelectItem value="90">Últimos 90 dias</SelectItem>
+              <SelectItem value="365">Último ano</SelectItem>
               <SelectItem value="all">Todo o período</SelectItem>
             </SelectContent>
           </Select>
@@ -516,306 +491,311 @@ export default function RelatoriosPage() {
           <Button
             onClick={exportComprehensive}
             variant="outline"
-            size="default"
-            className="w-full sm:w-auto"
+            className="shadow-sm"
           >
-            <Download className="mr-2 h-4 w-4" />
-            <span className="sm:inline">Exportar Completo</span>
+            <Download className="h-4 w-4 mr-2" />
+            Exportar Tudo
           </Button>
         </div>
       </div>
 
       <Tabs defaultValue="overview" className="space-y-4 sm:space-y-6">
-        <div className="overflow-x-auto -mx-3 sm:mx-0">
-          <TabsList className="grid grid-cols-4 w-full min-w-max sm:min-w-0 px-3 sm:px-0">
-            <TabsTrigger value="overview" className="text-xs sm:text-sm">
+        <div className="overflow-x-auto -mx-4 sm:mx-0">
+          <TabsList className="grid grid-cols-5 w-full min-w-max sm:min-w-0 px-3 sm:px-0 bg-transparent gap-2 h-auto">
+            <TabsTrigger
+              value="overview"
+              className="text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border"
+            >
               Visão Geral
             </TabsTrigger>
-            <TabsTrigger value="financial" className="text-xs sm:text-sm">
+            <TabsTrigger
+              value="financial"
+              className="text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border"
+            >
               Financeiro
             </TabsTrigger>
-            <TabsTrigger value="clients" className="text-xs sm:text-sm">
+            <TabsTrigger
+              value="commissions"
+              className="text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border"
+            >
+              Comissões
+            </TabsTrigger>
+            <TabsTrigger
+              value="clients"
+              className="text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border"
+            >
               Clientes
             </TabsTrigger>
-            <TabsTrigger value="services" className="text-xs sm:text-sm">
+            <TabsTrigger
+              value="services"
+              className="text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border"
+            >
               Serviços
             </TabsTrigger>
           </TabsList>
         </div>
 
-        {/* Overview */}
         <TabsContent value="overview" className="space-y-4 sm:space-y-6">
           <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
-              title="Receita Total"
+              title="Receita Bruta"
               value={formatCurrency(metrics.revenue)}
-              subtitle={`${currentPeriod.payments.length} transações`}
-              icon={<DollarSign className="h-full w-full text-primary" />}
-              trend={
-                previousPeriod
-                  ? {
-                      value: metrics.revenueChange,
-                      positive: metrics.revenueChange >= 0,
-                    }
-                  : undefined
-              }
+              subtitle={`Total no(s) ${getPeriodLabel()}`}
+              icon={<DollarSign className="h-full w-full" />}
+              trend={{
+                value: metrics.revenueChange,
+                isPositive: metrics.revenueChange >= 0,
+              }}
             />
             <StatCard
               title="Novos Clientes"
-              value={metrics.newClients}
-              subtitle={`${metrics.activeClients} ativos`}
-              icon={<UserCheck className="h-full w-full text-primary" />}
-              trend={
-                previousPeriod
-                  ? {
-                      value: metrics.clientsChange,
-                      positive: metrics.clientsChange >= 0,
-                    }
-                  : undefined
-              }
-            />
-            <StatCard
-              title="Agendamentos"
-              value={metrics.completedAppointments}
-              subtitle={`${currentPeriod.appointments.length} no total`}
-              icon={<Calendar className="h-full w-full text-primary" />}
-              trend={
-                previousPeriod
-                  ? {
-                      value: metrics.appointmentsChange,
-                      positive: metrics.appointmentsChange >= 0,
-                    }
-                  : undefined
-              }
+              value={metrics.newClients.toString()}
+              subtitle={`Captados no(s) ${getPeriodLabel()}`}
+              icon={<Users className="h-full w-full" />}
+              trend={{
+                value: metrics.clientsChange,
+                isPositive: metrics.clientsChange >= 0,
+              }}
             />
             <StatCard
               title="Ticket Médio"
               value={formatCurrency(metrics.avgTicket)}
-              subtitle="Por transação"
-              icon={<Target className="h-full w-full text-primary" />}
-              trend={
-                previousPeriod
-                  ? {
-                      value: metrics.avgTicketChange,
-                      positive: metrics.avgTicketChange >= 0,
-                    }
-                  : undefined
-              }
+              subtitle="Valor médio por venda"
+              icon={<ShoppingBag className="h-full w-full" />}
+              trend={{
+                value: metrics.avgTicketChange,
+                isPositive: metrics.avgTicketChange >= 0,
+              }}
+            />
+            <StatCard
+              title="Agendamentos Concluídos"
+              value={metrics.completedAppointments.toString()}
+              subtitle="Executados com sucesso"
+              icon={<Calendar className="h-full w-full" />}
+              trend={{
+                value: metrics.appointmentsChange,
+                isPositive: metrics.appointmentsChange >= 0,
+              }}
             />
           </div>
 
-          <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
             <Card className="p-4 sm:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-base sm:text-lg font-semibold">
-                  Performance Geral
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                  Serviços Top Performance
                 </h3>
-                <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
+                <Badge variant="outline">Por Receita</Badge>
               </div>
-              <div className="space-y-3 sm:space-y-4">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs sm:text-sm text-muted-foreground">
-                    Taxa de Cancelamentos
-                  </span>
-                  <Badge
-                    variant={
-                      metrics.cancellationRate < 10
-                        ? "default"
-                        : metrics.cancellationRate < 20
-                          ? "secondary"
-                          : "destructive"
-                    }
-                    className="text-xs"
-                  >
-                    {metrics.cancellationRate.toFixed(1)}%
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs sm:text-sm text-muted-foreground">
-                    Taxa de Retenção
-                  </span>
-                  <Badge
-                    variant={
-                      metrics.retentionRate >= 70
-                        ? "default"
-                        : metrics.retentionRate >= 50
-                          ? "secondary"
-                          : "outline"
-                    }
-                    className="text-xs"
-                  >
-                    {metrics.retentionRate.toFixed(1)}%
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs sm:text-sm text-muted-foreground">
-                    Serviços Vendidos
-                  </span>
-                  <span className="text-sm sm:text-base font-semibold">
-                    {metrics.servicesSold}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs sm:text-sm text-muted-foreground">
-                    Clientes Ativos
-                  </span>
-                  <span className="text-sm sm:text-base font-semibold">
-                    {metrics.activeClients}
-                  </span>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-4 sm:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-base sm:text-lg font-semibold">
-                  Status dos Agendamentos
-                </h3>
-                <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
-              </div>
-              <div className="space-y-3">
-                {[
-                  {
-                    status: "completed",
-                    label: "Concluídos",
-                    color: "bg-green-500",
-                  },
-                  {
-                    status: "scheduled",
-                    label: "Agendados",
-                    color: "bg-blue-500",
-                  },
-                  {
-                    status: "confirmed",
-                    label: "Confirmados",
-                    color: "bg-primary/50",
-                  },
-                  {
-                    status: "cancelled",
-                    label: "Cancelados",
-                    color: "bg-red-500",
-                  },
-                ].map(({ status, label, color }) => {
-                  const count = currentPeriod.appointments.filter(
-                    (a) => a.status === status,
-                  ).length;
-                  const percentage =
-                    currentPeriod.appointments.length > 0
-                      ? (count / currentPeriod.appointments.length) * 100
-                      : 0;
-                  return (
-                    <div key={status} className="space-y-2">
-                      <div className="flex items-center justify-between text-xs sm:text-sm">
-                        <span className="text-muted-foreground">{label}</span>
-                        <span className="font-medium">
-                          {count} ({percentage.toFixed(0)}%)
+              <div className="space-y-5">
+                {metrics.topServices.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    Nenhum dado de serviço disponível.
+                  </p>
+                ) : (
+                  metrics.topServices.slice(0, 5).map((s, idx) => (
+                    <div key={idx} className="space-y-2">
+                      <div className="flex justify-between items-center text-sm sm:text-base">
+                        <span className="font-medium truncate flex-1 pr-2">
+                          {s.name}
+                        </span>
+                        <span className="font-bold">
+                          {formatCurrency(s.revenue)}
                         </span>
                       </div>
                       <div className="h-2 bg-muted rounded-full overflow-hidden">
                         <div
-                          className={`h-full ${color} transition-all`}
-                          style={{ width: `${percentage}%` }}
+                          className="h-full bg-primary transition-all"
+                          style={{
+                            width: `${metrics.revenue > 0 ? (s.revenue / metrics.revenue) * 100 : 0}%`,
+                          }}
                         />
                       </div>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">
+                        {s.quantity} vendas realizadas
+                      </p>
                     </div>
-                  );
-                })}
+                  ))
+                )}
+              </div>
+            </Card>
+
+            <Card className="p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-primary" />
+                  Métricas de Retenção
+                </h3>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-muted/30 border border-border/50 text-center">
+                  <p className="text-xs text-muted-foreground mb-1 uppercase font-bold tracking-wider">
+                    Total de Clientes
+                  </p>
+                  <p className="text-2xl font-bold">{metrics.totalClients}</p>
+                </div>
+                <div className="p-4 rounded-xl bg-muted/30 border border-border/50 text-center">
+                  <p className="text-xs text-muted-foreground mb-1 uppercase font-bold tracking-wider">
+                    Clientes Ativos
+                  </p>
+                  <p className="text-2xl font-bold text-emerald-600">
+                    {metrics.activeClients}
+                  </p>
+                </div>
+                <div className="col-span-2 p-4 rounded-xl bg-primary/5 border border-primary/20 text-center">
+                  <p className="text-xs text-primary mb-1 uppercase font-bold tracking-wider">
+                    Taxa de Retenção
+                  </p>
+                  <p className="text-3xl font-bold text-primary">
+                    {metrics.retentionRate.toFixed(1)}%
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Porcentagem de clientes que já converteram
+                  </p>
+                </div>
               </div>
             </Card>
           </div>
         </TabsContent>
 
-        {/* Financial */}
         <TabsContent value="financial" className="space-y-4 sm:space-y-6">
-          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
+            <Card className="p-4 sm:p-6">
+              <h3 className="font-semibold mb-4 flex items-center gap-2">
+                <Wallet className="h-5 w-5 text-primary" />
+                Receita por Método de Pagamento
+              </h3>
+              <div className="space-y-4">
+                {Object.entries(metrics.paymentsByMethod).length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    Nenhum pagamento registrado.
+                  </p>
+                ) : (
+                  Object.entries(metrics.paymentsByMethod).map(
+                    ([method, amount]) => (
+                      <div
+                        key={method}
+                        className="flex items-center justify-between p-3 rounded-lg bg-muted/20"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-background border flex items-center justify-center">
+                            <CreditCard className="h-4 w-4 text-primary" />
+                          </div>
+                          <span className="font-medium">{method}</span>
+                        </div>
+                        <span className="font-bold">
+                          {formatCurrency(amount)}
+                        </span>
+                      </div>
+                    ),
+                  )
+                )}
+              </div>
+            </Card>
+
+            <Card className="p-4 sm:p-6">
+              <h3 className="font-semibold mb-4 flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-primary" />
+                Saúde das Vendas
+              </h3>
+              <div className="space-y-6 py-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      Taxa de Cancelamento
+                    </span>
+                    <span className="font-bold text-rose-600">
+                      {metrics.cancellationRate.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-rose-500"
+                      style={{ width: `${metrics.cancellationRate}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      Conversão de Leads
+                    </span>
+                    <span className="font-bold text-emerald-600">
+                      {metrics.retentionRate.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-500"
+                      style={{ width: `${metrics.retentionRate}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="commissions" className="space-y-4 sm:space-y-6">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
             <StatCard
-              title="Receita Total"
-              value={formatCurrency(metrics.revenue)}
-              subtitle={getPeriodLabel()}
-              icon={<DollarSign className="h-full w-full text-primary" />}
-              trend={
-                previousPeriod
-                  ? {
-                      value: metrics.revenueChange,
-                      positive: metrics.revenueChange >= 0,
-                    }
-                  : undefined
-              }
+              title="Receita Líquida (Empresa)"
+              value={formatCurrency(metrics.companyNetRevenue)}
+              subtitle="Após descontar comissões"
+              icon={<PiggyBank className="h-full w-full" />}
             />
             <StatCard
-              title="Ticket Médio"
-              value={formatCurrency(metrics.avgTicket)}
-              subtitle={`${currentPeriod.payments.length} transações`}
-              icon={<Target className="h-full w-full text-primary" />}
-              trend={
-                previousPeriod
-                  ? {
-                      value: metrics.avgTicketChange,
-                      positive: metrics.avgTicketChange >= 0,
-                    }
-                  : undefined
-              }
-            />
-            <StatCard
-              title="Total de Transações"
-              value={currentPeriod.payments.length}
-              subtitle="Pagamentos confirmados"
-              icon={<ShoppingBag className="h-full w-full text-primary" />}
+              title="Total Comissões (Profissionais)"
+              value={formatCurrency(metrics.totalProfessionalCommission)}
+              subtitle="Valor total a pagar"
+              icon={<Users className="h-full w-full" />}
             />
           </div>
 
           <Card className="p-4 sm:p-6">
             <h3 className="text-base sm:text-lg font-semibold mb-4">
-              Receita por Método de Pagamento
+              Breakdown por Profissional
             </h3>
-            {Object.keys(metrics.paymentsByMethod).length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <Wallet className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mb-3" />
-                <p className="text-sm text-muted-foreground">
-                  Nenhum pagamento registrado no período
-                </p>
+            {Object.keys(metrics.professionalCommissions).length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
+                <Users className="h-10 w-10 mb-2 opacity-20" />
+                <p>Nenhuma comissão registrada no período.</p>
               </div>
             ) : (
-              <div className="space-y-3 sm:space-y-4">
-                {Object.entries(metrics.paymentsByMethod)
-                  .sort(([, a], [, b]) => b - a)
-                  .map(([method, amount]) => {
-                    const percentage =
-                      metrics.revenue > 0
-                        ? (amount / metrics.revenue) * 100
+              <div className="space-y-4">
+                {Object.entries(metrics.professionalCommissions)
+                  .sort(([, a], [, b]) => b.amount - a.amount)
+                  .map(([id, data]) => {
+                    const percentageOfTotalComms =
+                      metrics.totalProfessionalCommission > 0
+                        ? (data.amount / metrics.totalProfessionalCommission) *
+                          100
                         : 0;
-                    const icon = method.toLowerCase().includes("pix") ? (
-                      <Wallet className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                    ) : method.toLowerCase().includes("card") ||
-                      method.toLowerCase().includes("cart") ? (
-                      <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                    ) : (
-                      <PiggyBank className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                    );
+
                     return (
-                      <div key={method} className="space-y-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                            <div className="rounded-full bg-primary/10 p-2 flex-shrink-0">
-                              {icon}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="font-medium text-sm sm:text-base truncate">
-                                {method}
-                              </p>
-                              <p className="text-xs sm:text-sm text-muted-foreground">
-                                {percentage.toFixed(1)}% do total
-                              </p>
-                            </div>
+                      <div key={id} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium">{data.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {data.count} serviço(s) realizado(s)
+                            </p>
                           </div>
-                          <p className="font-semibold text-sm sm:text-lg whitespace-nowrap">
-                            {formatCurrency(amount)}
-                          </p>
+                          <div className="text-right">
+                            <p className="font-bold text-primary">
+                              {formatCurrency(data.amount)}
+                            </p>
+                            <p className="text-[10px] sm:text-xs text-muted-foreground">
+                              {percentageOfTotalComms.toFixed(1)}% das comissões
+                            </p>
+                          </div>
                         </div>
                         <div className="h-2 bg-muted rounded-full overflow-hidden">
                           <div
                             className="h-full bg-primary transition-all"
-                            style={{ width: `${percentage}%` }}
+                            style={{ width: `${percentageOfTotalComms}%` }}
                           />
                         </div>
                       </div>
@@ -826,245 +806,100 @@ export default function RelatoriosPage() {
           </Card>
         </TabsContent>
 
-        {/* Clients */}
         <TabsContent value="clients" className="space-y-4 sm:space-y-6">
-          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              title="Total de Clientes"
-              value={metrics.totalClients}
-              subtitle={`${metrics.activeClients} ativos`}
-              icon={<Users className="h-full w-full text-primary" />}
-            />
-            <StatCard
-              title="Novos Clientes"
-              value={metrics.newClients}
-              subtitle={getPeriodLabel()}
-              icon={<UserCheck className="h-full w-full text-primary" />}
-              trend={
-                previousPeriod
-                  ? {
-                      value: metrics.clientsChange,
-                      positive: metrics.clientsChange >= 0,
-                    }
-                  : undefined
-              }
-            />
-            <StatCard
-              title="Taxa de Retenção"
-              value={`${metrics.retentionRate.toFixed(1)}%`}
-              subtitle="Realizaram compras"
-              icon={<Star className="h-full w-full text-primary" />}
-            />
-            <StatCard
-              title="Conversão"
-              value={
-                metrics.totalClients > 0
-                  ? `${(((clients || []).filter((c) => c.isClient).length / metrics.totalClients) * 100).toFixed(1)}%`
-                  : "0%"
-              }
-              subtitle="Lead para cliente"
-              icon={<Percent className="h-full w-full text-primary" />}
-            />
-          </div>
-
           <Card className="p-4 sm:p-6">
-            <h3 className="text-base sm:text-lg font-semibold mb-4">
-              Clientes por Status
+            <h3 className="font-semibold mb-6 flex items-center gap-2 text-base sm:text-lg">
+              <Star className="h-5 w-5 text-primary" />
+              Fontes de Novos Clientes
             </h3>
-            <div className="grid gap-3 sm:gap-6 grid-cols-1 sm:grid-cols-2">
-              <div className="flex items-center justify-between p-3 sm:p-4 rounded-lg border bg-card gap-3">
-                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                  <div className="rounded-full bg-green-500/10 p-2 sm:p-3 flex-shrink-0">
-                    <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs sm:text-sm font-medium truncate">
-                      Clientes Ativos
-                    </p>
-                    <p className="text-xl sm:text-2xl font-bold">
-                      {metrics.activeClients}
-                    </p>
-                  </div>
-                </div>
-                <Badge variant="default" className="text-xs">
-                  {metrics.totalClients > 0
-                    ? (
-                        (metrics.activeClients / metrics.totalClients) *
-                        100
-                      ).toFixed(0)
-                    : 0}
-                  %
-                </Badge>
-              </div>
-
-              <div className="flex items-center justify-between p-3 sm:p-4 rounded-lg border bg-card gap-3">
-                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                  <div className="rounded-full bg-gray-500/10 p-2 sm:p-3 flex-shrink-0">
-                    <Users className="h-4 w-4 sm:h-5 sm:w-5 text-gray-500" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs sm:text-sm font-medium truncate">
-                      Clientes Inativos
-                    </p>
-                    <p className="text-xl sm:text-2xl font-bold">
-                      {metrics.totalClients - metrics.activeClients}
-                    </p>
-                  </div>
-                </div>
-                <Badge variant="secondary" className="text-xs">
-                  {metrics.totalClients > 0
-                    ? (
-                        ((metrics.totalClients - metrics.activeClients) /
-                          metrics.totalClients) *
-                        100
-                      ).toFixed(0)
-                    : 0}
-                  %
-                </Badge>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-4 sm:p-6">
-            <h3 className="text-base sm:text-lg font-semibold mb-4">
-              Crescimento de Base
-            </h3>
-            <div className="space-y-2 sm:space-y-3">
-              <div className="flex items-center justify-between p-3 sm:p-4 rounded-lg border gap-3">
-                <span className="text-xs sm:text-sm font-medium">
-                  Novos cadastros no período
-                </span>
-                <span className="text-base sm:text-lg font-bold">
-                  {metrics.newClients}
-                </span>
-              </div>
-              <div className="flex items-center justify-between p-3 sm:p-4 rounded-lg border gap-3">
-                <span className="text-xs sm:text-sm font-medium">
-                  Convertidos em clientes
-                </span>
-                <span className="text-base sm:text-lg font-bold">
-                  {
-                    (currentPeriod.clients || []).filter((c) => c.isClient)
-                      .length
-                  }
-                </span>
-              </div>
-              <div className="flex items-center justify-between p-3 sm:p-4 rounded-lg border gap-3">
-                <span className="text-xs sm:text-sm font-medium">
-                  Taxa de conversão
-                </span>
-                <Badge variant="default" className="text-xs">
-                  {metrics.newClients > 0
-                    ? (
-                        ((currentPeriod.clients || []).filter((c) => c.isClient)
-                          .length /
-                          metrics.newClients) *
-                        100
-                      ).toFixed(1)
-                    : 0}
-                  %
-                </Badge>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-4 sm:p-6">
-            <h3 className="text-base sm:text-lg font-semibold mb-4">
-              Como os Clientes Conheceram
-            </h3>
-            {Object.keys(metrics.referral_sourceCounts).length === 0 ? (
-              <div className="text-sm text-muted-foreground">
-                Nenhum dado disponível para &quot;Como Conheceu&quot;
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {Object.entries(metrics.referral_sourceCounts)
-                  .sort(([, countA], [, countB]) => countB - countA)
-                  .map(([source, count]) => (
-                    <div
-                      key={source}
-                      className="flex items-center justify-between p-3 rounded-lg border bg-card"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Object.entries(metrics.referral_sourceCounts).length === 0 ? (
+                <p className="col-span-full text-center text-muted-foreground py-8">
+                  Sem dados de indicação.
+                </p>
+              ) : (
+                Object.entries(metrics.referral_sourceCounts)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([source, count]) => {
+                    const percentage = (count / metrics.totalClients) * 100;
+                    return (
+                      <div
+                        key={source}
+                        className="p-4 rounded-xl border bg-card hover:border-primary/50 transition-colors"
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="text-sm font-bold text-muted-foreground uppercase tracking-tight">
                             {source}
-                          </p>
+                          </span>
+                          <Badge variant="secondary">{count}</Badge>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10px] font-bold">
+                            <span>RELEVÂNCIA</span>
+                            <span>{percentage.toFixed(1)}%</span>
+                          </div>
+                          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-primary"
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
                         </div>
                       </div>
-                      <p className="font-semibold">{count}</p>
-                    </div>
-                  ))}
-              </div>
-            )}
+                    );
+                  })
+              )}
+            </div>
           </Card>
         </TabsContent>
 
-        {/* Services */}
         <TabsContent value="services" className="space-y-4 sm:space-y-6">
-          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            <StatCard
-              title="Serviços Vendidos"
-              value={metrics.servicesSold}
-              subtitle={getPeriodLabel()}
-              icon={<Package className="h-full w-full text-primary" />}
-              trend={
-                previousPeriod
-                  ? {
-                      value: metrics.servicesSoldChange,
-                      positive: metrics.servicesSoldChange >= 0,
-                    }
-                  : undefined
-              }
-            />
-            <StatCard
-              title="Top Serviço"
-              value={metrics.topServices[0]?.name ?? "—"}
-              subtitle={
-                metrics.topServices[0]
-                  ? formatCurrency(metrics.topServices[0].revenue)
-                  : "Sem dados"
-              }
-              icon={<BarChart3 className="h-full w-full text-primary" />}
-            />
-            <StatCard
-              title="Receita Total"
-              value={formatCurrency(metrics.revenue)}
-              subtitle="Proveniente de pagamentos"
-              icon={<TrendingUp className="h-full w-full text-primary" />}
-            />
-          </div>
-
           <Card className="p-4 sm:p-6">
-            <h3 className="text-base sm:text-lg font-semibold mb-4">
-              Top Serviços por Receita
+            <h3 className="font-semibold mb-6 flex items-center gap-2 text-base sm:text-lg">
+              <Package className="h-5 w-5 text-primary" />
+              Ranking Detalhado de Serviços
             </h3>
-            {metrics.topServices.length === 0 ? (
-              <div className="text-sm text-muted-foreground">
-                Sem vendas no período
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {metrics.topServices.map((s) => (
-                  <div
-                    key={s.name}
-                    className="flex items-center justify-between p-3 rounded-lg border bg-card"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{s.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {s.quantity} vendidos
-                        </p>
-                      </div>
-                    </div>
-                    <p className="font-semibold">{formatCurrency(s.revenue)}</p>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full text-left border-collapse text-sm sm:text-base">
+                <thead>
+                  <tr className="bg-muted/50 border-b">
+                    <th className="p-3 sm:p-4 font-bold">Serviço</th>
+                    <th className="p-3 sm:p-4 font-bold text-center">Vendas</th>
+                    <th className="p-3 sm:p-4 font-bold text-right">
+                      Faturamento
+                    </th>
+                    <th className="p-3 sm:p-4 font-bold text-right">Share</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {metrics.topServices.map((s, idx) => {
+                    const share =
+                      metrics.revenue > 0
+                        ? (s.revenue / metrics.revenue) * 100
+                        : 0;
+                    return (
+                      <tr
+                        key={idx}
+                        className="hover:bg-muted/30 transition-colors"
+                      >
+                        <td className="p-3 sm:p-4 font-medium">{s.name}</td>
+                        <td className="p-3 sm:p-4 text-center">
+                          <Badge variant="outline">{s.quantity}</Badge>
+                        </td>
+                        <td className="p-3 sm:p-4 text-right font-bold">
+                          {formatCurrency(s.revenue)}
+                        </td>
+                        <td className="p-3 sm:p-4 text-right">
+                          <span className="text-xs font-bold text-primary">
+                            {share.toFixed(1)}%
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </Card>
         </TabsContent>
       </Tabs>

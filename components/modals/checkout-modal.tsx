@@ -37,12 +37,21 @@ export function CheckoutModal({
   appointment,
   onSuccess,
 }: CheckoutModalProps) {
+  const { appOptions } = useData();
   const [loading, setLoading] = useState(false);
   const [discount, setDiscount] = useState<number>(0); // discount percentage (0-100)
   const [additional, setAdditional] = useState<number>(0); // additional charges or extra services
   const [paymentMethod, setPaymentMethod] = useState<string>("N/A"); // payment method state
   const [error, setError] = useState<string>("");
   const [checkoutUrl, setCheckoutUrl] = useState<string>("");
+
+  const paymentMethods = useMemo(
+    () =>
+      (appOptions || []).filter(
+        (o) => o.optionType === "payment_method" && o.isActive,
+      ),
+    [appOptions],
+  );
 
   const subtotal = Number(appointment.totalPrice || 0);
   const discountAmount = useMemo(
@@ -166,11 +175,11 @@ export function CheckoutModal({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="N/A">N/A</SelectItem>
-                  <SelectItem value="Pix">Pix</SelectItem>
-                  <SelectItem value="Cartão">Cartão</SelectItem>
-                  <SelectItem value="Dinheiro">Dinheiro</SelectItem>
-                  <SelectItem value="Boleto">Boleto</SelectItem>
-                  <SelectItem value="Link">Link</SelectItem>
+                  {paymentMethods.map((opt) => (
+                    <SelectItem key={opt.id} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

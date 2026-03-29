@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useClients } from "@/hooks/features/use-clients";
+import { useData } from "@/lib/data-context";
 import { ClientList } from "@/components/features/clients/client-list";
 import { ClientModal } from "@/components/modals/client-modal";
 import { Client } from "@/types";
@@ -31,7 +31,7 @@ import {
 import * as XLSX from "xlsx";
 
 export default function ClientesPage() {
-  const { clients, isLoading, refreshClients, deactivateClient } = useClients();
+  const { clients, isLoading, refreshData, deactivateClient } = useData();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
@@ -64,12 +64,12 @@ export default function ClientesPage() {
     notes: true,
   });
 
-  useEffect(() => {
-    refreshClients();
-  }, [refreshClients]);
+  const activeClients = useMemo(() => {
+    return clients.filter((c) => c.status === "active");
+  }, [clients]);
 
   const filteredClients = useMemo(() => {
-    return clients.filter((c) => {
+    return activeClients.filter((c) => {
       const q = searchTerm.toLowerCase();
       return (
         c.name.toLowerCase().includes(q) ||
@@ -77,7 +77,7 @@ export default function ClientesPage() {
         c.phone.includes(q)
       );
     });
-  }, [clients, searchTerm]);
+  }, [activeClients, searchTerm]);
 
   const paginatedClients = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -105,12 +105,22 @@ export default function ClientesPage() {
   };
 
   const handleExport = () => {
-    const dataToExport = clients.filter((c) => selectedIds.has(c.id));
+    const dataToExport = activeClients.filter((c) => selectedIds.has(c.id));
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Clientes");
     XLSX.writeFile(workbook, "clientes.xlsx");
     toast.success("Exportação concluída!");
+  };
+
+  const onDeactivateConfirm = async () => {
+    if (clientToDeactivate) {
+      const success = await deactivateClient(clientToDeactivate);
+      if (success) {
+        setDeactivateDialogOpen(false);
+        setClientToDeactivate(null);
+      }
+    }
   };
 
   return (
@@ -124,15 +134,27 @@ export default function ClientesPage() {
                 Gerencie sua base de clientes
               </p>
             </div>
-            <Button
-              onClick={() => {
-                setSelectedClient(null);
-                setModalMode("create");
-                setModalOpen(true);
-              }}
-            >
-              <Plus className="mr-2 h-4 w-4" /> Novo Cliente
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => refreshData()}
+                disabled={isLoading}
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+                />
+              </Button>
+              <Button
+                onClick={() => {
+                  setSelectedClient(null);
+                  setModalMode("create");
+                  setModalOpen(true);
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" /> Novo Cliente
+              </Button>
+            </div>
           </div>
 
           <Card className="p-4">
@@ -189,7 +211,7 @@ export default function ClientesPage() {
         <div className="flex-1 overflow-auto px-4 md:px-6 pb-4">
           <div className="rounded-xl border shadow-sm bg-card h-full overflow-hidden flex flex-col">
             <div className="flex-1 overflow-auto">
-              {isLoading && clients.length === 0 ? (
+              {isLoading && activeClients.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-64 gap-4">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   <p className="text-muted-foreground">Carregando...</p>
@@ -280,12 +302,7 @@ export default function ClientesPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={async () => {
-                if (clientToDeactivate) {
-                  await deactivateClient(clientToDeactivate);
-                  setDeactivateDialogOpen(false);
-                }
-              }}
+              onClick={onDeactivateConfirm}
               className="bg-destructive hover:bg-destructive/90"
             >
               Desativar
@@ -296,3 +313,5 @@ export default function ClientesPage() {
     </TooltipProvider>
   );
 }
+
+import { RefreshCw } from "lucide-react";

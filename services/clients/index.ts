@@ -6,11 +6,19 @@ import { Client } from "@/types";
 
 /**
  * Fetches the count of clients grouped by referral source.
+ * Note: Modern reports calculate this locally from the shared data context.
  */
 export async function getReferralSourceCounts(): Promise<{
   [key: string]: number;
 }> {
   try {
+    const { data: options } = await supabase
+      .from("app_options")
+      .select("value")
+      .eq("option_type", "referral_source");
+
+    const validSources = (options || []).map((o) => o.value);
+
     const data = await fetchAll<{ referral_source: string | null }>(
       ({ from, to }) =>
         supabase.from("clients").select("referral_source").range(from, to),
