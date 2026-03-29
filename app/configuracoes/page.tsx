@@ -50,7 +50,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useData } from "@/lib/data-context";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
-import { HTML5Backend } from "react-dnd-html5-backend";
+import { MultiBackend } from "react-dnd-multi-backend";
+import { HTML5toTouch } from "rdndmb-html5-to-touch";
 import { AppOption } from "@/types";
 
 interface EditingOption {
@@ -137,7 +138,7 @@ const DraggableRow = ({
   drag(drop(ref));
 
   return (
-    <TableRow ref={ref} style={{ opacity }} data-handler-id={handlerId}>
+    <TableRow ref={ref} style={{ opacity }} data-handler-id={handlerId} className={isReorderMode ? "touch-none" : ""}>
       <TableCell className="w-10">
         {isReorderMode ? (
           <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab active:cursor-grabbing" />
@@ -304,7 +305,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <DndProvider backend={HTML5Backend}>
+    <DndProvider backend={MultiBackend} options={HTML5toTouch}>
       <div className="p-6 space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -384,15 +385,15 @@ export default function SettingsPage() {
           <TabsContent value="options" className="space-y-4">
             <div className="grid gap-6">
               {optionTypes.map((type) => (
-                <Card key={type.value}>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <Card key={type.value} className="overflow-hidden">
+                  <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 space-y-0">
                     <div>
                       <CardTitle>{type.label}</CardTitle>
                       <CardDescription>
                         Opções exibidas nos menus de seleção
                       </CardDescription>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                       {reorderType === type.value ? (
                         <>
                           <Button

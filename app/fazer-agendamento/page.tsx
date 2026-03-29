@@ -129,12 +129,12 @@ export default function CreateAppointmentPage() {
   } = useData();
 
   const clients = useMemo(
-    () => (allClients || []).filter((c) => c.status === "active" || (c as any).is_active),
+    () => (allClients || []).filter((c) => c.status === "active" || (c as { is_active?: boolean }).is_active),
     [allClients],
   );
 
   const services = useMemo(
-    () => (allServices || []).filter((s) => s.active || (s as any).is_active),
+    () => (allServices || []).filter((s) => s.active || (s as { is_active?: boolean }).is_active),
     [allServices],
   );
 
@@ -189,7 +189,7 @@ export default function CreateAppointmentPage() {
   const professionalItems = useMemo(
     () =>
       professionals.map((p) => {
-        const displayName = p.name ?? (p as any).fullName;
+        const displayName = p.name ?? (p as { fullName?: string }).fullName;
         return {
           value: p.id,
           label:
@@ -218,7 +218,7 @@ export default function CreateAppointmentPage() {
 
   // Helper to display professional's name
   function professionalDisplay(p: Professional) {
-    const displayName = p.name ?? (p as any).fullName;
+    const displayName = p.name ?? (p as { fullName?: string }).fullName;
     return displayName && p.functionTitle
       ? `${displayName} (${p.functionTitle})`
       : (p.email ?? "Sem e-mail");
