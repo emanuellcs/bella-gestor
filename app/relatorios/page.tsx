@@ -450,36 +450,56 @@ export default function RelatoriosPage() {
             </Card>
           ) : (
             <div className="space-y-4">
-              {/* Pending payments */}
+              {/* Accounts Receivable from Pending Sales */}
               <Card className="p-4 sm:p-6">
                 <h3 className="font-semibold mb-4 flex items-center gap-2 text-base sm:text-lg">
                   <CreditCard className="h-5 w-5 text-primary" />
-                  Pagamentos Pendentes
-                  <Badge variant="outline">{metrics.pendingPaymentsCount}</Badge>
+                  Vendas Pendentes (A Receber)
+                  <Badge variant="outline">
+                    {(sales || []).filter(s => s.status === "pending").length}
+                  </Badge>
                 </h3>
-                {metrics.pendingPayments.length === 0 ? (
+                {metrics.pendingSalesValue === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    Nenhum pagamento pendente no período.
+                    Nenhuma venda pendente com saldo em aberto.
                   </p>
                 ) : (
                   <div className="divide-y rounded-md border overflow-hidden">
-                    {metrics.pendingPayments.slice(0, 10).map((p) => (
-                      <div
-                        key={p.id}
-                        className="flex items-center justify-between px-4 py-3 text-sm"
-                      >
-                        <div>
-                          <p className="font-medium">
-                            {p.clientName || "Cliente"} — {p.serviceName}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Método: {p.paymentMethod || "Link"} • NSU:{" "}
-                            {p.externalTransactionId || "—"}
-                          </p>
-                        </div>
-                        <span className="font-bold">{formatCurrency(p.amount)}</span>
-                      </div>
-                    ))}
+                    {(sales || [])
+                      .filter((s) => s.status === "pending")
+                      .map((s) => {
+                        const total = Number(s.totalAmount) || 0;
+                        const paid = (s.payments || []).reduce((pSum, p) => {
+                          return p.status === "paid" ? pSum + (Number(p.amount) || 0) : pSum;
+                        }, 0);
+                        const balance = Math.max(0, total - paid);
+                        
+                        if (balance === 0) return null;
+
+                        return (
+                          <div
+                            key={s.id}
+                            className="flex items-center justify-between px-4 py-3 text-sm"
+                          >
+                            <div>
+                              <p className="font-medium">
+                                {s.clientName || "Cliente"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {s.items?.map(i => i.serviceName).join(", ") || "Serviço"} • 
+                                Criada em {new Date(s.created_at).toLocaleDateString("pt-BR")}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold">{formatCurrency(balance)}</p>
+                              <p className="text-[10px] text-muted-foreground">
+                                de {formatCurrency(total)}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })
+                      .filter(Boolean)}
                   </div>
                 )}
               </Card>
@@ -495,7 +515,7 @@ export default function RelatoriosPage() {
                 </h3>
                 {metrics.projectedAppointments.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    Nenhum agendamento futuro sem venda vinculada.
+                    Nenhum agendamento futuro sem venda vinculada no período.
                   </p>
                 ) : (
                   <div className="divide-y rounded-md border overflow-hidden">
