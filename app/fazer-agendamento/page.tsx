@@ -129,12 +129,19 @@ export default function CreateAppointmentPage() {
   } = useData();
 
   const clients = useMemo(
-    () => (allClients || []).filter((c) => c.status === "active" || (c as { is_active?: boolean }).is_active),
+    () =>
+      (allClients || []).filter(
+        (c) =>
+          c.status === "active" || (c as { is_active?: boolean }).is_active,
+      ),
     [allClients],
   );
 
   const services = useMemo(
-    () => (allServices || []).filter((s) => s.active || (s as { is_active?: boolean }).is_active),
+    () =>
+      (allServices || []).filter(
+        (s) => s.active || (s as { is_active?: boolean }).is_active,
+      ),
     [allServices],
   );
 

@@ -1,0 +1,421 @@
+// lib/utils/financial-metrics.ts
+
+import type { Sale, Payment, Appointment, Client } from "@/types";
+import { SaleStatus, PaymentStatus } from "@/types";
+
+// ─── Timezone boundary helpers ───────────────────────────────────────────────
+export const SAO_PAULO_OFFSET_HOURS = -3; // BRT (UTC-3)
+
+function startOfDayUTC(isoDate: string): Date {
+  return new Date(`${isoDate}T00:00:00.000Z`);
+}
+
+function endOfDayUTC(isoDate: string): Date {
+  return new Date(`${isoDate}T23:59:59.999Z`);
+}
+
+export function todayInSaoPaulo(): string {
+  const now = new Date();
+  const spNow = new Date(
+    now.getTime() + SAO_PAULO_OFFSET_HOURS * 60 * 60 * 1000,
+  );
+  return spNow.toISOString().slice(0, 10);
+}
+
+// ─── Partition helpers ───────────────────────────────────────────────────────
+
+function isAfter(isoTimestamp: string, boundary: Date): boolean {
+  return new Date(isoTimestamp) > boundary;
+}
+
+function isWithin(isoTimestamp: string, start: Date, end: Date): boolean {
+  const t = new Date(isoTimestamp).getTime();
+  return t >= start.getTime() && t <= end.getTime();
+}
+
+/** A "projectable" appointment: future, scheduled, and NOT yet linked to a sale. */
+function isProjectableAppointment(apt: Appointment, todayEnd: Date): boolean {
+  return (
+    apt.status === "scheduled" &&
+    !apt.hasSale &&
+    isAfter(apt.startTime, todayEnd)
+  );
+}
+
+// ─── Result types ────────────────────────────────────────────────────────────
+
+export interface PeriodMetrics {
+  // Revenue
+  actualRevenue: number;
+  projectedRevenue: number;
+  totalRevenue: number;
+
+  // Payments
+  paidPaymentsCount: number;
+  pendingPaymentsCount: number;
+  paidPayments: Payment[];
+  pendingPayments: Payment[];
+
+  // Appointments
+  projectedAppointments: Appointment[];
+  projectedAppointmentsValue: number;
+
+  // Sales
+  salesCount: number;
+  cancelledSalesCount: number;
+  cancellationRate: number;
+  pendingSalesValue: number;
+
+  // Breakdown
+  paymentsByMethod: Record<string, number>;
+  topServices: { name: string; quantity: number; revenue: number }[];
+  projectedTopServices: { name: string; quantity: number; revenue: number }[];
+
+  // Clients
+  newClientsCount: number;
+  totalClients: number;
+  activeClients: number;
+  retentionRate: number;
+  referralSourceCounts: Record<string, number>;
+
+  // Commissions & Professional Performance
+  professionalBreakdown: Record<
+    string,
+    { name: string; commission: number; revenue: number; count: number }
+  >;
+  projectedProfessionalBreakdown: Record<
+    string,
+    { name: string; commission: number; revenue: number; count: number }
+  >;
+  totalCommissions: number;
+  projectedCommissions: number;
+  netRevenue: number;
+  projectedNetRevenue: number;
+  netMarginPercentage: number; // (netRevenue / actualRevenue) * 100
+  projectedNetMarginPercentage: number;
+
+  // Averages
+  avgTicket: number;
+  projectedAvgTicket: number;
+}
+
+export interface DateRangeFilter {
+  mode: "past" | "future" | "custom";
+  startDate?: string;
+  endDate?: string;
+}
+
+export function computeFinancialMetrics(
+  sales: Sale[],
+  payments: Payment[],
+  appointments: Appointment[],
+  clients: Client[],
+  filter: DateRangeFilter,
+): PeriodMetrics {
+  const today = todayInSaoPaulo();
+  const todayEnd = endOfDayUTC(today);
+  const todayStart = startOfDayUTC(today);
+
+  let filterSale: (s: Sale) => boolean;
+  let filterPaidPayment: (p: Payment) => boolean;
+  let filterPendingPayment: (p: Payment) => boolean;
+  let filterAppointment: (a: Appointment) => boolean;
+  let filterClient: (c: Client) => boolean;
+
+  if (filter.mode === "past") {
+    filterSale = (s) => isWithin(s.created_at, new Date(0), todayEnd);
+    filterPaidPayment = (p) =>
+      p.status === PaymentStatus.PAID &&
+      !!p.paidAt &&
+      isWithin(p.paidAt, new Date(0), todayEnd);
+    filterPendingPayment = () => false;
+    filterAppointment = () => false;
+    filterClient = (c) => isWithin(c.registrationDate, new Date(0), todayEnd);
+  } else if (filter.mode === "future") {
+    filterSale = (s) => isAfter(s.created_at, todayEnd);
+    filterPaidPayment = () => false;
+    filterPendingPayment = (p) =>
+      p.status === PaymentStatus.PENDING && isAfter(p.created_at, todayEnd);
+    filterAppointment = (a) => isProjectableAppointment(a, todayEnd);
+    filterClient = (c) => isAfter(c.registrationDate, todayEnd);
+  } else {
+    const rangeStart = startOfDayUTC(filter.startDate!);
+    const rangeEnd = endOfDayUTC(filter.endDate!);
+
+    filterSale = (s) => isWithin(s.created_at, rangeStart, rangeEnd);
+    filterPaidPayment = (p) =>
+      p.status === PaymentStatus.PAID &&
+      !!p.paidAt &&
+      isWithin(p.paidAt, rangeStart, rangeEnd);
+    filterPendingPayment = (p) =>
+      p.status === PaymentStatus.PENDING &&
+      isWithin(p.created_at, rangeStart, rangeEnd);
+
+    const projStart = new Date(
+      Math.max(rangeStart.getTime(), todayStart.getTime()),
+    );
+    filterAppointment = (a) =>
+      isProjectableAppointment(a, todayEnd) &&
+      isWithin(a.startTime, projStart, rangeEnd);
+    filterClient = (c) => isWithin(c.registrationDate, rangeStart, rangeEnd);
+  }
+
+  const filteredSales = sales.filter(filterSale);
+  const paidPayments = payments.filter(filterPaidPayment);
+  const pendingPayments = payments.filter(filterPendingPayment);
+  const projectedAppointments = appointments.filter(filterAppointment);
+  const filteredClients = (clients || []).filter(filterClient);
+
+  const actualRevenue = paidPayments.reduce(
+    (sum, p) => sum + (Number(p.amount) || 0),
+    0,
+  );
+
+  // FIX: Decouple Pending Sales from Time Filters
+  // We use the RAW 'sales' array to ensure past pending sales are included in future projections
+  const pendingSalesValue = sales.reduce((acc, sale) => {
+    if (sale.status !== SaleStatus.PENDING) return acc;
+    const total = Number(sale.totalAmount) || 0;
+    const paid = (sale.payments || []).reduce((pSum, p) => {
+      return p.status === PaymentStatus.PAID
+        ? pSum + (Number(p.amount) || 0)
+        : pSum;
+    }, 0);
+    return acc + Math.max(0, total - paid);
+  }, 0);
+
+  const projectedAppointmentsValue = projectedAppointments.reduce(
+    (sum, a) => sum + (Number(a.totalPrice) || 0),
+    0,
+  );
+
+  const projectedRevenue = pendingSalesValue + projectedAppointmentsValue;
+  const totalRevenue = actualRevenue + projectedRevenue;
+
+  const totalSalesCount = filteredSales.length;
+  const cancelledSalesCount = filteredSales.filter(
+    (s) => s.status === SaleStatus.CANCELLED,
+  ).length;
+  const cancellationRate =
+    totalSalesCount > 0 ? (cancelledSalesCount / totalSalesCount) * 100 : 0;
+
+  const paymentsByMethod = paidPayments.reduce<Record<string, number>>(
+    (acc, p) => {
+      const method = p.paymentMethod || "Não informado";
+      acc[method] = (acc[method] || 0) + (Number(p.amount) || 0);
+      return acc;
+    },
+    {},
+  );
+
+  const servicesMap: Record<string, { quantity: number; revenue: number }> = {};
+  for (const sale of filteredSales) {
+    if (sale.status === SaleStatus.CANCELLED) continue;
+    for (const item of sale.items || []) {
+      const key =
+        [item.serviceName, item.serviceVariantName]
+          .filter(Boolean)
+          .join(" — ") || "Serviço s/ nome";
+      if (!servicesMap[key]) servicesMap[key] = { quantity: 0, revenue: 0 };
+      servicesMap[key].quantity += Number(item.quantity) || 0;
+      servicesMap[key].revenue +=
+        Number(item.subtotal ?? item.quantity * item.unitPrice) || 0;
+    }
+  }
+  const topServices = Object.entries(servicesMap)
+    .map(([name, data]) => ({ name, ...data }))
+    .sort((a, b) => b.revenue - a.revenue);
+
+  // NEW: Projected Top Services
+  const projServicesMap: Record<string, { quantity: number; revenue: number }> =
+    {};
+
+  // From Pending Sales
+  for (const sale of sales) {
+    if (sale.status !== SaleStatus.PENDING) continue;
+    for (const item of sale.items || []) {
+      const key =
+        [item.serviceName, item.serviceVariantName]
+          .filter(Boolean)
+          .join(" — ") || "Serviço s/ nome";
+      if (!projServicesMap[key])
+        projServicesMap[key] = { quantity: 0, revenue: 0 };
+      projServicesMap[key].quantity += Number(item.quantity) || 0;
+      projServicesMap[key].revenue +=
+        Number(item.subtotal ?? item.quantity * item.unitPrice) || 0;
+    }
+  }
+  // From Projected Appointments
+  for (const apt of projectedAppointments) {
+    for (const sv of apt.serviceVariants || []) {
+      const key = sv.serviceVariantName || "Serviço s/ nome";
+      if (!projServicesMap[key])
+        projServicesMap[key] = { quantity: 0, revenue: 0 };
+      projServicesMap[key].quantity += Number(sv.quantity) || 0;
+      const pricePerService =
+        apt.totalPrice / (apt.serviceVariants.length || 1);
+      projServicesMap[key].revenue += pricePerService * (sv.quantity || 1);
+    }
+  }
+  const projectedTopServices = Object.entries(projServicesMap)
+    .map(([name, data]) => ({ name, ...data }))
+    .sort((a, b) => b.revenue - a.revenue);
+
+  // Clients
+  const totalClientsCount = (clients || []).length;
+  const activeClientsCount = (clients || []).filter(
+    (c) => c.status === "active",
+  ).length;
+  const isClientCount = (clients || []).filter((c) => c.isClient).length;
+  const retentionRate =
+    totalClientsCount > 0 ? (isClientCount / totalClientsCount) * 100 : 0;
+
+  const referralSourceCounts: Record<string, number> = {};
+  filteredClients.forEach((c) => {
+    if (c.referral_source) {
+      referralSourceCounts[c.referral_source] =
+        (referralSourceCounts[c.referral_source] || 0) + 1;
+    }
+  });
+
+  const professionalBreakdown: Record<
+    string,
+    { name: string; commission: number; revenue: number; count: number }
+  > = {};
+  for (const sale of filteredSales) {
+    // FIX 1: Only PAID sales generate commissions and professional revenue metrics
+    if (sale.status !== SaleStatus.PAID) continue;
+
+    for (const item of sale.items || []) {
+      const groupId = item.professionalId || item.professionalName || "unknown";
+      const name = item.professionalName || "Profissional s/ nome";
+      const subtotal =
+        Number(item.subtotal) ||
+        (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+      const commAmount = item.commissionAmount
+        ? Number(item.commissionAmount)
+        : (subtotal * (Number(item.commissionPct) || 70)) / 100;
+
+      if (!professionalBreakdown[groupId])
+        professionalBreakdown[groupId] = {
+          name,
+          commission: 0,
+          revenue: 0,
+          count: 0,
+        };
+      professionalBreakdown[groupId].commission += commAmount;
+      professionalBreakdown[groupId].revenue += subtotal;
+      professionalBreakdown[groupId].count += 1;
+    }
+  }
+
+  // NEW: Projected Professional Breakdown
+  const projectedProfessionalBreakdown: Record<
+    string,
+    { name: string; commission: number; revenue: number; count: number }
+  > = {};
+
+  // From Pending Sales (use full value for projections)
+  for (const sale of sales) {
+    if (sale.status !== SaleStatus.PENDING) continue;
+    for (const item of sale.items || []) {
+      const groupId = item.professionalId || item.professionalName || "unknown";
+      const name = item.professionalName || "Profissional s/ nome";
+      const subtotal =
+        Number(item.subtotal) ||
+        (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+      const commAmount = item.commissionAmount
+        ? Number(item.commissionAmount)
+        : (subtotal * (Number(item.commissionPct) || 70)) / 100;
+
+      if (!projectedProfessionalBreakdown[groupId])
+        projectedProfessionalBreakdown[groupId] = {
+          name,
+          commission: 0,
+          revenue: 0,
+          count: 0,
+        };
+      projectedProfessionalBreakdown[groupId].commission += commAmount;
+      projectedProfessionalBreakdown[groupId].revenue += subtotal;
+      projectedProfessionalBreakdown[groupId].count += 1;
+    }
+  }
+  // From Projected Appointments
+  for (const apt of projectedAppointments) {
+    const groupId = apt.professionalId || "unknown";
+    const name = apt.professionalName || "Profissional s/ nome";
+    const revenue = apt.totalPrice || 0;
+    const commAmount = (revenue * 70) / 100; // 70% default for projections
+
+    if (!projectedProfessionalBreakdown[groupId])
+      projectedProfessionalBreakdown[groupId] = {
+        name,
+        commission: 0,
+        revenue: 0,
+        count: 0,
+      };
+    projectedProfessionalBreakdown[groupId].commission += commAmount;
+    projectedProfessionalBreakdown[groupId].revenue += revenue;
+    projectedProfessionalBreakdown[groupId].count += 1;
+  }
+
+  const totalCommissions = Object.values(professionalBreakdown).reduce(
+    (sum, c) => sum + c.commission,
+    0,
+  );
+  const projectedCommissions = Object.values(
+    projectedProfessionalBreakdown,
+  ).reduce((sum, c) => sum + c.commission, 0);
+
+  const netRevenue = actualRevenue - totalCommissions;
+  const projectedNetRevenue = projectedRevenue - projectedCommissions;
+
+  const netMarginPercentage =
+    actualRevenue > 0 ? (netRevenue / actualRevenue) * 100 : 0;
+  const projectedNetMarginPercentage =
+    projectedRevenue > 0 ? (projectedNetRevenue / projectedRevenue) * 100 : 0;
+
+  const avgTicket =
+    paidPayments.length > 0 ? actualRevenue / paidPayments.length : 0;
+
+  const pendingSalesCount = sales.filter(
+    (s) => s.status === SaleStatus.PENDING,
+  ).length;
+  const totalProjectedCount = pendingSalesCount + projectedAppointments.length;
+  const projectedAvgTicket =
+    totalProjectedCount > 0 ? projectedRevenue / totalProjectedCount : 0;
+
+  return {
+    actualRevenue,
+    projectedRevenue,
+    totalRevenue,
+    paidPaymentsCount: paidPayments.length,
+    pendingPaymentsCount: pendingPayments.length,
+    paidPayments,
+    pendingPayments,
+    projectedAppointments,
+    projectedAppointmentsValue,
+    salesCount: totalSalesCount,
+    cancelledSalesCount,
+    cancellationRate,
+    pendingSalesValue,
+    paymentsByMethod,
+    topServices,
+    projectedTopServices,
+    newClientsCount: filteredClients.length,
+    totalClients: totalClientsCount,
+    activeClients: activeClientsCount,
+    retentionRate,
+    referralSourceCounts,
+    professionalBreakdown,
+    projectedProfessionalBreakdown,
+    totalCommissions,
+    projectedCommissions,
+    netRevenue,
+    projectedNetRevenue,
+    netMarginPercentage,
+    projectedNetMarginPercentage,
+    avgTicket,
+    projectedAvgTicket,
+  };
+}

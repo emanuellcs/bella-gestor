@@ -138,7 +138,12 @@ const DraggableRow = ({
   drag(drop(ref));
 
   return (
-    <TableRow ref={ref} style={{ opacity }} data-handler-id={handlerId} className={isReorderMode ? "touch-none" : ""}>
+    <TableRow
+      ref={ref}
+      style={{ opacity }}
+      data-handler-id={handlerId}
+      className={isReorderMode ? "touch-none" : ""}
+    >
       <TableCell className="w-10">
         {isReorderMode ? (
           <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab active:cursor-grabbing" />

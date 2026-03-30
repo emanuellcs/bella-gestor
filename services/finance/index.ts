@@ -37,9 +37,10 @@ export async function getSales(
     if (startDate) {
       query = query.gte("created_at", startDate);
     } else {
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-      query = query.gte("created_at", sixMonthsAgo.toISOString());
+      // 12 months back
+      const twelveMonthsAgo = new Date();
+      twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+      query = query.gte("created_at", twelveMonthsAgo.toISOString());
     }
 
     if (endDate) {
