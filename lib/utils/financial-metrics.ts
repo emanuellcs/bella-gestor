@@ -76,6 +76,7 @@ export interface PeriodMetrics {
   // Breakdown
   paymentsByMethod: Record<string, number>;
   topServices: { name: string; quantity: number; revenue: number }[];
+  projectedTopServices: { name: string; quantity: number; revenue: number }[];
 
   // Clients
   newClientsCount: number;
@@ -89,12 +90,20 @@ export interface PeriodMetrics {
     string,
     { name: string; commission: number; revenue: number; count: number }
   >;
+  projectedProfessionalBreakdown: Record<
+    string,
+    { name: string; commission: number; revenue: number; count: number }
+  >;
   totalCommissions: number;
+  projectedCommissions: number;
   netRevenue: number; 
+  projectedNetRevenue: number;
   netMarginPercentage: number; // (netRevenue / actualRevenue) * 100
+  projectedNetMarginPercentage: number;
 
   // Averages
   avgTicket: number;
+  projectedAvgTicket: number;
 }
 
 export interface DateRangeFilter {
@@ -207,6 +216,33 @@ export function computeFinancialMetrics(
     .map(([name, data]) => ({ name, ...data }))
     .sort((a, b) => b.revenue - a.revenue);
 
+  // NEW: Projected Top Services
+  const projServicesMap: Record<string, { quantity: number; revenue: number }> = {};
+  
+  // From Pending Sales
+  for (const sale of sales) {
+    if (sale.status !== SaleStatus.PENDING) continue;
+    for (const item of sale.items || []) {
+      const key = [item.serviceName, item.serviceVariantName].filter(Boolean).join(" — ") || "Serviço s/ nome";
+      if (!projServicesMap[key]) projServicesMap[key] = { quantity: 0, revenue: 0 };
+      projServicesMap[key].quantity += Number(item.quantity) || 0;
+      projServicesMap[key].revenue += Number(item.subtotal ?? item.quantity * item.unitPrice) || 0;
+    }
+  }
+  // From Projected Appointments
+  for (const apt of projectedAppointments) {
+    for (const sv of apt.serviceVariants || []) {
+      const key = sv.serviceVariantName || "Serviço s/ nome";
+      if (!projServicesMap[key]) projServicesMap[key] = { quantity: 0, revenue: 0 };
+      projServicesMap[key].quantity += Number(sv.quantity) || 0;
+      const pricePerService = apt.totalPrice / (apt.serviceVariants.length || 1);
+      projServicesMap[key].revenue += pricePerService * (sv.quantity || 1);
+    }
+  }
+  const projectedTopServices = Object.entries(projServicesMap)
+    .map(([name, data]) => ({ name, ...data }))
+    .sort((a, b) => b.revenue - a.revenue);
+
   // Clients
   const totalClientsCount = (clients || []).length;
   const activeClientsCount = (clients || []).filter((c) => c.status === "active").length;
@@ -238,11 +274,51 @@ export function computeFinancialMetrics(
     }
   }
 
+  // NEW: Projected Professional Breakdown
+  const projectedProfessionalBreakdown: Record<string, { name: string; commission: number; revenue: number; count: number }> = {};
+  
+  // From Pending Sales (use full value for projections)
+  for (const sale of sales) {
+    if (sale.status !== SaleStatus.PENDING) continue;
+    for (const item of sale.items || []) {
+      const groupId = item.professionalId || item.professionalName || "unknown";
+      const name = item.professionalName || "Profissional s/ nome";
+      const subtotal = Number(item.subtotal) || (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+      const commAmount = item.commissionAmount ? Number(item.commissionAmount) : (subtotal * (Number(item.commissionPct) || 70)) / 100;
+
+      if (!projectedProfessionalBreakdown[groupId]) projectedProfessionalBreakdown[groupId] = { name, commission: 0, revenue: 0, count: 0 };
+      projectedProfessionalBreakdown[groupId].commission += commAmount;
+      projectedProfessionalBreakdown[groupId].revenue += subtotal;
+      projectedProfessionalBreakdown[groupId].count += 1;
+    }
+  }
+  // From Projected Appointments
+  for (const apt of projectedAppointments) {
+    const groupId = apt.professionalId || "unknown";
+    const name = apt.professionalName || "Profissional s/ nome";
+    const revenue = apt.totalPrice || 0;
+    const commAmount = (revenue * 70) / 100; // 70% default for projections
+
+    if (!projectedProfessionalBreakdown[groupId]) projectedProfessionalBreakdown[groupId] = { name, commission: 0, revenue: 0, count: 0 };
+    projectedProfessionalBreakdown[groupId].commission += commAmount;
+    projectedProfessionalBreakdown[groupId].revenue += revenue;
+    projectedProfessionalBreakdown[groupId].count += 1;
+  }
+
   const totalCommissions = Object.values(professionalBreakdown).reduce((sum, c) => sum + c.commission, 0);
+  const projectedCommissions = Object.values(projectedProfessionalBreakdown).reduce((sum, c) => sum + c.commission, 0);
+
   const netRevenue = actualRevenue - totalCommissions;
+  const projectedNetRevenue = projectedRevenue - projectedCommissions;
+
   const netMarginPercentage = actualRevenue > 0 ? (netRevenue / actualRevenue) * 100 : 0;
+  const projectedNetMarginPercentage = projectedRevenue > 0 ? (projectedNetRevenue / projectedRevenue) * 100 : 0;
 
   const avgTicket = paidPayments.length > 0 ? actualRevenue / paidPayments.length : 0;
+  
+  const pendingSalesCount = sales.filter(s => s.status === SaleStatus.PENDING).length;
+  const totalProjectedCount = pendingSalesCount + projectedAppointments.length;
+  const projectedAvgTicket = totalProjectedCount > 0 ? projectedRevenue / totalProjectedCount : 0;
 
   return {
     actualRevenue,
@@ -260,15 +336,21 @@ export function computeFinancialMetrics(
     pendingSalesValue,
     paymentsByMethod,
     topServices,
+    projectedTopServices,
     newClientsCount: filteredClients.length,
     totalClients: totalClientsCount,
     activeClients: activeClientsCount,
     retentionRate,
     referralSourceCounts,
     professionalBreakdown,
+    projectedProfessionalBreakdown,
     totalCommissions,
+    projectedCommissions,
     netRevenue,
+    projectedNetRevenue,
     netMarginPercentage,
+    projectedNetMarginPercentage,
     avgTicket,
+    projectedAvgTicket,
   };
 }

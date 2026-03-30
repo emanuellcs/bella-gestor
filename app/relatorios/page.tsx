@@ -318,22 +318,28 @@ export default function RelatoriosPage() {
             />
             <StatCard
               title="Receita Líquida"
-              value={formatCurrency(metrics.netRevenue)}
-              subtitle={`Margem: ${metrics.netMarginPercentage.toFixed(1)}%`}
+              value={formatCurrency(
+                filterMode === "past" ? metrics.netRevenue : metrics.projectedNetRevenue
+              )}
+              subtitle={
+                filterMode === "past" 
+                  ? `Margem: ${metrics.netMarginPercentage.toFixed(1)}%`
+                  : `Margem Projetada: ${metrics.projectedNetMarginPercentage.toFixed(1)}%`
+              }
               icon={<PiggyBank className="h-full w-full" />}
             />
-            {filterMode !== "past" ? (
-              <StatCard
-                title="Receita Projetada"
-                value={formatCurrency(metrics.projectedRevenue)}
-                subtitle="Agendamentos + Saldo a Receber"
-                icon={<TrendingUp className="h-full w-full" />}
-              />
-            ) : (
+            {filterMode === "past" ? (
               <StatCard
                 title="Ticket Médio"
                 value={formatCurrency(metrics.avgTicket)}
                 subtitle="Por pagamento realizado"
+                icon={<ShoppingBag className="h-full w-full" />}
+              />
+            ) : (
+              <StatCard
+                title="Ticket Médio Proj."
+                value={formatCurrency(metrics.projectedAvgTicket)}
+                subtitle="Vendas Pend. + Agendamentos"
                 icon={<ShoppingBag className="h-full w-full" />}
               />
             )}
@@ -643,7 +649,7 @@ export default function RelatoriosPage() {
         </TabsContent>
 
         <TabsContent value="commissions" className="space-y-4 sm:space-y-6">
-          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             <StatCard
               title="Receita Realizada (Bruta)"
               value={formatCurrency(metrics.actualRevenue)}
@@ -651,66 +657,118 @@ export default function RelatoriosPage() {
               icon={<DollarSign className="h-full w-full" />}
             />
             <StatCard
-              title="Total Comissões"
+              title="Total Comissões Pagas"
               value={formatCurrency(metrics.totalCommissions)}
-              subtitle="Valor total a pagar"
+              subtitle="Referente a vendas pagas"
               icon={<Users className="h-full w-full" />}
+            />
+            <StatCard
+              title="Comissões a Pagar (Proj.)"
+              value={formatCurrency(metrics.projectedCommissions)}
+              subtitle="Vendas Pendentes + Agendados"
+              icon={<TrendingUp className="h-full w-full" />}
             />
           </div>
 
-          <Card className="p-4 sm:p-6">
-            <h3 className="text-base sm:text-lg font-semibold mb-4">
-              Performance por Profissional (Faturamento vs Comissão)
-            </h3>
-            {Object.keys(metrics.professionalBreakdown).length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
-                <Users className="h-10 w-10 mb-2 opacity-20" />
-                <p>Nenhuma venda registrada no período.</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {Object.entries(metrics.professionalBreakdown)
-                  .sort(([, a], [, b]) => b.commission - a.commission)
-                  .map(([id, data]) => {
-                    const percentageOfTotalComms =
-                      metrics.totalCommissions > 0
-                        ? (data.commission / metrics.totalCommissions) * 100
-                        : 0;
+          <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+            <Card className="p-4 sm:p-6">
+              <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
+                <Package className="h-5 w-5 text-emerald-600" />
+                Comissões Realizadas (Pagos)
+              </h3>
+              {Object.keys(metrics.professionalBreakdown).length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
+                  <Users className="h-10 w-10 mb-2 opacity-20" />
+                  <p>Nenhuma comissão paga no período.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {Object.entries(metrics.professionalBreakdown)
+                    .sort(([, a], [, b]) => b.commission - a.commission)
+                    .map(([id, data]) => {
+                      const percentageOfTotalComms =
+                        metrics.totalCommissions > 0
+                          ? (data.commission / metrics.totalCommissions) * 100
+                          : 0;
 
-                    return (
-                      <div key={id} className="space-y-2 p-3 rounded-lg border bg-muted/5">
-                        <div className="flex items-center justify-between">
-                          <div className="min-w-0 flex-1">
-                            <p className="font-bold text-base">{data.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {data.count} serviço(s) • Share: {percentageOfTotalComms.toFixed(1)}% das comissões
-                            </p>
+                      return (
+                        <div key={id} className="space-y-2 p-3 rounded-lg border bg-muted/5">
+                          <div className="flex items-center justify-between">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-bold text-base">{data.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {data.count} serviço(s) • {percentageOfTotalComms.toFixed(1)}% do pool
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-muted-foreground">Ganhos</p>
+                              <p className="font-bold text-emerald-600">
+                                {formatCurrency(data.commission)}
+                              </p>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <p className="text-xs text-muted-foreground">Faturado</p>
-                            <p className="font-bold text-emerald-600">
-                              {formatCurrency(data.revenue)}
-                            </p>
-                          </div>
-                          <div className="text-right ml-6">
-                            <p className="text-xs text-muted-foreground">Ganhos (Comissão)</p>
-                            <p className="font-bold text-primary">
-                              {formatCurrency(data.commission)}
-                            </p>
+                          <div className="h-1.5 bg-muted rounded-full overflow-hidden flex">
+                            <div
+                              className="h-full bg-emerald-500 transition-all"
+                              style={{ width: `${percentageOfTotalComms}%` }}
+                            />
                           </div>
                         </div>
-                        <div className="h-1.5 bg-muted rounded-full overflow-hidden flex">
-                          <div
-                            className="h-full bg-primary transition-all"
-                            style={{ width: `${percentageOfTotalComms}%` }}
-                          />
+                      );
+                    })}
+                </div>
+              )}
+            </Card>
+
+            <Card className="p-4 sm:p-6">
+              <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                Comissões Projetadas (A Pagar)
+              </h3>
+              {Object.keys(metrics.projectedProfessionalBreakdown).length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
+                  <Users className="h-10 w-10 mb-2 opacity-20" />
+                  <p>Nenhuma comissão projetada no período.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {Object.entries(metrics.projectedProfessionalBreakdown)
+                    .sort(([, a], [, b]) => b.commission - a.commission)
+                    .map(([id, data]) => {
+                      const percentageOfTotalComms =
+                        metrics.projectedCommissions > 0
+                          ? (data.commission / metrics.projectedCommissions) * 100
+                          : 0;
+
+                      return (
+                        <div key={id} className="space-y-2 p-3 rounded-lg border bg-muted/5">
+                          <div className="flex items-center justify-between">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-bold text-base">{data.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {data.count} serviço(s) • {percentageOfTotalComms.toFixed(1)}% do pool proj.
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-muted-foreground">A Receber</p>
+                              <p className="font-bold text-primary">
+                                {formatCurrency(data.commission)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="h-1.5 bg-muted rounded-full overflow-hidden flex">
+                            <div
+                              className="h-full bg-primary transition-all"
+                              style={{ width: `${percentageOfTotalComms}%` }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            )}
-          </Card>
+                      );
+                    })}
+                </div>
+              )}
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="clients" className="space-y-4 sm:space-y-6">
@@ -763,53 +821,85 @@ export default function RelatoriosPage() {
         </TabsContent>
 
         <TabsContent value="services" className="space-y-4 sm:space-y-6">
-          <Card className="p-4 sm:p-6">
-            <h3 className="font-semibold mb-6 flex items-center gap-2 text-base sm:text-lg">
-              <Package className="h-5 w-5 text-primary" />
-              Ranking Detalhado de Serviços
-            </h3>
-            <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full text-left border-collapse text-sm sm:text-base">
-                <thead>
-                  <tr className="bg-muted/50 border-b">
-                    <th className="p-3 sm:p-4 font-bold">Serviço</th>
-                    <th className="p-3 sm:p-4 font-bold text-center">Vendas</th>
-                    <th className="p-3 sm:p-4 font-bold text-right">
-                      Faturamento
-                    </th>
-                    <th className="p-3 sm:p-4 font-bold text-right">Share</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {metrics.topServices.map((s, idx) => {
-                    const share =
-                      metrics.actualRevenue > 0
-                        ? (s.revenue / metrics.actualRevenue) * 100
-                        : 0;
-                    return (
-                      <tr
-                        key={idx}
-                        className="hover:bg-muted/30 transition-colors"
-                      >
-                        <td className="p-3 sm:p-4 font-medium">{s.name}</td>
-                        <td className="p-3 sm:p-4 text-center">
-                          <Badge variant="outline">{s.quantity}</Badge>
-                        </td>
-                        <td className="p-3 sm:p-4 text-right font-bold">
-                          {formatCurrency(s.revenue)}
-                        </td>
-                        <td className="p-3 sm:p-4 text-right">
-                          <span className="text-xs font-bold text-primary">
-                            {share.toFixed(1)}%
-                          </span>
+          <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+            <Card className="p-4 sm:p-6">
+              <h3 className="font-semibold mb-6 flex items-center gap-2 text-base sm:text-lg">
+                <Package className="h-5 w-5 text-emerald-600" />
+                Serviços Top Performance (Histórico)
+              </h3>
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-muted/50 border-b">
+                      <th className="p-3 font-bold">Serviço</th>
+                      <th className="p-3 font-bold text-center">Vendas</th>
+                      <th className="p-3 font-bold text-right">Faturamento</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {metrics.topServices.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="p-8 text-center text-muted-foreground">
+                          Nenhum serviço realizado no período.
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+                    ) : (
+                      metrics.topServices.map((s, idx) => (
+                        <tr key={idx} className="hover:bg-muted/30 transition-colors">
+                          <td className="p-3 font-medium">{s.name}</td>
+                          <td className="p-3 text-center">
+                            <Badge variant="outline">{s.quantity}</Badge>
+                          </td>
+                          <td className="p-3 text-right font-bold">
+                            {formatCurrency(s.revenue)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+
+            <Card className="p-4 sm:p-6">
+              <h3 className="font-semibold mb-6 flex items-center gap-2 text-base sm:text-lg">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                Serviços Projetados (Agendados)
+              </h3>
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-muted/50 border-b">
+                      <th className="p-3 font-bold">Serviço</th>
+                      <th className="p-3 font-bold text-center">Qtd</th>
+                      <th className="p-3 font-bold text-right">Valor Est.</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {metrics.projectedTopServices.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="p-8 text-center text-muted-foreground">
+                          Nenhum serviço projetado no período.
+                        </td>
+                      </tr>
+                    ) : (
+                      metrics.projectedTopServices.map((s, idx) => (
+                        <tr key={idx} className="hover:bg-muted/30 transition-colors">
+                          <td className="p-3 font-medium">{s.name}</td>
+                          <td className="p-3 text-center">
+                            <Badge variant="outline">{s.quantity}</Badge>
+                          </td>
+                          <td className="p-3 text-right font-bold">
+                            {formatCurrency(s.revenue)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
