@@ -1,19 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useData } from "@/lib/data-context";
 import { formatCurrency } from "@/lib/utils";
+import {
+  computeFinancialMetrics,
+  todayInSaoPaulo,
+  type DateRangeFilter,
+  type PeriodMetrics,
+} from "@/lib/utils/financial-metrics";
 import {
   TrendingUp,
   Users,
@@ -31,17 +30,12 @@ import {
   Activity,
   Star,
   RefreshCw,
+  Clock,
+  CalendarRange,
 } from "lucide-react";
-import type { Client, Appointment, Sale, Payment } from "@/types";
-import { SaleStatus } from "@/types";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import * as XLSX from "xlsx";
-
-interface PeriodData {
-  clients: Client[];
-  appointments: Appointment[];
-  sales: Sale[];
-  payments: Payment[];
-}
 
 function StatCard({
   title,
@@ -92,329 +86,48 @@ export default function RelatoriosPage() {
   const {
     clients,
     appointments,
-    services,
-    serviceVariants,
     sales,
     payments,
-    professionals,
     isLoading,
     refreshData,
   } = useData();
 
-  const [periodFilter, setPeriodFilter] = useState<string>("30");
+  // ── Filter state ──────────────────────────────────────────────────────────
+  const [filterMode, setFilterMode] = useState<"past" | "future" | "custom">("past");
+  const [customStart, setCustomStart] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().slice(0, 10);
+  });
+  const [customEnd, setCustomEnd] = useState<string>(todayInSaoPaulo);
+
+  // Derived filter object consumed by computeFinancialMetrics
+  const activeFilter = useMemo<DateRangeFilter>(() => {
+    if (filterMode === "past") return { mode: "past" };
+    if (filterMode === "future") return { mode: "future" };
+    return { mode: "custom", startDate: customStart, endDate: customEnd };
+  }, [filterMode, customStart, customEnd]);
 
   useEffect(() => {
     void refreshData();
   }, [refreshData]);
 
-  const getPeriodData = useCallback(
-    (days: number): PeriodData => {
-      const now = new Date();
-      const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-
-      return {
-        clients: (clients || []).filter(
-          (c) => new Date(c.registrationDate) >= startDate,
-        ),
-        appointments: (appointments || []).filter(
-          (a) => new Date(a.startTime) >= startDate,
-        ),
-        sales: (sales || []).filter((s) => new Date(s.created_at) >= startDate),
-        payments: (payments || []).filter(
-          (p) => new Date(p.created_at) >= startDate && p.status === "paid",
-        ),
-      };
-    },
-    [clients, appointments, sales, payments],
+  const metrics = useMemo<PeriodMetrics>(
+    () =>
+      computeFinancialMetrics(
+        sales || [],
+        payments || [],
+        appointments || [],
+        clients || [],
+        activeFilter,
+      ),
+    [sales, payments, appointments, clients, activeFilter],
   );
 
-  const currentPeriod = useMemo(() => {
-    const days = periodFilter === "all" ? 365 * 10 : parseInt(periodFilter, 10);
-    return getPeriodData(days);
-  }, [periodFilter, getPeriodData]);
-
-  const previousPeriod = useMemo(() => {
-    if (periodFilter === "all") return null;
-    const days = parseInt(periodFilter, 10);
-    const now = new Date();
-    const startDate = new Date(now.getTime() - days * 2 * 24 * 60 * 60 * 1000);
-    const endDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-
-    return {
-      clients: (clients || []).filter((c) => {
-        const d = new Date(c.registrationDate);
-        return d >= startDate && d < endDate;
-      }),
-      appointments: (appointments || []).filter((a) => {
-        const d = new Date(a.startTime);
-        return d >= startDate && d < endDate;
-      }),
-      sales: (sales || []).filter((s) => {
-        const d = new Date(s.created_at);
-        return d >= startDate && d < endDate;
-      }),
-      payments: (payments || []).filter((p) => {
-        const d = new Date(p.created_at);
-        return d >= startDate && d < endDate && p.status === "paid";
-      }),
-    };
-  }, [periodFilter, clients, appointments, sales, payments]);
-
-  const metrics = useMemo(() => {
-    // Referral Source Counts
-    const refSourceCounts: Record<string, number> = {};
-    (clients || []).forEach((c) => {
-      if (c.referral_source) {
-        refSourceCounts[c.referral_source] =
-          (refSourceCounts[c.referral_source] || 0) + 1;
-      }
-    });
-
-    const revenue = (currentPeriod?.payments || []).reduce(
-      (acc, p) => acc + (Number(p.amount) || 0),
-      0,
-    );
-    const previousRevenue =
-      (previousPeriod?.payments || []).reduce(
-        (acc, p) => acc + (Number(p.amount) || 0),
-        0,
-      ) ?? 0;
-    const revenueChange =
-      previousRevenue > 0
-        ? ((revenue - previousRevenue) / previousRevenue) * 100
-        : 0;
-
-    const newClients = (currentPeriod?.clients || []).length;
-    const previousClients = (previousPeriod?.clients || []).length ?? 0;
-    const clientsChange =
-      previousClients > 0
-        ? ((newClients - previousClients) / previousClients) * 100
-        : 0;
-
-    const completedAppointments = (currentPeriod?.appointments || []).filter(
-      (a) => a.status === "completed",
-    ).length;
-    const previousCompletedAppointments =
-      (previousPeriod?.appointments || []).filter(
-        (a) => a.status === "completed",
-      ).length ?? 0;
-    const appointmentsChange =
-      previousCompletedAppointments > 0
-        ? ((completedAppointments - previousCompletedAppointments) /
-            previousCompletedAppointments) *
-          100
-        : 0;
-
-    const totalSales = (currentPeriod?.sales || []).length;
-    const cancelledSales = (currentPeriod?.sales || []).filter(
-      (s) => s.status === SaleStatus.CANCELLED,
-    ).length;
-
-    const cancellationRate = totalSales
-      ? (cancelledSales / totalSales) * 100
-      : 0;
-
-    const avgTicket =
-      (currentPeriod?.payments || []).length > 0
-        ? revenue / (currentPeriod?.payments || []).length
-        : 0;
-    const previousAvgTicket =
-      previousPeriod && (previousPeriod?.payments || []).length > 0
-        ? previousRevenue / (previousPeriod?.payments || []).length
-        : 0;
-    const avgTicketChange =
-      previousAvgTicket > 0
-        ? ((avgTicket - previousAvgTicket) / previousAvgTicket) * 100
-        : 0;
-
-    const servicesSold = (currentPeriod?.sales || []).reduce((acc, s) => {
-      return (
-        acc +
-        (s.items || []).reduce(
-          (itemAcc, item) => itemAcc + (Number(item.quantity) || 0),
-          0,
-        )
-      );
-    }, 0);
-    const previousServicesSold =
-      (previousPeriod?.sales || []).reduce((acc, s) => {
-        return (
-          acc +
-          (s.items || []).reduce(
-            (itemAcc, item) => itemAcc + (Number(item.quantity) || 0),
-            0,
-          )
-        );
-      }, 0) ?? 0;
-    const servicesSoldChange =
-      previousServicesSold > 0
-        ? ((servicesSold - previousServicesSold) / previousServicesSold) * 100
-        : 0;
-
-    const paymentsByMethod = (currentPeriod?.payments || [])
-      .filter((p) => !!p.paymentMethod)
-      .reduce(
-        (acc, p) => {
-          const method = p.paymentMethod || "Outros";
-          acc[method] = (acc[method] || 0) + (Number(p.amount) || 0);
-          return acc;
-        },
-        {} as Record<string, number>,
-      );
-
-    // Top services by revenue using sale items
-    const topServices = (currentPeriod?.sales || []).reduce(
-      (acc, sale) => {
-        (sale.items || []).forEach((item) => {
-          let name = "";
-          if (item.serviceName) {
-            name =
-              item.serviceName +
-              (item.serviceVariantName ? ` — ${item.serviceVariantName}` : "");
-          } else {
-            // Fallback to global lists if item names are missing
-            const variant = (serviceVariants || []).find(
-              (v) => v.id === item.serviceVariantId,
-            );
-            if (!variant) return;
-            const service = (services || []).find(
-              (s) => s.id === variant.serviceId,
-            );
-            if (!service) return;
-            name = `${service.name} — ${variant.variantName}`;
-          }
-
-          if (!acc[name]) acc[name] = { quantity: 0, revenue: 0 };
-          acc[name].quantity += Number(item.quantity) || 0;
-          acc[name].revenue +=
-            Number(item.subtotal ?? item.quantity * item.unitPrice) || 0;
-        });
-        return acc;
-      },
-      {} as Record<string, { quantity: number; revenue: number }>,
-    );
-
-    const topServicesArray = Object.entries(topServices)
-      .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => b.revenue - a.revenue);
-
-    // Commissions breakdown
-    const professionalCommissions = (currentPeriod?.sales || []).reduce(
-      (acc, sale) => {
-        if (sale.status === SaleStatus.CANCELLED) return acc;
-
-        (sale.items || []).forEach((item) => {
-          // Use professionalId from item as priority, then fallback
-          let profId = item.professionalId;
-
-          // Fallback: If still no profId, try professionalId directly on sale
-          if (!profId && sale.professionalId) {
-            profId = sale.professionalId;
-          }
-
-          // Fallback: Try parent appointment
-          if (!profId && sale.appointmentId) {
-            const apt = (appointments || []).find(
-              (a) => a.id === sale.appointmentId,
-            );
-            if (apt) {
-              profId = apt.professionalId;
-            }
-          }
-
-          // We need an ID to group by, but we can also group by name if ID is missing
-          const groupingId = profId || item.professionalName || "unknown";
-
-          const prof = profId
-            ? (professionals || []).find((p) => p.id === profId)
-            : null;
-
-          let commAmount = item.commissionAmount
-            ? Number(item.commissionAmount)
-            : 0;
-
-          // Fallback: Estimate if amount is missing
-          if (!commAmount) {
-            const subtotal =
-              Number(item.subtotal) ||
-              (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
-
-            // Try to find professional's default commission
-            const commPct = item.commissionPct ?? prof?.commissionPct ?? 70;
-            commAmount = (subtotal * commPct) / 100;
-          }
-
-          const profName = prof
-            ? prof.name
-            : item.professionalName || "Profissional s/ nome";
-
-          if (!acc[groupingId]) {
-            acc[groupingId] = { name: profName, amount: 0, count: 0 };
-          }
-          acc[groupingId].amount += commAmount;
-          acc[groupingId].count += 1;
-        });
-        return acc;
-      },
-      {} as Record<string, { name: string; amount: number; count: number }>,
-    );
-
-    const totalProfessionalCommission = Object.values(
-      professionalCommissions,
-    ).reduce((acc, curr) => acc + curr.amount, 0);
-
-    const companyNetRevenue = revenue - totalProfessionalCommission;
-
-    const totalClients = (clients || []).length;
-    const activeClients = (clients || []).filter(
-      (c) => c.status === "active",
-    ).length;
-    const retentionRate =
-      totalClients > 0
-        ? ((clients || []).filter((c) => c.isClient).length / totalClients) *
-          100
-        : 0;
-
-    return {
-      revenue,
-      revenueChange,
-      newClients,
-      clientsChange,
-      completedAppointments,
-      appointmentsChange,
-      cancellationRate,
-      avgTicket,
-      avgTicketChange,
-      servicesSold,
-      servicesSoldChange,
-      paymentsByMethod,
-      topServices: topServicesArray,
-      retentionRate,
-      totalClients,
-      activeClients,
-      referral_sourceCounts: refSourceCounts,
-      professionalCommissions,
-      totalProfessionalCommission,
-      companyNetRevenue,
-    };
-  }, [
-    currentPeriod,
-    previousPeriod,
-    clients,
-    appointments,
-    services,
-    serviceVariants,
-    professionals,
-  ]);
-
   function getPeriodLabel(): string {
-    const labels: Record<string, string> = {
-      "7": "últimos 7 dias",
-      "30": "últimos 30 dias",
-      "90": "últimos 90 dias",
-      "365": "último ano",
-    };
-    return labels[periodFilter] || "período selecionado";
+    if (filterMode === "past") return "histórico (até hoje)";
+    if (filterMode === "future") return "projeção (após hoje)";
+    return `${customStart} até ${customEnd}`;
   }
 
   const exportComprehensive = () => {
@@ -424,18 +137,25 @@ export default function RelatoriosPage() {
       ["Data de Geração:", new Date().toLocaleString("pt-BR")],
       [],
       ["Visão Geral"],
-      ["Receita Bruta", formatCurrency(metrics.revenue)],
-      ["Receita Líquida (Empresa)", formatCurrency(metrics.companyNetRevenue)],
-      ["Total Comissões", formatCurrency(metrics.totalProfessionalCommission)],
-      ["Novos Clientes", metrics.newClients],
+      ["Receita Realizada", formatCurrency(metrics.actualRevenue)],
+      ["Receita Projetada", formatCurrency(metrics.projectedRevenue)],
+      ["Receita Total", formatCurrency(metrics.totalRevenue)],
+      ["Receita Líquida (Empresa)", formatCurrency(metrics.netRevenue)],
+      ["Margem Líquida", `${metrics.netMarginPercentage.toFixed(1)}%`],
+      ["Total Comissões", formatCurrency(metrics.totalCommissions)],
       ["Ticket Médio", formatCurrency(metrics.avgTicket)],
       ["Taxa de Cancelamento", `${metrics.cancellationRate.toFixed(1)}%`],
       [],
-      ["Comissões por Profissional"],
-      ["Profissional", "Valor", "Serviços"],
-      ...Object.values(metrics.professionalCommissions).map((p) => [
+      ["Agendamentos Projetados"],
+      ["Total", metrics.projectedAppointments.length],
+      ["Valor estimado", formatCurrency(metrics.projectedAppointmentsValue)],
+      [],
+      ["Performance por Profissional"],
+      ["Profissional", "Faturamento", "Comissão", "Serviços"],
+      ...Object.values(metrics.professionalBreakdown).map((p) => [
         p.name,
-        p.amount,
+        p.revenue,
+        p.commission,
         p.count,
       ]),
       [],
@@ -447,7 +167,7 @@ export default function RelatoriosPage() {
     const ws = XLSX.utils.aoa_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Relatório Geral");
-    XLSX.writeFile(wb, `relatorio_bella_${periodFilter}dias.xlsx`);
+    XLSX.writeFile(wb, `relatorio_bella_${filterMode}.xlsx`);
   };
 
   if (isLoading && (!sales || sales.length === 0)) {
@@ -474,39 +194,89 @@ export default function RelatoriosPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Select value={periodFilter} onValueChange={setPeriodFilter}>
-            <SelectTrigger className="w-[160px] sm:w-[180px] bg-card shadow-sm">
-              <Calendar className="h-4 w-4 mr-2 text-primary" />
-              <SelectValue placeholder="Período" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">Últimos 7 dias</SelectItem>
-              <SelectItem value="30">Últimos 30 dias</SelectItem>
-              <SelectItem value="90">Últimos 90 dias</SelectItem>
-              <SelectItem value="365">Último ano</SelectItem>
-              <SelectItem value="all">Todo o período</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Mode selector */}
+          <div className="inline-flex overflow-hidden rounded-lg border text-sm bg-card shadow-sm">
+            {(["past", "future", "custom"] as const).map((mode) => {
+              const labels = {
+                past: "Histórico",
+                future: "Projeção",
+                custom: "Personalizado",
+              };
+              const icons = {
+                past: <Clock className="h-3.5 w-3.5 mr-1.5" />,
+                future: <TrendingUp className="h-3.5 w-3.5 mr-1.5" />,
+                custom: <CalendarRange className="h-3.5 w-3.5 mr-1.5" />,
+              };
+              return (
+                <Button
+                  key={mode}
+                  variant={filterMode === mode ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setFilterMode(mode)}
+                  className="rounded-none h-9 px-3"
+                >
+                  {icons[mode]}
+                  {labels[mode]}
+                </Button>
+              );
+            })}
+          </div>
+
+          {/* Custom date pickers — only visible in custom mode */}
+          {filterMode === "custom" && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                  De
+                </Label>
+                <Input
+                  type="date"
+                  className="h-9 w-36 text-sm"
+                  value={customStart}
+                  max={customEnd}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                  Até
+                </Label>
+                <Input
+                  type="date"
+                  className="h-9 w-36 text-sm"
+                  value={customEnd}
+                  min={customStart}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
 
           <Button
             onClick={exportComprehensive}
             variant="outline"
-            className="shadow-sm"
+            className="shadow-sm h-9"
           >
             <Download className="h-4 w-4 mr-2" />
-            Exportar Tudo
+            Exportar
           </Button>
         </div>
       </div>
 
       <Tabs defaultValue="overview" className="space-y-4 sm:space-y-6">
         <div className="overflow-x-auto -mx-4 sm:mx-0">
-          <TabsList className="grid grid-cols-5 w-full min-w-max sm:min-w-0 px-3 sm:px-0 bg-transparent gap-2 h-auto">
+          <TabsList className="grid grid-cols-6 w-full min-w-max sm:min-w-0 px-3 sm:px-0 bg-transparent gap-2 h-auto">
             <TabsTrigger
               value="overview"
               className="text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border"
             >
               Visão Geral
+            </TabsTrigger>
+            <TabsTrigger
+              value="projection"
+              className="text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border"
+            >
+              Projeção
             </TabsTrigger>
             <TabsTrigger
               value="financial"
@@ -538,44 +308,47 @@ export default function RelatoriosPage() {
         <TabsContent value="overview" className="space-y-4 sm:space-y-6">
           <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
-              title="Receita Bruta"
-              value={formatCurrency(metrics.revenue)}
-              subtitle={`Total no(s) ${getPeriodLabel()}`}
+              title={filterMode === "past" ? "Receita Realizada" : "Receita Total"}
+              value={formatCurrency(
+                filterMode === "past" ? metrics.actualRevenue : metrics.totalRevenue,
+              )}
+              subtitle={getPeriodLabel()}
               icon={<DollarSign className="h-full w-full" />}
-              trend={{
-                value: metrics.revenueChange,
-                isPositive: metrics.revenueChange >= 0,
-              }}
             />
             <StatCard
-              title="Novos Clientes"
-              value={metrics.newClients.toString()}
-              subtitle={`Captados no(s) ${getPeriodLabel()}`}
-              icon={<Users className="h-full w-full" />}
-              trend={{
-                value: metrics.clientsChange,
-                isPositive: metrics.clientsChange >= 0,
-              }}
+              title="Receita Líquida"
+              value={formatCurrency(metrics.netRevenue)}
+              subtitle={`Margem: ${metrics.netMarginPercentage.toFixed(1)}%`}
+              icon={<PiggyBank className="h-full w-full" />}
             />
+            {filterMode !== "past" ? (
+              <StatCard
+                title="Receita Projetada"
+                value={formatCurrency(metrics.projectedRevenue)}
+                subtitle={`${metrics.projectedAppointments.length} agendamentos`}
+                icon={<TrendingUp className="h-full w-full" />}
+              />
+            ) : (
+              <StatCard
+                title="Ticket Médio"
+                value={formatCurrency(metrics.avgTicket)}
+                subtitle="Por pagamento realizado"
+                icon={<ShoppingBag className="h-full w-full" />}
+              />
+            )}
             <StatCard
-              title="Ticket Médio"
-              value={formatCurrency(metrics.avgTicket)}
-              subtitle="Valor médio por venda"
-              icon={<ShoppingBag className="h-full w-full" />}
-              trend={{
-                value: metrics.avgTicketChange,
-                isPositive: metrics.avgTicketChange >= 0,
-              }}
-            />
-            <StatCard
-              title="Agendamentos Concluídos"
-              value={metrics.completedAppointments.toString()}
-              subtitle="Executados com sucesso"
+              title={filterMode === "future" ? "Agendamentos" : "Vendas"}
+              value={
+                filterMode === "future"
+                  ? metrics.projectedAppointments.length.toString()
+                  : metrics.salesCount.toString()
+              }
+              subtitle={
+                filterMode === "future"
+                  ? formatCurrency(metrics.projectedAppointmentsValue)
+                  : `${metrics.cancelledSalesCount} canceladas`
+              }
               icon={<Calendar className="h-full w-full" />}
-              trend={{
-                value: metrics.appointmentsChange,
-                isPositive: metrics.appointmentsChange >= 0,
-              }}
             />
           </div>
 
@@ -608,7 +381,7 @@ export default function RelatoriosPage() {
                         <div
                           className="h-full bg-primary transition-all"
                           style={{
-                            width: `${metrics.revenue > 0 ? (s.revenue / metrics.revenue) * 100 : 0}%`,
+                            width: `${metrics?.actualRevenue > 0 ? (s.revenue / metrics.actualRevenue) * 100 : 0}%`,
                           }}
                         />
                       </div>
@@ -633,14 +406,14 @@ export default function RelatoriosPage() {
                   <p className="text-xs text-muted-foreground mb-1 uppercase font-bold tracking-wider">
                     Total de Clientes
                   </p>
-                  <p className="text-2xl font-bold">{metrics.totalClients}</p>
+                  <p className="text-2xl font-bold">{metrics?.totalClients ?? 0}</p>
                 </div>
                 <div className="p-4 rounded-xl bg-muted/30 border border-border/50 text-center">
                   <p className="text-xs text-muted-foreground mb-1 uppercase font-bold tracking-wider">
                     Clientes Ativos
                   </p>
                   <p className="text-2xl font-bold text-emerald-600">
-                    {metrics.activeClients}
+                    {metrics?.activeClients ?? 0}
                   </p>
                 </div>
                 <div className="col-span-2 p-4 rounded-xl bg-primary/5 border border-primary/20 text-center">
@@ -648,7 +421,7 @@ export default function RelatoriosPage() {
                     Taxa de Retenção
                   </p>
                   <p className="text-3xl font-bold text-primary">
-                    {metrics.retentionRate.toFixed(1)}%
+                    {metrics?.retentionRate?.toFixed(1) ?? "0.0"}%
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     Porcentagem de clientes que já converteram
@@ -657,6 +430,106 @@ export default function RelatoriosPage() {
               </div>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="projection" className="space-y-4 sm:space-y-6">
+          {filterMode === "past" ? (
+            <Card className="p-8 flex flex-col items-center gap-3 text-center">
+              <TrendingUp className="h-10 w-10 text-muted-foreground opacity-30" />
+              <p className="text-muted-foreground text-sm">
+                Mude para o modo &quot;Projeção&quot; ou &quot;Personalizado&quot; para ver dados futuros.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setFilterMode("future")}
+              >
+                Ver Projeção
+              </Button>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {/* Pending payments */}
+              <Card className="p-4 sm:p-6">
+                <h3 className="font-semibold mb-4 flex items-center gap-2 text-base sm:text-lg">
+                  <CreditCard className="h-5 w-5 text-primary" />
+                  Pagamentos Pendentes
+                  <Badge variant="outline">{metrics.pendingPaymentsCount}</Badge>
+                </h3>
+                {metrics.pendingPayments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Nenhum pagamento pendente no período.
+                  </p>
+                ) : (
+                  <div className="divide-y rounded-md border overflow-hidden">
+                    {metrics.pendingPayments.slice(0, 10).map((p) => (
+                      <div
+                        key={p.id}
+                        className="flex items-center justify-between px-4 py-3 text-sm"
+                      >
+                        <div>
+                          <p className="font-medium">
+                            {p.clientName || "Cliente"} — {p.serviceName}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Método: {p.paymentMethod || "Link"} • NSU:{" "}
+                            {p.externalTransactionId || "—"}
+                          </p>
+                        </div>
+                        <span className="font-bold">{formatCurrency(p.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              {/* Projected appointments */}
+              <Card className="p-4 sm:p-6">
+                <h3 className="font-semibold mb-4 flex items-center gap-2 text-base sm:text-lg">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  Agendamentos sem Venda Vinculada
+                  <Badge variant="outline">
+                    {metrics.projectedAppointments.length}
+                  </Badge>
+                </h3>
+                {metrics.projectedAppointments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Nenhum agendamento futuro sem venda vinculada.
+                  </p>
+                ) : (
+                  <div className="divide-y rounded-md border overflow-hidden">
+                    {metrics.projectedAppointments.map((a) => (
+                      <div
+                        key={a.id}
+                        className="flex items-center justify-between px-4 py-3 text-sm"
+                      >
+                        <div>
+                          <p className="font-medium">{a.clientName || "Cliente"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(a.startTime).toLocaleString("pt-BR", {
+                              dateStyle: "short",
+                              timeStyle: "short",
+                            })}
+                            {" • "}
+                            {a.serviceVariants.map((sv) => sv.serviceVariantName).join(", ")}
+                          </p>
+                        </div>
+                        <span className="font-bold">
+                          {formatCurrency(a.totalPrice)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-3 pt-3 border-t flex justify-between text-sm font-semibold">
+                  <span>Total estimado no período selecionado</span>
+                  <span className="text-primary">
+                    {formatCurrency(metrics.projectedAppointmentsValue)}
+                  </span>
+                </div>
+              </Card>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="financial" className="space-y-4 sm:space-y-6">
@@ -720,16 +593,16 @@ export default function RelatoriosPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">
-                      Conversão de Leads
+                      Ticket Médio
                     </span>
                     <span className="font-bold text-emerald-600">
-                      {metrics.retentionRate.toFixed(1)}%
+                      {formatCurrency(metrics.avgTicket)}
                     </span>
                   </div>
                   <div className="h-2 bg-muted rounded-full overflow-hidden">
                     <div
                       className="h-full bg-emerald-500"
-                      style={{ width: `${metrics.retentionRate}%` }}
+                      style={{ width: `${(metrics.avgTicket / 500) * 100}%` }}
                     />
                   </div>
                 </div>
@@ -741,14 +614,14 @@ export default function RelatoriosPage() {
         <TabsContent value="commissions" className="space-y-4 sm:space-y-6">
           <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
             <StatCard
-              title="Receita Líquida (Empresa)"
-              value={formatCurrency(metrics.companyNetRevenue)}
-              subtitle="Após descontar comissões"
-              icon={<PiggyBank className="h-full w-full" />}
+              title="Receita Realizada (Bruta)"
+              value={formatCurrency(metrics.actualRevenue)}
+              subtitle="Total de pagamentos pagos"
+              icon={<DollarSign className="h-full w-full" />}
             />
             <StatCard
-              title="Total Comissões (Profissionais)"
-              value={formatCurrency(metrics.totalProfessionalCommission)}
+              title="Total Comissões"
+              value={formatCurrency(metrics.totalCommissions)}
               subtitle="Valor total a pagar"
               icon={<Users className="h-full w-full" />}
             />
@@ -756,43 +629,46 @@ export default function RelatoriosPage() {
 
           <Card className="p-4 sm:p-6">
             <h3 className="text-base sm:text-lg font-semibold mb-4">
-              Breakdown por Profissional
+              Performance por Profissional (Faturamento vs Comissão)
             </h3>
-            {Object.keys(metrics.professionalCommissions).length === 0 ? (
+            {Object.keys(metrics.professionalBreakdown).length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
                 <Users className="h-10 w-10 mb-2 opacity-20" />
-                <p>Nenhuma comissão registrada no período.</p>
+                <p>Nenhuma venda registrada no período.</p>
               </div>
             ) : (
               <div className="space-y-4">
-                {Object.entries(metrics.professionalCommissions)
-                  .sort(([, a], [, b]) => b.amount - a.amount)
+                {Object.entries(metrics.professionalBreakdown)
+                  .sort(([, a], [, b]) => b.commission - a.commission)
                   .map(([id, data]) => {
                     const percentageOfTotalComms =
-                      metrics.totalProfessionalCommission > 0
-                        ? (data.amount / metrics.totalProfessionalCommission) *
-                          100
+                      metrics.totalCommissions > 0
+                        ? (data.commission / metrics.totalCommissions) * 100
                         : 0;
 
                     return (
-                      <div key={id} className="space-y-2">
+                      <div key={id} className="space-y-2 p-3 rounded-lg border bg-muted/5">
                         <div className="flex items-center justify-between">
                           <div className="min-w-0 flex-1">
-                            <p className="font-medium">{data.name}</p>
+                            <p className="font-bold text-base">{data.name}</p>
                             <p className="text-xs text-muted-foreground">
-                              {data.count} serviço(s) realizado(s)
+                              {data.count} serviço(s) • Share: {percentageOfTotalComms.toFixed(1)}% das comissões
                             </p>
                           </div>
                           <div className="text-right">
-                            <p className="font-bold text-primary">
-                              {formatCurrency(data.amount)}
+                            <p className="text-xs text-muted-foreground">Faturado</p>
+                            <p className="font-bold text-emerald-600">
+                              {formatCurrency(data.revenue)}
                             </p>
-                            <p className="text-[10px] sm:text-xs text-muted-foreground">
-                              {percentageOfTotalComms.toFixed(1)}% das comissões
+                          </div>
+                          <div className="text-right ml-6">
+                            <p className="text-xs text-muted-foreground">Ganhos (Comissão)</p>
+                            <p className="font-bold text-primary">
+                              {formatCurrency(data.commission)}
                             </p>
                           </div>
                         </div>
-                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-muted rounded-full overflow-hidden flex">
                           <div
                             className="h-full bg-primary transition-all"
                             style={{ width: `${percentageOfTotalComms}%` }}
@@ -810,18 +686,20 @@ export default function RelatoriosPage() {
           <Card className="p-4 sm:p-6">
             <h3 className="font-semibold mb-6 flex items-center gap-2 text-base sm:text-lg">
               <Star className="h-5 w-5 text-primary" />
-              Fontes de Novos Clientes
+              Fontes de Novos Clientes no Período
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Object.entries(metrics.referral_sourceCounts).length === 0 ? (
+              {Object.entries(metrics.referralSourceCounts).length === 0 ? (
                 <p className="col-span-full text-center text-muted-foreground py-8">
-                  Sem dados de indicação.
+                  Sem novos clientes com indicação no período.
                 </p>
               ) : (
-                Object.entries(metrics.referral_sourceCounts)
+                Object.entries(metrics.referralSourceCounts)
                   .sort(([, a], [, b]) => b - a)
                   .map(([source, count]) => {
-                    const percentage = (count / metrics.totalClients) * 100;
+                    const percentage = metrics.newClientsCount > 0 
+                      ? (count / metrics.newClientsCount) * 100
+                      : 0;
                     return (
                       <div
                         key={source}
@@ -835,7 +713,7 @@ export default function RelatoriosPage() {
                         </div>
                         <div className="space-y-1">
                           <div className="flex justify-between text-[10px] font-bold">
-                            <span>RELEVÂNCIA</span>
+                            <span>RELEVÂNCIA NO PERÍODO</span>
                             <span>{percentage.toFixed(1)}%</span>
                           </div>
                           <div className="h-1.5 bg-muted rounded-full overflow-hidden">
@@ -874,8 +752,8 @@ export default function RelatoriosPage() {
                 <tbody className="divide-y">
                   {metrics.topServices.map((s, idx) => {
                     const share =
-                      metrics.revenue > 0
-                        ? (s.revenue / metrics.revenue) * 100
+                      metrics.actualRevenue > 0
+                        ? (s.revenue / metrics.actualRevenue) * 100
                         : 0;
                     return (
                       <tr

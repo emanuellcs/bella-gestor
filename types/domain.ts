@@ -86,6 +86,7 @@ export interface Appointment {
   status: AppointmentStatus;
   notes?: string;
   totalPrice: number;
+  hasSale?: boolean;
   saleId?: string;
   created_at: string;
   updatedAt?: string;

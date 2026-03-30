@@ -2,6 +2,24 @@ import { supabase } from "@/lib/supabase/client";
 import { parseSupabaseError } from "@/lib/error-handler";
 import { Appointment } from "@/types";
 
+const SELECT_APPOINTMENTS = `
+  *,
+  clients (full_name),
+  appointment_services (
+    id,
+    quantity,
+    service_variant_id,
+    service_variants (
+      id,
+      variant_name,
+      price,
+      duration_minutes,
+      services (name)
+    )
+  ),
+  sales (id, status)
+`;
+
 /**
  * Fetches all appointments.
  */
@@ -9,19 +27,7 @@ export async function getAppointments(): Promise<Appointment[]> {
   try {
     const { data, error } = await supabase
       .from("appointments")
-      .select(
-        `
-        *,
-        clients (full_name),
-        appointment_services (
-          *,
-          service_variants (
-            variant_name,
-            services (name)
-          )
-        )
-      `,
-      )
+      .select(SELECT_APPOINTMENTS)
       .order("start_time", { ascending: true });
 
     if (error) {
@@ -30,6 +36,26 @@ export async function getAppointments(): Promise<Appointment[]> {
 
     return (data || []).map((apt: any): Appointment => {
       const client = Array.isArray(apt.clients) ? apt.clients[0] : apt.clients;
+
+      // NEW: detect whether a sale has already been linked to this appointment
+      // Corrected: only count non-cancelled sales
+      const linkedSales = apt.sales || [];
+      const hasSale = linkedSales.some((s: any) => s.status !== "cancelled");
+
+      // NEW: calculate projected value from service_variant prices
+      const projectedPrice = (apt.appointment_services || []).reduce(
+        (sum: number, as: any) => {
+          const variant = Array.isArray(as.service_variants)
+            ? as.service_variants[0]
+            : as.service_variants;
+          const price =
+            typeof variant?.price === "string"
+              ? parseFloat(variant.price)
+              : (variant?.price ?? 0);
+          return sum + price * (as.quantity ?? 1);
+        },
+        0,
+      );
 
       return {
         id: apt.id.toString(),
@@ -54,7 +80,8 @@ export async function getAppointments(): Promise<Appointment[]> {
         endTime: apt.end_time,
         status: apt.status,
         notes: apt.notes || "",
-        totalPrice: 0,
+        totalPrice: projectedPrice,
+        hasSale,
         created_at: apt.created_at,
       };
     });
@@ -74,19 +101,7 @@ export async function getAppointmentsByDateRange(
   try {
     const { data, error } = await supabase
       .from("appointments")
-      .select(
-        `
-        *,
-        clients (full_name, phone, email),
-        appointment_services (
-          *,
-          service_variants (
-            variant_name,
-            services (name)
-          )
-        )
-      `,
-      )
+      .select(SELECT_APPOINTMENTS)
       .gte("start_time", startDate)
       .lte("start_time", endDate)
       .order("start_time", { ascending: true });
@@ -97,6 +112,23 @@ export async function getAppointmentsByDateRange(
 
     return (data || []).map((apt: any): Appointment => {
       const client = Array.isArray(apt.clients) ? apt.clients[0] : apt.clients;
+
+      const linkedSales = apt.sales || [];
+      const hasSale = linkedSales.some((s: any) => s.status !== "cancelled");
+
+      const projectedPrice = (apt.appointment_services || []).reduce(
+        (sum: number, as: any) => {
+          const variant = Array.isArray(as.service_variants)
+            ? as.service_variants[0]
+            : as.service_variants;
+          const price =
+            typeof variant?.price === "string"
+              ? parseFloat(variant.price)
+              : (variant?.price ?? 0);
+          return sum + price * (as.quantity ?? 1);
+        },
+        0,
+      );
 
       return {
         id: apt.id.toString(),
@@ -121,7 +153,8 @@ export async function getAppointmentsByDateRange(
         endTime: apt.end_time,
         status: apt.status,
         notes: apt.notes || "",
-        totalPrice: 0,
+        totalPrice: projectedPrice,
+        hasSale,
         created_at: apt.created_at,
       };
     });
