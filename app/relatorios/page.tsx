@@ -138,8 +138,9 @@ export default function RelatoriosPage() {
       [],
       ["Visão Geral"],
       ["Receita Realizada", formatCurrency(metrics.actualRevenue)],
-      ["Receita Projetada", formatCurrency(metrics.projectedRevenue)],
-      ["Receita Total", formatCurrency(metrics.totalRevenue)],
+      ["Saldo a Receber (Vendas Pendentes)", formatCurrency(metrics.pendingSalesValue)],
+      ["Receita Projetada (Agendamentos)", formatCurrency(metrics.projectedAppointmentsValue)],
+      ["Receita Total (Realizada + Projeções)", formatCurrency(metrics.totalRevenue)],
       ["Receita Líquida (Empresa)", formatCurrency(metrics.netRevenue)],
       ["Margem Líquida", `${metrics.netMarginPercentage.toFixed(1)}%`],
       ["Total Comissões", formatCurrency(metrics.totalCommissions)],
@@ -325,7 +326,7 @@ export default function RelatoriosPage() {
               <StatCard
                 title="Receita Projetada"
                 value={formatCurrency(metrics.projectedRevenue)}
-                subtitle={`${metrics.projectedAppointments.length} agendamentos`}
+                subtitle="Agendamentos + Saldo a Receber"
                 icon={<TrendingUp className="h-full w-full" />}
               />
             ) : (
@@ -521,11 +522,21 @@ export default function RelatoriosPage() {
                     ))}
                   </div>
                 )}
-                <div className="mt-3 pt-3 border-t flex justify-between text-sm font-semibold">
-                  <span>Total estimado no período selecionado</span>
-                  <span className="text-primary">
-                    {formatCurrency(metrics.projectedAppointmentsValue)}
-                  </span>
+                <div className="mt-6 space-y-2 pt-4 border-t">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Agendamentos Projetados</span>
+                    <span>{formatCurrency(metrics.projectedAppointmentsValue)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Saldo de Vendas Pendentes (A Receber)</span>
+                    <span>{formatCurrency(metrics.pendingSalesValue)}</span>
+                  </div>
+                  <div className="flex justify-between text-base font-bold pt-2 border-t">
+                    <span>Total Projetado no Período</span>
+                    <span className="text-primary">
+                      {formatCurrency(metrics.projectedRevenue)}
+                    </span>
+                  </div>
                 </div>
               </Card>
             </div>

@@ -71,6 +71,7 @@ export interface PeriodMetrics {
   salesCount: number;
   cancelledSalesCount: number;
   cancellationRate: number;
+  pendingSalesValue: number;
 
   // Breakdown
   paymentsByMethod: Record<string, number>;
@@ -165,10 +166,20 @@ export function computeFinancialMetrics(
   const filteredClients = (clients || []).filter(filterClient);
 
   const actualRevenue = paidPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-  const pendingPaymentsValue = pendingPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+  // Calculate Accounts Receivable from Pending Sales
+  const pendingSalesValue = filteredSales.reduce((acc, sale) => {
+    if (sale.status !== SaleStatus.PENDING) return acc;
+    const total = Number(sale.totalAmount) || 0;
+    const paid = (sale.payments || []).reduce((pSum, p) => {
+      return p.status === PaymentStatus.PAID ? pSum + (Number(p.amount) || 0) : pSum;
+    }, 0);
+    return acc + Math.max(0, total - paid);
+  }, 0);
+
   const projectedAppointmentsValue = projectedAppointments.reduce((sum, a) => sum + (Number(a.totalPrice) || 0), 0);
 
-  const projectedRevenue = pendingPaymentsValue + projectedAppointmentsValue;
+  const projectedRevenue = pendingSalesValue + projectedAppointmentsValue;
   const totalRevenue = actualRevenue + projectedRevenue;
 
   const totalSalesCount = filteredSales.length;
@@ -210,7 +221,9 @@ export function computeFinancialMetrics(
 
   const professionalBreakdown: Record<string, { name: string; commission: number; revenue: number; count: number }> = {};
   for (const sale of filteredSales) {
-    if (sale.status === SaleStatus.CANCELLED) continue;
+    // FIX 1: Only PAID sales generate commissions and professional revenue metrics
+    if (sale.status !== SaleStatus.PAID) continue;
+    
     for (const item of sale.items || []) {
       const groupId = item.professionalId || item.professionalName || "unknown";
       const name = item.professionalName || "Profissional s/ nome";
@@ -243,6 +256,7 @@ export function computeFinancialMetrics(
     salesCount: totalSalesCount,
     cancelledSalesCount,
     cancellationRate,
+    pendingSalesValue,
     paymentsByMethod,
     topServices,
     newClientsCount: filteredClients.length,
