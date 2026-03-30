@@ -11,10 +11,10 @@ const nextConfig = {
       allowedOrigins: [
         "localhost:3000",
         "*.app.github.dev",
-        "*.githubpreview.dev"
-      ]
-    }
-  }
+        "*.githubpreview.dev",
+      ],
+    },
+  },
 };
 
 export default nextConfig;

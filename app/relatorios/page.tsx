@@ -81,20 +81,14 @@ function StatCard({
 }
 
 export default function RelatoriosPage() {
-  const {
-    clients,
-    appointments,
-    sales,
-    payments,
-    isLoading,
-    refreshData,
-  } = useData();
+  const { clients, appointments, sales, payments, isLoading, refreshData } =
+    useData();
 
   // ── Filter state ──────────────────────────────────────────────────────────
   const [filterMode] = useState<"past" | "future" | "custom">("custom");
   const [overviewMode, setOverviewMode] = useState<"past" | "future">("past");
   const [showFilters, setShowFilters] = useState(false);
-  
+
   const [customStart, setCustomStart] = useState<string>(() => {
     const d = new Date();
     d.setDate(d.getDate() - 30);
@@ -143,9 +137,18 @@ export default function RelatoriosPage() {
       [],
       ["Visão Geral"],
       ["Receita Realizada", formatCurrency(metrics.actualRevenue)],
-      ["Saldo a Receber (Vendas Pendentes)", formatCurrency(metrics.pendingSalesValue)],
-      ["Receita Projetada (Agendamentos)", formatCurrency(metrics.projectedAppointmentsValue)],
-      ["Receita Total (Realizada + Projeções)", formatCurrency(metrics.totalRevenue)],
+      [
+        "Saldo a Receber (Vendas Pendentes)",
+        formatCurrency(metrics.pendingSalesValue),
+      ],
+      [
+        "Receita Projetada (Agendamentos)",
+        formatCurrency(metrics.projectedAppointmentsValue),
+      ],
+      [
+        "Receita Total (Realizada + Projeções)",
+        formatCurrency(metrics.totalRevenue),
+      ],
       ["Receita Líquida (Empresa)", formatCurrency(metrics.netRevenue)],
       ["Margem Líquida", `${metrics.netMarginPercentage.toFixed(1)}%`],
       ["Total Comissões", formatCurrency(metrics.totalCommissions)],
@@ -317,20 +320,32 @@ export default function RelatoriosPage() {
 
           <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
-              title={overviewMode === "past" ? "Receita Realizada" : "Receita Total (Proj.)"}
+              title={
+                overviewMode === "past"
+                  ? "Receita Realizada"
+                  : "Receita Total (Proj.)"
+              }
               value={formatCurrency(
-                overviewMode === "past" ? metrics.actualRevenue : metrics.totalRevenue,
+                overviewMode === "past"
+                  ? metrics.actualRevenue
+                  : metrics.totalRevenue,
               )}
               subtitle={getPeriodLabel()}
               icon={<DollarSign className="h-full w-full" />}
             />
             <StatCard
-              title={overviewMode === "past" ? "Receita Líquida" : "Receita Líquida Proj."}
+              title={
+                overviewMode === "past"
+                  ? "Receita Líquida"
+                  : "Receita Líquida Proj."
+              }
               value={formatCurrency(
-                overviewMode === "past" ? metrics.netRevenue : metrics.projectedNetRevenue
+                overviewMode === "past"
+                  ? metrics.netRevenue
+                  : metrics.projectedNetRevenue,
               )}
               subtitle={
-                overviewMode === "past" 
+                overviewMode === "past"
                   ? `Margem: ${metrics.netMarginPercentage.toFixed(1)}%`
                   : `Margem Projetada: ${metrics.projectedNetMarginPercentage.toFixed(1)}%`
               }
@@ -421,7 +436,9 @@ export default function RelatoriosPage() {
                   <p className="text-xs text-muted-foreground mb-1 uppercase font-bold tracking-wider">
                     Total de Clientes
                   </p>
-                  <p className="text-2xl font-bold">{metrics?.totalClients ?? 0}</p>
+                  <p className="text-2xl font-bold">
+                    {metrics?.totalClients ?? 0}
+                  </p>
                 </div>
                 <div className="p-4 rounded-xl bg-muted/30 border border-border/50 text-center">
                   <p className="text-xs text-muted-foreground mb-1 uppercase font-bold tracking-wider">
@@ -455,7 +472,7 @@ export default function RelatoriosPage() {
                 <CreditCard className="h-5 w-5 text-primary" />
                 Vendas Pendentes (A Receber)
                 <Badge variant="outline">
-                  {(sales || []).filter(s => s.status === "pending").length}
+                  {(sales || []).filter((s) => s.status === "pending").length}
                 </Badge>
               </h3>
               {metrics.pendingSalesValue === 0 ? (
@@ -469,10 +486,12 @@ export default function RelatoriosPage() {
                     .map((s) => {
                       const total = Number(s.totalAmount) || 0;
                       const paid = (s.payments || []).reduce((pSum, p) => {
-                        return p.status === "paid" ? pSum + (Number(p.amount) || 0) : pSum;
+                        return p.status === "paid"
+                          ? pSum + (Number(p.amount) || 0)
+                          : pSum;
                       }, 0);
                       const balance = Math.max(0, total - paid);
-                      
+
                       if (balance === 0) return null;
 
                       return (
@@ -485,12 +504,18 @@ export default function RelatoriosPage() {
                               {s.clientName || "Cliente"}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {s.items?.map(i => i.serviceName).join(", ") || "Serviço"} • 
-                              Criada em {new Date(s.created_at).toLocaleDateString("pt-BR")}
+                              {s.items?.map((i) => i.serviceName).join(", ") ||
+                                "Serviço"}{" "}
+                              • Criada em{" "}
+                              {new Date(s.created_at).toLocaleDateString(
+                                "pt-BR",
+                              )}
                             </p>
                           </div>
                           <div className="text-right">
-                            <p className="font-bold">{formatCurrency(balance)}</p>
+                            <p className="font-bold">
+                              {formatCurrency(balance)}
+                            </p>
                             <p className="text-[10px] text-muted-foreground">
                               de {formatCurrency(total)}
                             </p>
@@ -524,14 +549,18 @@ export default function RelatoriosPage() {
                       className="flex items-center justify-between px-4 py-3 text-sm"
                     >
                       <div>
-                        <p className="font-medium">{a.clientName || "Cliente"}</p>
+                        <p className="font-medium">
+                          {a.clientName || "Cliente"}
+                        </p>
                         <p className="text-xs text-muted-foreground">
                           {new Date(a.startTime).toLocaleString("pt-BR", {
                             dateStyle: "short",
                             timeStyle: "short",
                           })}
                           {" • "}
-                          {a.serviceVariants.map((sv) => sv.serviceVariantName).join(", ")}
+                          {a.serviceVariants
+                            .map((sv) => sv.serviceVariantName)
+                            .join(", ")}
                         </p>
                       </div>
                       <span className="font-bold">
@@ -543,11 +572,17 @@ export default function RelatoriosPage() {
               )}
               <div className="mt-6 space-y-2 pt-4 border-t">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Agendamentos Projetados</span>
-                  <span>{formatCurrency(metrics.projectedAppointmentsValue)}</span>
+                  <span className="text-muted-foreground">
+                    Agendamentos Projetados
+                  </span>
+                  <span>
+                    {formatCurrency(metrics.projectedAppointmentsValue)}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Saldo de Vendas Pendentes (A Receber)</span>
+                  <span className="text-muted-foreground">
+                    Saldo de Vendas Pendentes (A Receber)
+                  </span>
                   <span>{formatCurrency(metrics.pendingSalesValue)}</span>
                 </div>
                 <div className="flex justify-between text-base font-bold pt-2 border-t">
@@ -621,9 +656,7 @@ export default function RelatoriosPage() {
 
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      Ticket Médio
-                    </span>
+                    <span className="text-muted-foreground">Ticket Médio</span>
                     <span className="font-bold text-emerald-600">
                       {formatCurrency(metrics.avgTicket)}
                     </span>
@@ -684,16 +717,22 @@ export default function RelatoriosPage() {
                           : 0;
 
                       return (
-                        <div key={id} className="space-y-2 p-3 rounded-lg border bg-muted/5">
+                        <div
+                          key={id}
+                          className="space-y-2 p-3 rounded-lg border bg-muted/5"
+                        >
                           <div className="flex items-center justify-between">
                             <div className="min-w-0 flex-1">
                               <p className="font-bold text-base">{data.name}</p>
                               <p className="text-xs text-muted-foreground">
-                                {data.count} serviço(s) • {percentageOfTotalComms.toFixed(1)}% do pool
+                                {data.count} serviço(s) •{" "}
+                                {percentageOfTotalComms.toFixed(1)}% do pool
                               </p>
                             </div>
                             <div className="text-right">
-                              <p className="text-xs text-muted-foreground">Ganhos</p>
+                              <p className="text-xs text-muted-foreground">
+                                Ganhos
+                              </p>
                               <p className="font-bold text-emerald-600">
                                 {formatCurrency(data.commission)}
                               </p>
@@ -717,7 +756,8 @@ export default function RelatoriosPage() {
                 <TrendingUp className="h-5 w-5 text-primary" />
                 Comissões Projetadas (A Pagar)
               </h3>
-              {Object.keys(metrics.projectedProfessionalBreakdown).length === 0 ? (
+              {Object.keys(metrics.projectedProfessionalBreakdown).length ===
+              0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
                   <Users className="h-10 w-10 mb-2 opacity-20" />
                   <p>Nenhuma comissão projetada no período.</p>
@@ -729,20 +769,28 @@ export default function RelatoriosPage() {
                     .map(([id, data]) => {
                       const percentageOfTotalComms =
                         metrics.projectedCommissions > 0
-                          ? (data.commission / metrics.projectedCommissions) * 100
+                          ? (data.commission / metrics.projectedCommissions) *
+                            100
                           : 0;
 
                       return (
-                        <div key={id} className="space-y-2 p-3 rounded-lg border bg-muted/5">
+                        <div
+                          key={id}
+                          className="space-y-2 p-3 rounded-lg border bg-muted/5"
+                        >
                           <div className="flex items-center justify-between">
                             <div className="min-w-0 flex-1">
                               <p className="font-bold text-base">{data.name}</p>
                               <p className="text-xs text-muted-foreground">
-                                {data.count} serviço(s) • {percentageOfTotalComms.toFixed(1)}% do pool proj.
+                                {data.count} serviço(s) •{" "}
+                                {percentageOfTotalComms.toFixed(1)}% do pool
+                                proj.
                               </p>
                             </div>
                             <div className="text-right">
-                              <p className="text-xs text-muted-foreground">A Receber</p>
+                              <p className="text-xs text-muted-foreground">
+                                A Receber
+                              </p>
                               <p className="font-bold text-primary">
                                 {formatCurrency(data.commission)}
                               </p>
@@ -778,9 +826,10 @@ export default function RelatoriosPage() {
                 Object.entries(metrics.referralSourceCounts)
                   .sort(([, a], [, b]) => b - a)
                   .map(([source, count]) => {
-                    const percentage = metrics.newClientsCount > 0 
-                      ? (count / metrics.newClientsCount) * 100
-                      : 0;
+                    const percentage =
+                      metrics.newClientsCount > 0
+                        ? (count / metrics.newClientsCount) * 100
+                        : 0;
                     return (
                       <div
                         key={source}
@@ -831,13 +880,19 @@ export default function RelatoriosPage() {
                   <tbody className="divide-y">
                     {metrics.topServices.length === 0 ? (
                       <tr>
-                        <td colSpan={3} className="p-8 text-center text-muted-foreground">
+                        <td
+                          colSpan={3}
+                          className="p-8 text-center text-muted-foreground"
+                        >
                           Nenhum serviço realizado no período.
                         </td>
                       </tr>
                     ) : (
                       metrics.topServices.map((s, idx) => (
-                        <tr key={idx} className="hover:bg-muted/30 transition-colors">
+                        <tr
+                          key={idx}
+                          className="hover:bg-muted/30 transition-colors"
+                        >
                           <td className="p-3 font-medium">{s.name}</td>
                           <td className="p-3 text-center">
                             <Badge variant="outline">{s.quantity}</Badge>
@@ -870,13 +925,19 @@ export default function RelatoriosPage() {
                   <tbody className="divide-y">
                     {metrics.projectedTopServices.length === 0 ? (
                       <tr>
-                        <td colSpan={3} className="p-8 text-center text-muted-foreground">
+                        <td
+                          colSpan={3}
+                          className="p-8 text-center text-muted-foreground"
+                        >
                           Nenhum serviço projetado no período.
                         </td>
                       </tr>
                     ) : (
                       metrics.projectedTopServices.map((s, idx) => (
-                        <tr key={idx} className="hover:bg-muted/30 transition-colors">
+                        <tr
+                          key={idx}
+                          className="hover:bg-muted/30 transition-colors"
+                        >
                           <td className="p-3 font-medium">{s.name}</td>
                           <td className="p-3 text-center">
                             <Badge variant="outline">{s.quantity}</Badge>
