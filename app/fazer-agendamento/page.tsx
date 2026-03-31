@@ -1,15 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-
-// Backend
-import { createCalendarEvent } from "@/services/googleCalendarAppsScript";
-
-// Types and Context
-import type { Professional } from "@/types";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { createCalendarEvent, listCalendarEvents } from "@/services/googleCalendarAppsScript";
+import type { Professional, Appointment } from "@/types";
+import { AppointmentStatus } from "@/types";
 import { useData } from "@/lib/data-context";
-
-// UI Components
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -39,24 +34,20 @@ import {
   Loader2,
   Plus,
   CalendarPlus,
+  CalendarSearch,
+  Users,
+  User,
+  ChevronLeft,
+  ChevronRight,
+  Search,
 } from "lucide-react";
-
-// Utils and Hooks
 import { formatBrazilianPhone, unformatPhone } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast"; // Ensure this hook is configured
+import { useToast } from "@/hooks/use-toast";
+import { CalendarView } from "@/components/features/agenda/calendar-view";
+import { Card, CardContent } from "@/components/ui/card";
 
-interface AppointmentFormData {
-  clientId: string;
-  serviceId: string;
-  serviceVariantId: string;
-  professionalId: string;
-  startTime: string;
-  endTime: string;
-  notes: string;
-}
-
-/* --- Reusable Combobox --- */
-function Combobox({
+// ─── Reusable Combobox ────────────────────────────────────────────────────────
+function CustomCombobox({
   placeholder,
   items,
   value,
@@ -88,7 +79,6 @@ function Combobox({
           <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
         </Button>
       </PopoverTrigger>
-
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
         <Command>
           <CommandInput placeholder="Buscar..." />
@@ -99,10 +89,7 @@ function Combobox({
                 <CommandItem
                   key={`${it.value}-${i}`}
                   value={[it.label, it.hint].filter(Boolean).join(" ")}
-                  onSelect={() => {
-                    onChange(it.value);
-                    setOpen(false);
-                  }}
+                  onSelect={() => { onChange(it.value); setOpen(false); }}
                   className="flex items-center justify-between"
                 >
                   <span className="truncate">{it.label}</span>
@@ -117,22 +104,43 @@ function Combobox({
   );
 }
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface AppointmentFormData {
+  clientId: string;
+  serviceId: string;
+  serviceVariantId: string;
+  professionalId: string;
+  startTime: string;
+  endTime: string;
+  notes: string;
+}
+
+interface CalendarEvent {
+  id: string;
+  summary: string;
+  description?: string;
+  location?: string;
+  start: { dateTime: string };
+  end: { dateTime: string };
+  attendees?: Array<{ email: string }>;
+  htmlLink?: string;
+}
+
 export default function CreateAppointmentPage() {
   const { toast } = useToast();
-
-  // Global data
   const {
     clients: allClients,
     services: allServices,
     professionals,
     refreshData,
+    addAppointment,
+    isLoading: isDataLoading,
   } = useData();
 
   const clients = useMemo(
     () =>
       (allClients || []).filter(
-        (c) =>
-          c.status === "active" || (c as { is_active?: boolean }).is_active,
+        (c) => c.status === "active" || (c as { is_active?: boolean }).is_active,
       ),
     [allClients],
   );
@@ -145,10 +153,9 @@ export default function CreateAppointmentPage() {
     [allServices],
   );
 
-  // Form state
+  // ── Create appointment state ──────────────────────────────────────────────
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-
   const initialFormState: AppointmentFormData = {
     clientId: "",
     serviceId: "",
@@ -158,57 +165,127 @@ export default function CreateAppointmentPage() {
     endTime: "",
     notes: "",
   };
+  const [formData, setFormData] = useState<AppointmentFormData>(initialFormState);
 
-  const [formData, setFormData] =
-    useState<AppointmentFormData>(initialFormState);
+  // ── View appointments state ───────────────────────────────────────────────
+  const [viewChoiceOpen, setViewChoiceOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"all" | "own">("all");
+  const [filterProfId, setFilterProfId] = useState("");
+  const [viewEvents, setViewEvents] = useState<CalendarEvent[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(false);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [searchQuery, setSearchQuery] = useState("");
 
-  // Load initial data
   useEffect(() => {
-    void refreshData();
-  }, [refreshData]);
+    if (allClients.length === 0 && !isDataLoading) {
+      void refreshData();
+    }
+  }, [refreshData, allClients.length, isDataLoading]);
 
-  // Memoized form options
-  const clientItems = useMemo(
-    () =>
-      (clients || []).map((c) => {
-        const phoneLabel = c.phone ? formatBrazilianPhone(c.phone) : "";
-        const phoneDigits = c.phone ? unformatPhone(c.phone) : "";
-        return {
-          value: c.id,
-          label: c.name
-            ? `${c.name} - ${phoneLabel}`
-            : `(Sem nome)${phoneLabel ? ` - ${phoneLabel}` : ""}`,
-          hint: phoneDigits,
-        };
-      }),
-    [clients],
+  // ── Fetch events ──────────────────────────────────────────────────────────
+  const fetchEvents = useCallback(
+    async (mode: "all" | "own", professionalId: string, date: Date) => {
+      setLoadingEvents(true);
+      try {
+        const start = new Date(date);
+        start.setDate(start.getDate() - date.getDay());
+        start.setHours(0, 0, 0, 0);
+
+        const end = new Date(start);
+        end.setDate(end.getDate() + 7);
+
+        // For "own" mode, pass the professional's email as a search query
+        const professional = professionals.find((p) => p.id === professionalId);
+        const query = mode === "own" && professional?.email ? professional.email : undefined;
+
+        const result = await listCalendarEvents(
+          start.toISOString(),
+          end.toISOString(),
+          query,
+        );
+
+        if (!result.success) {
+          toast({
+            variant: "destructive",
+            title: "Erro ao carregar agenda",
+            description: result.error || "Não foi possível buscar os agendamentos.",
+          });
+          setViewEvents([]);
+          return;
+        }
+
+        let events: CalendarEvent[] = result.events || [];
+
+        // Client-side filter: check attendees array AND professional name in description
+        if (mode === "own" && professional?.email) {
+          const profEmail = professional.email.toLowerCase();
+          const profName = (professional.name || "").toLowerCase();
+
+          events = events.filter((ev) => {
+            const inAttendees = (ev.attendees || []).some(
+              (a) => a.email.toLowerCase() === profEmail,
+            );
+            const inDescription = (ev.description || "")
+              .toLowerCase()
+              .includes(`profissional: ${profName}`);
+            return inAttendees || inDescription;
+          });
+        }
+
+        setViewEvents(events);
+      } finally {
+        setLoadingEvents(false);
+      }
+    },
+    [professionals, toast],
   );
 
-  const serviceItems = useMemo(
-    () =>
-      (services || []).map((s) => ({
-        value: s.id,
-        label: s.name || "(Sem nome)",
-      })),
-    [services],
-  );
+  useEffect(() => {
+    if (!viewOpen) return;
+    if (viewMode === "own" && !filterProfId) {
+        setViewEvents([]);
+        return;
+    }
+    void fetchEvents(viewMode, filterProfId, currentDate);
+  }, [viewOpen, viewMode, filterProfId, currentDate, fetchEvents]);
 
-  const professionalItems = useMemo(
-    () =>
-      professionals.map((p) => {
-        const displayName = p.name ?? (p as { fullName?: string }).fullName;
-        return {
-          value: p.id,
-          label:
-            displayName && p.functionTitle
-              ? `${displayName} (${p.functionTitle})`
-              : (p.email ?? "Sem e-mail"),
-        };
-      }),
-    [professionals],
-  );
+  // ── Filtered events for display ───────────────────────────────────────────
+  const filteredEvents = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    if (!q) return viewEvents;
 
-  // Selected service variant logic
+    return viewEvents.filter((ev) => {
+      const desc = (ev.description || "").toLowerCase();
+      const summary = (ev.summary || "").toLowerCase();
+      return summary.includes(q) || desc.includes(q);
+    });
+  }, [viewEvents, searchQuery]);
+
+  // ── Choice dialog handlers ────────────────────────────────────────────────
+  function handleChooseAll() {
+    setViewChoiceOpen(false);
+    setViewMode("all");
+    setFilterProfId("");
+    setViewOpen(true);
+  }
+
+  function handleChooseOwn() {
+    setViewChoiceOpen(false);
+    setViewMode("own");
+    setFilterProfId("");
+    setViewOpen(true);
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function professionalDisplay(p: Professional) {
+    const name = p.name ?? (p as { fullName?: string }).fullName;
+    return name && p.functionTitle
+      ? `${name} (${p.functionTitle})`
+      : p.email ?? "Sem e-mail";
+  }
+
+  // ── Create appointment ────────────────────────────────────────────────────
   const selectedService = useMemo(
     () => services.find((s) => s.id === formData.serviceId),
     [services, formData.serviceId],
@@ -223,22 +300,34 @@ export default function CreateAppointmentPage() {
     [selectedService],
   );
 
-  // Helper to display professional's name
-  function professionalDisplay(p: Professional) {
-    const displayName = p.name ?? (p as { fullName?: string }).fullName;
-    return displayName && p.functionTitle
-      ? `${displayName} (${p.functionTitle})`
-      : (p.email ?? "Sem e-mail");
-  }
+  const clientItems = useMemo(
+    () =>
+      (clients || []).map((c) => {
+        const phoneLabel = c.phone ? formatBrazilianPhone(c.phone) : "";
+        return {
+          value: c.id,
+          label: c.name ? `${c.name} - ${phoneLabel}` : `(Sem nome)`,
+          hint: c.phone ? unformatPhone(c.phone) : "",
+        };
+      }),
+    [clients],
+  );
 
-  // Actions
-  function openCreate() {
-    setFormData(initialFormState);
-    setFormOpen(true);
-  }
+  const serviceItems = useMemo(
+    () => (services || []).map((s) => ({ value: s.id, label: s.name })),
+    [services],
+  );
+
+  const professionalItems = useMemo(
+    () =>
+      professionals.map((p) => ({
+        value: p.id,
+        label: professionalDisplay(p),
+      })),
+    [professionals],
+  );
 
   async function onSave() {
-    // Basic validation
     if (
       !formData.clientId ||
       !formData.serviceId ||
@@ -250,7 +339,7 @@ export default function CreateAppointmentPage() {
       toast({
         variant: "destructive",
         title: "Campos obrigatórios",
-        description: "Por favor, preencha todos os campos antes de salvar.",
+        description: "Preencha todos os campos antes de salvar.",
       });
       return;
     }
@@ -260,28 +349,20 @@ export default function CreateAppointmentPage() {
     const sv = selectedService?.variants?.find(
       (x) => x.id === formData.serviceVariantId,
     );
-    const selectedProfessional = professionals.find(
-      (x) => x.id === formData.professionalId,
-    );
+    const prof = professionals.find((x) => x.id === formData.professionalId);
 
     if (!c || !s || !sv) {
-      toast({
-        variant: "destructive",
-        title: "Erro nos dados",
-        description: "Cliente ou serviço selecionado é inválido.",
-      });
+      toast({ variant: "destructive", title: "Dados inválidos" });
       return;
     }
 
-    const professionalLine = selectedProfessional
-      ? `\nProfissional: ${professionalDisplay(selectedProfessional)}`
-      : "";
-
+    const profLine = prof ? `\nProfissional: ${professionalDisplay(prof)}` : "";
     setSaving(true);
+
     try {
-      const payload = {
+      const googlePayload = {
         summary: `${c.name} - ${s.name} (${sv.variantName})`,
-        description: `Cliente: ${c.name}\nTelefone: ${c.phone}\nServiço: ${s.name}\nTipo: ${sv.variantName}${professionalLine}${
+        description: `Cliente: ${c.name}\nTelefone: ${c.phone}\nServiço: ${s.name}\nTipo: ${sv.variantName}${profLine}${
           formData.notes ? `\nObservações: ${formData.notes}` : ""
         }`,
         location: "Spaço Bellas",
@@ -289,187 +370,216 @@ export default function CreateAppointmentPage() {
         endTime: new Date(formData.endTime).toISOString(),
         attendees: [
           ...(c.email ? [{ email: c.email }] : []),
-          ...(selectedProfessional?.email
-            ? [{ email: selectedProfessional.email }]
-            : []),
+          ...(prof?.email ? [{ email: prof.email }] : []),
         ],
       };
 
-      const r = await createCalendarEvent(payload);
-      if (!r?.success) throw new Error(r?.error || "Erro ao criar agendamento");
+      const googleRes = await createCalendarEvent(googlePayload);
+      if (!googleRes?.success) throw new Error(googleRes?.error || "Erro ao criar agendamento no Google");
 
-      // Success
+      const supabasePayload: Omit<Appointment, "id" | "created_at"> = {
+        clientId: formData.clientId,
+        professionalId: formData.professionalId,
+        startTime: new Date(formData.startTime).toISOString(),
+        endTime: formData.endTime ? new Date(formData.endTime).toISOString() : new Date(new Date(formData.startTime).getTime() + (sv.duration || 30) * 60000).toISOString(),
+        status: AppointmentStatus.SCHEDULED,
+        notes: formData.notes,
+        serviceVariants: [{ serviceVariantId: formData.serviceVariantId, quantity: 1 }],
+        totalPrice: sv.price,
+      };
+
+      const supabaseRes = await addAppointment(supabasePayload);
+      if (!supabaseRes) throw new Error("Erro ao registrar agendamento no banco de dados.");
+
       toast({
         title: "Agendamento criado!",
-        description: `${c.name} agendado para ${new Date(
-          formData.startTime,
-        ).toLocaleTimeString("pt-BR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })}.`,
+        description: `${c.name} agendado para ${new Date(formData.startTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.`,
       });
-
       setFormOpen(false);
       setFormData(initialFormState);
-    } catch (e) {
-      console.error(e);
-      toast({
-        variant: "destructive",
-        title: "Falha ao criar",
-        description: "Ocorreu um erro ao tentar salvar no Google Calendar.",
-      });
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : "Ocorreu um erro ao salvar o agendamento.";
+      toast({ variant: "destructive", title: "Falha ao criar", description: errorMessage });
     } finally {
       setSaving(false);
     }
   }
 
+  if (isDataLoading && allClients.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-2">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-muted-foreground animate-pulse">Carregando dados...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 p-4">
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-4">
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Novo Agendamento</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Agendamentos</h1>
         <p className="text-muted-foreground max-w-md mx-auto">
-          Clique no botão abaixo para abrir o formulário e registrar um novo
-          atendimento na agenda.
+          Crie um novo agendamento ou visualize os agendamentos existentes.
         </p>
       </div>
 
-      <Button
-        size="lg"
-        onClick={openCreate}
-        className="h-12 px-8 text-base shadow-lg"
-      >
-        <CalendarPlus className="mr-2 h-5 w-5" />
-        Criar Agendamento
-      </Button>
+      <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
+        <Button size="lg" onClick={() => setFormOpen(true)} className="flex-1 h-12 text-base shadow-lg">
+          <CalendarPlus className="mr-2 h-5 w-5" />
+          Criar Agendamento
+        </Button>
 
-      {/* Creation Modal */}
+        <Button size="lg" variant="outline" onClick={() => setViewChoiceOpen(true)} className="flex-1 h-12 text-base">
+          <CalendarSearch className="mr-2 h-5 w-5" />
+          Ver Agendamentos
+        </Button>
+      </div>
+
+      {/* Choice Dialog */}
+      <Dialog open={viewChoiceOpen} onOpenChange={setViewChoiceOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Visualizar agendamentos</DialogTitle>
+            <DialogDescription>Escolha quais agendamentos você deseja ver.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <button type="button" onClick={handleChooseAll} className="flex items-center gap-3 rounded-md border p-4 text-left hover:bg-muted transition">
+              <Users className="h-5 w-5 text-primary flex-shrink-0" />
+              <div>
+                <div className="font-medium">Todos os agendamentos</div>
+                <div className="text-sm text-muted-foreground">Visualizar a agenda completa</div>
+              </div>
+            </button>
+            <button type="button" onClick={handleChooseOwn} className="flex items-center gap-3 rounded-md border p-4 text-left hover:bg-muted transition">
+              <User className="h-5 w-5 text-primary flex-shrink-0" />
+              <div>
+                <div className="font-medium">Meus agendamentos</div>
+                <div className="text-sm text-muted-foreground">Filtrar por profissional</div>
+              </div>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Full View Dialog */}
+      <Dialog open={viewOpen} onOpenChange={(open) => { setViewOpen(open); if (!open) setViewEvents([]); }}>
+        <DialogContent className="sm:max-w-4xl max-h-[95vh] flex flex-col p-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle>{viewMode === "all" ? "Todos os Agendamentos" : "Meus Agendamentos"}</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-auto space-y-4 pr-1">
+            {/* Calendar Controls (similar to /agenda) */}
+            <Card>
+              <CardContent className="pt-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar agendamentos..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                  {viewMode === "own" && (
+                    <CustomCombobox
+                      placeholder="Profissional..."
+                      items={professionalItems}
+                      value={filterProfId}
+                      onChange={setFilterProfId}
+                    />
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => {
+                        const d = new Date(currentDate);
+                        d.setDate(d.getDate() - 7);
+                        setCurrentDate(d);
+                    }}>
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-10 flex-1" onClick={() => setCurrentDate(new Date())}>
+                      Hoje
+                    </Button>
+                    <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => {
+                        const d = new Date(currentDate);
+                        d.setDate(d.getDate() + 7);
+                        setCurrentDate(d);
+                    }}>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="mt-4 text-center text-lg font-semibold uppercase">
+                  {currentDate.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
+                </div>
+              </CardContent>
+            </Card>
+
+            {viewMode === "own" && !filterProfId ? (
+                <p className="text-center text-muted-foreground py-10 text-sm">
+                    Selecione um profissional acima para ver os agendamentos.
+                </p>
+            ) : (
+                <CalendarView
+                    currentDate={currentDate}
+                    events={filteredEvents}
+                    isLoading={loadingEvents}
+                />
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewOpen(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Modal */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Novo agendamento</DialogTitle>
-            <DialogDescription>
-              Preencha os dados abaixo para sincronizar com o Google Calendar.
-            </DialogDescription>
+            <DialogDescription>Preencha os dados abaixo para sincronizar com o Google Calendar.</DialogDescription>
           </DialogHeader>
-
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-sm font-medium">Cliente</label>
-                <Combobox
-                  placeholder="Selecione o cliente"
-                  items={clientItems}
-                  value={formData.clientId}
-                  onChange={(v) => setFormData((p) => ({ ...p, clientId: v }))}
-                />
+                <CustomCombobox placeholder="Selecione o cliente" items={clientItems} value={formData.clientId} onChange={(v) => setFormData((p) => ({ ...p, clientId: v }))} />
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium">Serviço</label>
-                <Combobox
-                  placeholder="Selecione o serviço"
-                  items={serviceItems}
-                  value={formData.serviceId}
-                  onChange={(v) =>
-                    setFormData((p) => ({
-                      ...p,
-                      serviceId: v,
-                      serviceVariantId: "",
-                    }))
-                  }
-                />
+                <CustomCombobox placeholder="Selecione o serviço" items={serviceItems} value={formData.serviceId} onChange={(v) => setFormData((p) => ({ ...p, serviceId: v, serviceVariantId: "" }))} />
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium">Tipo de Serviço</label>
-                <Combobox
-                  placeholder="Selecione o tipo"
-                  items={availableVariants}
-                  value={formData.serviceVariantId}
-                  onChange={(v) =>
-                    setFormData((p) => ({ ...p, serviceVariantId: v }))
-                  }
-                  disabled={
-                    !formData.serviceId || availableVariants.length === 0
-                  }
-                  emptyText={
-                    formData.serviceId
-                      ? "Nenhum tipo encontrado"
-                      : "Selecione um serviço primeiro"
-                  }
-                />
+                <CustomCombobox placeholder="Selecione o tipo" items={availableVariants} value={formData.serviceVariantId} onChange={(v) => setFormData((p) => ({ ...p, serviceVariantId: v }))} disabled={!formData.serviceId || availableVariants.length === 0} emptyText={formData.serviceId ? "Nenhum tipo encontrado" : "Selecione um serviço primeiro"} />
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium">Profissional</label>
-                <Combobox
-                  placeholder="Selecione a profissional"
-                  items={professionalItems}
-                  value={formData.professionalId}
-                  onChange={(v) =>
-                    setFormData((p) => ({ ...p, professionalId: v }))
-                  }
-                  emptyText={
-                    professionals.length
-                      ? "Nenhuma profissional encontrada"
-                      : "Carregando..."
-                  }
-                />
+                <CustomCombobox placeholder="Selecione a profissional" items={professionalItems} value={formData.professionalId} onChange={(v) => setFormData((p) => ({ ...p, professionalId: v }))} />
               </div>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-sm font-medium">Data/Hora Início</label>
-                <Input
-                  type="datetime-local"
-                  value={formData.startTime}
-                  onChange={(e) =>
-                    setFormData((p) => ({ ...p, startTime: e.target.value }))
-                  }
-                />
+                <Input type="datetime-local" value={formData.startTime} onChange={(e) => setFormData((p) => ({ ...p, startTime: e.target.value }))} />
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium">Data/Hora Término</label>
-                <Input
-                  type="datetime-local"
-                  value={formData.endTime}
-                  onChange={(e) =>
-                    setFormData((p) => ({ ...p, endTime: e.target.value }))
-                  }
-                />
+                <Input type="datetime-local" value={formData.endTime} onChange={(e) => setFormData((p) => ({ ...p, endTime: e.target.value }))} />
               </div>
             </div>
-
             <div className="space-y-1">
               <label className="text-sm font-medium">Observações</label>
-              <Input
-                value={formData.notes}
-                onChange={(e) =>
-                  setFormData((p) => ({ ...p, notes: e.target.value }))
-                }
-                placeholder="Notas internas (opcional)"
-              />
+              <Input value={formData.notes} onChange={(e) => setFormData((p) => ({ ...p, notes: e.target.value }))} placeholder="Notas internas (opcional)" />
             </div>
           </div>
-
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => setFormOpen(false)}
-              disabled={saving}
-            >
-              Cancelar
-            </Button>
+            <Button variant="outline" onClick={() => setFormOpen(false)} disabled={saving}>Cancelar</Button>
             <Button onClick={onSave} disabled={saving}>
-              {saving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Salvando...
-                </>
-              ) : (
-                <>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Criar Agendamento
-                </>
-              )}
+              {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : <><Plus className="mr-2 h-4 w-4" />Criar Agendamento</>}
             </Button>
           </DialogFooter>
         </DialogContent>

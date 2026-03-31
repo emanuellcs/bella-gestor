@@ -79,7 +79,11 @@ export async function deleteCalendarEvent(eventId: string) {
   }
 }
 
-export async function listCalendarEvents(timeMin?: string, timeMax?: string) {
+export async function listCalendarEvents(
+  timeMin?: string,
+  timeMax?: string,
+  query?: string, // NEW: optional free-text search (e.g. professional email)
+) {
   try {
     if (!APPS_SCRIPT_URL) {
       throw new Error("NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL não configurada");
@@ -91,6 +95,8 @@ export async function listCalendarEvents(timeMin?: string, timeMax?: string) {
     });
 
     if (timeMax) params.append("timeMax", timeMax);
+    // Pass the query so Apps Script can use it when its implementation supports it
+    if (query) params.append("q", query);
 
     const response = await fetch(`${APPS_SCRIPT_URL}?${params.toString()}`, {
       method: "GET",

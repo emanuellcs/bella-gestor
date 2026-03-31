@@ -2,13 +2,10 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
-import {
-  listCalendarEvents,
-  createCalendarEvent,
-  updateCalendarEvent,
-  deleteCalendarEvent,
-} from "@/services/googleCalendarAppsScript";
+import { listCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from "@/services/googleCalendarAppsScript";
 import { useData } from "@/lib/data-context";
+import type { Appointment } from "@/types";
+import { AppointmentStatus } from "@/types";
 
 import { CalendarView } from "@/components/features/agenda/calendar-view";
 import { AppointmentFormModal } from "@/components/features/agenda/appointment-form-modal";
@@ -138,7 +135,7 @@ export default function AgendaPage() {
         ? `\nProfissional: ${professional.name} (${professional.functionTitle})`
         : "";
 
-      const payload = {
+      const googlePayload = {
         summary: `${client?.name} - ${service?.name} (${variant?.variantName})`,
         description: `Cliente: ${client?.name}\nTelefone: ${client?.phone}\nServiço: ${service?.name}\nTipo: ${variant?.variantName}${professionalLine}${
           values.notes ? `\nObservações: ${values.notes}` : ""
@@ -154,9 +151,31 @@ export default function AgendaPage() {
 
       let res;
       if (selectedEvent) {
-        res = await updateCalendarEvent(selectedEvent.id, payload);
+        res = await updateCalendarEvent(selectedEvent.id, googlePayload);
+        // For simplicity, we only sync new appointments to Supabase for now as per instructions.
+        // In a full implementation, we would also update the Supabase record here.
       } else {
-        res = await createCalendarEvent(payload);
+        res = await createCalendarEvent(googlePayload);
+
+        // Supabase Integration (Registers Appointment and Sale)
+        if (res?.success) {
+          const supabasePayload: Omit<Appointment, "id" | "created_at"> = {
+            clientId: values.clientId,
+            professionalId: values.professionalId,
+            startTime: new Date(values.startTime).toISOString(),
+            endTime: new Date(values.endTime).toISOString(),
+            status: AppointmentStatus.SCHEDULED,
+            notes: values.notes,
+            serviceVariants: [
+              {
+                serviceVariantId: values.serviceVariantId,
+                quantity: 1,
+              },
+            ],
+            totalPrice: variant?.price || 0,
+          };
+          await addAppointment(supabasePayload);
+        }
       }
 
       if (res?.success) {
@@ -168,7 +187,8 @@ export default function AgendaPage() {
       } else {
         toast.error(res?.error || "Erro ao salvar no Google Agenda");
       }
-    } catch {
+    } catch (e) {
+      console.error(e);
       toast.error("Falha ao salvar agendamento");
     }
   };

@@ -5,22 +5,28 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { AppShell } from "@/components/app-shell";
+import { canAccessRoute, defaultRouteForRole } from "@/lib/rbac";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (!isAuthenticated) {
       router.push("/");
+      return;
     }
-  }, [isAuthenticated, router]);
 
-  if (!isAuthenticated) {
+    if (user && !canAccessRoute(user.role, "dashboard")) {
+      router.push(defaultRouteForRole(user.role));
+    }
+  }, [isAuthenticated, user, router]);
+
+  if (!isAuthenticated || (user && !canAccessRoute(user.role, "dashboard"))) {
     return null;
   }
 

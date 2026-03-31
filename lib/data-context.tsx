@@ -185,9 +185,11 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 export function DataProvider({
   children,
   mode = "app",
+  skip = false,
 }: {
   children: ReactNode;
   mode?: Mode;
+  skip?: boolean;
 }) {
   const { isAuthenticated } = useAuth();
   const api: ApiModule = mode === "public" ? (apiPublic as ApiModule) : apiApp;
@@ -1015,8 +1017,9 @@ export function DataProvider({
   };
 
   useEffect(() => {
+    if (skip) return;
     if (mode === "public" || isAuthenticated) void refreshData();
-  }, [mode, isAuthenticated, refreshData]);
+  }, [mode, isAuthenticated, refreshData, skip]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
