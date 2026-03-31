@@ -31,7 +31,7 @@ export async function getActiveServices(): Promise<Service[]> {
     description: s.description ?? undefined,
     category: s.category ?? "",
     active: !!s.is_active,
-    createdAt: s.created_at,
+    created_at: s.created_at,
     variants: (s.service_variants ?? []).map((v: any) => ({
       id: String(v.id),
       serviceId: String(v.service_id),
@@ -39,7 +39,7 @@ export async function getActiveServices(): Promise<Service[]> {
       price: Number(v.price),
       duration: v.duration_minutes,
       active: !!v.is_active,
-      createdAt: v.created_at,
+      created_at: v.created_at,
     })),
   })) as Service[];
 }
@@ -53,3 +53,30 @@ export async function getProfessionals(): Promise<Professional[]> {
 }
 
 export const getServices = getActiveServices;
+
+// The public scheduling page only deals with active clients,
+// but the DataProvider calls getInactiveClients unconditionally.
+// Returning an empty array prevents silent failures.
+export async function getInactiveClients(): Promise<Client[]> {
+  return [];
+}
+
+// service variants are embedded inside each service object from
+// getActiveServices(), so a flat list isn't needed here.
+import type { ServiceVariant, Appointment, Sale, Payment } from "@/types";
+export async function getServiceVariants(): Promise<ServiceVariant[]> {
+  return [];
+}
+
+// The DataProvider also calls these — stub them out.
+export async function getAppointments(): Promise<Appointment[]> {
+  return [];
+}
+
+export async function getSales(): Promise<Sale[]> {
+  return [];
+}
+
+export async function getPayments(): Promise<Payment[]> {
+  return [];
+}

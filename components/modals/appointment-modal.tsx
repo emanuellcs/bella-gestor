@@ -25,9 +25,8 @@ import { Combobox } from "@/components/ui/combobox";
 import { useData } from "@/lib/data-context";
 import { AppointmentStatus } from "@/types";
 import type { Appointment } from "@/types";
-import { Loader2, Save, X, AlertCircle } from "lucide-react";
+import { Loader2, Save, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { zonedNowForInput } from "@/lib/utils";
 
 interface AppointmentModalProps {
@@ -47,8 +46,9 @@ export function AppointmentModal({
   defaultDate,
   defaultTime,
 }: AppointmentModalProps) {
-  const { clients, services, professionals } = useData();
+  const { clients, services, professionals, addAppointment, updateAppointment } = useData();
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(
     null,
   );
@@ -72,75 +72,101 @@ export function AppointmentModal({
   });
 
   useEffect(() => {
-    if (appointment && mode === "edit") {
-      // Assuming appointment.serviceVariants holds the main service/variant for simplicity
-      const initialServiceVariant =
-        appointment.serviceVariants?.[0]?.serviceVariantId;
-      const service = services.find((s) =>
-        s.variants?.some((v) => v.id === initialServiceVariant),
-      );
-      const variant = service?.variants?.find(
-        (v) => v.id === initialServiceVariant,
-      );
+    if (open) {
+      if (appointment && mode === "edit") {
+        // Assuming appointment.serviceVariants holds the main service/variant for simplicity
+        const initialServiceVariant =
+          appointment.serviceVariants?.[0]?.serviceVariantId;
+        const service = services.find((s) =>
+          s.variants?.some((v) => v.id === initialServiceVariant),
+        );
+        const variant = service?.variants?.find(
+          (v) => v.id === initialServiceVariant,
+        );
 
-      setFormData({
-        clientId: appointment.clientId || "",
-        clientName: appointment.clientName || "",
-        professionalId: appointment.professionalId || "",
-        serviceId: service?.id || "",
-        variantId: variant?.id || "",
-        startTime: appointment.startTime || "",
-        endTime: appointment.endTime || "",
-        status: appointment.status || AppointmentStatus.SCHEDULED,
-        notes: appointment.notes || "",
-      });
-      setSelectedServiceId(service?.id || null);
-      setSelectedVariantId(variant?.id || null);
-    } else if (mode === "create") {
-      setFormData({
-        clientId: "",
-        clientName: "",
-        professionalId: "",
-        serviceId: "",
-        variantId: "",
-        startTime:
-          defaultDate && defaultTime
-            ? `${defaultDate}T${defaultTime}`
-            : zonedNowForInput(),
-        endTime: "",
-        status: AppointmentStatus.SCHEDULED,
-        notes: "",
-      });
-      setSelectedServiceId(null);
-      setSelectedVariantId(null);
+        setFormData({
+          clientId: appointment.clientId || "",
+          clientName: appointment.clientName || "",
+          professionalId: appointment.professionalId || "",
+          serviceId: service?.id || "",
+          variantId: variant?.id || "",
+          startTime: appointment.startTime ? appointment.startTime.substring(0, 16) : "",
+          endTime: appointment.endTime ? appointment.endTime.substring(0, 16) : "",
+          status: appointment.status || AppointmentStatus.SCHEDULED,
+          notes: appointment.notes || "",
+        });
+        setSelectedServiceId(service?.id || null);
+        setSelectedVariantId(variant?.id || null);
+      } else if (mode === "create") {
+        setFormData({
+          clientId: "",
+          clientName: "",
+          professionalId: "",
+          serviceId: "",
+          variantId: "",
+          startTime:
+            defaultDate && defaultTime
+              ? `${defaultDate}T${defaultTime}`
+              : zonedNowForInput(),
+          endTime: "",
+          status: AppointmentStatus.SCHEDULED,
+          notes: "",
+        });
+        setSelectedServiceId(null);
+        setSelectedVariantId(null);
+      }
     }
   }, [appointment, mode, open, defaultDate, defaultTime, services]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    toast({
-      title: "Funcionalidade em desenvolvimento",
-      description:
-        "O módulo de agendamentos ainda não está conectado ao Supabase.",
-      variant: "destructive",
-    });
+    if (!formData.clientId || !formData.professionalId || !selectedVariantId || !formData.startTime) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Por favor, preencha todos os campos obrigatórios.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    // When implementing:
-    // const newAppointment: Omit<Appointment, "id" | "created_at"> = {
-    //     ...formData,
-    //     serviceVariants: [{ serviceVariantId: selectedVariantId!, quantity: 1 }], // Assuming quantity 1 for now
-    //     totalPrice: 0, // This should be calculated based on the selected variant
-    //     clientName: clients.find(c => c.id === formData.clientId)?.name || "",
-    //     professionalName: "", // You'll need to fetch professional name
-    // };
+    setIsLoading(true);
+    try {
+      const selectedService = services.find((s) => s.id === selectedServiceId);
+      const selectedVariant = selectedService?.variants?.find((v) => v.id === selectedVariantId);
 
-    // if (mode === "create") {
-    //   await addAppointment(newAppointment)
-    // } else if (mode === "edit" && appointment) {
-    //   await updateAppointment(appointment.id, newAppointment)
-    // }
-    // onOpenChange(false)
+      const appointmentPayload: Omit<Appointment, "id" | "created_at"> = {
+        clientId: formData.clientId,
+        professionalId: formData.professionalId,
+        startTime: new Date(formData.startTime).toISOString(),
+        endTime: formData.endTime ? new Date(formData.endTime).toISOString() : new Date(new Date(formData.startTime).getTime() + (selectedVariant?.duration || 30) * 60000).toISOString(),
+        status: formData.status,
+        notes: formData.notes,
+        serviceVariants: [
+          {
+            serviceVariantId: selectedVariantId,
+            quantity: 1,
+          },
+        ],
+        totalPrice: selectedVariant?.price || 0,
+      };
+
+      if (mode === "create") {
+        await addAppointment(appointmentPayload);
+      } else if (mode === "edit" && appointment) {
+        await updateAppointment(appointment.id, appointmentPayload);
+      }
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Error saving appointment:", error);
+      toast({
+        title: "Erro ao salvar",
+        description: "Ocorreu um erro ao salvar o agendamento.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleClientSelect = (clientId: string) => {
@@ -181,14 +207,6 @@ export function AppointmentModal({
               : "Atualize as informações do agendamento."}
           </DialogDescription>
         </DialogHeader>
-
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            O módulo de agendamentos ainda não está conectado ao Supabase. Esta
-            funcionalidade será implementada em breve.
-          </AlertDescription>
-        </Alert>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

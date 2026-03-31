@@ -31,11 +31,12 @@ import {
   UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { canAccessRoute } from "@/lib/rbac";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Clientes", href: "/clientes", icon: Users },
   { name: "Agenda", href: "/agenda", icon: Calendar },
+  { name: "Clientes", href: "/clientes", icon: Users },
   { name: "Serviços", href: "/servicos", icon: Briefcase },
   { name: "Profissionais", href: "/profissionais", icon: UserCog },
   { name: "Financeiro", href: "/financeiro", icon: DollarSign },
@@ -48,6 +49,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const visibleNavigation = navigation.filter((item) =>
+    canAccessRoute(user?.role, item.href),
+  );
 
   const handleLogout = () => {
     logout();
@@ -75,7 +80,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {/* Navigation */}
           <nav className="flex flex-1 flex-col">
             <ul role="list" className="flex flex-1 flex-col gap-y-1">
-              {navigation.map((item) => {
+              {visibleNavigation.map((item) => {
                 const active = pathname === item.href;
                 return (
                   <li key={item.name}>
@@ -166,7 +171,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {/* Navigation */}
               <nav className="flex flex-1 flex-col">
                 <ul role="list" className="flex flex-1 flex-col gap-y-1">
-                  {navigation.map((item) => {
+                  {visibleNavigation.map((item) => {
                     const active = pathname === item.href;
                     return (
                       <li key={item.name}>

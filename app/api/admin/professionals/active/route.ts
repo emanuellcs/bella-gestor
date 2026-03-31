@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { AppRole } from "@/types";
 import { jwtVerify } from "jose";
+import { SupabaseProfessional } from "@/types/db";
 
 const COOKIE = "pro_access";
+const PAGE_SIZE = 1000;
 
 export async function GET(req: NextRequest) {
   const token = req.cookies.get(COOKIE)?.value;
@@ -20,15 +22,28 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("professionals")
-    .select("user_id,role,email,full_name,function_title")
-    .eq("role", AppRole.PROFESSIONAL)
-    .order("created_at", { ascending: false });
+  const allData: SupabaseProfessional[] = [];
+  let from = 0;
 
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  const out = (data ?? []).map((r) => ({
+  while (true) {
+    const { data, error } = await supabase
+      .from("professionals")
+      .select("user_id,role,email,full_name,function_title")
+      .eq("role", AppRole.PROFESSIONAL)
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error)
+      return NextResponse.json({ error: error.message }, { status: 500 });
+
+    if (!data || data.length === 0) break;
+    allData.push(...data);
+
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  const out = allData.map((r) => ({
     id: r.user_id,
     email: r.email ?? undefined,
     fullName: r.full_name ?? undefined,

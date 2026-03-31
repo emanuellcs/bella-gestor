@@ -9,7 +9,7 @@ export async function getServices(): Promise<Service[]> {
   try {
     const { data, error } = await supabase
       .from("services")
-      .select("*")
+      .select("*, service_variants(*)")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -25,6 +25,22 @@ export async function getServices(): Promise<Service[]> {
         active: !!s.is_active,
         created_at: s.created_at,
         updatedAt: s.updated_at || undefined,
+        variants: (s.service_variants || []).map(
+          (v: any): ServiceVariant => ({
+            id: v.id.toString(),
+            serviceId: v.service_id.toString(),
+            variantName: v.variant_name,
+            price: parseFloat(v.price),
+            duration: v.duration_minutes,
+            active: !!v.is_active,
+            commissionPct:
+              v.commission_pct !== null
+                ? parseFloat(v.commission_pct)
+                : undefined,
+            created_at: v.created_at,
+            updatedAt: v.updated_at || undefined,
+          }),
+        ),
       }),
     );
   } catch (error) {

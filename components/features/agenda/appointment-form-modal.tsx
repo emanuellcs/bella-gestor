@@ -113,6 +113,10 @@ export function AppointmentFormModal({
 
         const client = clients.find((c) => c.name === clientName);
         const service = services.find((s) => s.name === serviceName);
+        const variantName = parseField("Tipo: ");
+        const variant = service?.variants?.find(
+          (v) => v.variantName?.toLowerCase() === variantName?.toLowerCase(),
+        );
         const professional = professionals.find(
           (p) =>
             (p.name &&
@@ -133,7 +137,7 @@ export function AppointmentFormModal({
         form.reset({
           clientId: client?.id || "",
           serviceId: service?.id || "",
-          serviceVariantId: "", // We might not be able to precisely map variant ID from text easily without exact name match
+          serviceVariantId: variant?.id || "",
           professionalId: professional?.id || "",
           startTime: toLocal(selectedEvent.start.dateTime),
           endTime: toLocal(selectedEvent.end.dateTime),

@@ -5,24 +5,41 @@ import React, { useEffect, useState } from "react";
 import { DataProvider } from "@/lib/data-context";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/auth-context";
+import { useRouter } from "next/navigation";
+import { canAccessRoute, defaultRouteForRole } from "@/lib/rbac";
 
 export default function PublicAgendaLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { isAuthenticated, user } = useAuth();
+  const router = useRouter();
   const [checking, setChecking] = useState(true);
   const [granted, setGranted] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Attempts to check for existing cookie
+    // If logged in, check RBAC
+    if (isAuthenticated && user) {
+      if (!canAccessRoute(user.role, "fazer-agendamento")) {
+        router.push(defaultRouteForRole(user.role));
+        return;
+      }
+      // If allowed, we skip the keyword check
+      setGranted(true);
+      setChecking(false);
+      return;
+    }
+
+    // Attempts to check for existing cookie for non-logged in users
     fetch("/api/pro-access", { method: "GET", credentials: "include" })
       .then((r) => (r.ok ? setGranted(true) : setGranted(false)))
       .catch(() => setGranted(false))
       .finally(() => setChecking(false));
-  }, []);
+  }, [isAuthenticated, user, router]);
 
   async function handleEnter(e: React.FormEvent) {
     e.preventDefault();
@@ -70,7 +87,7 @@ export default function PublicAgendaLayout({
   // 'public' mode: DataProvider bypasses login and uses the public API (server-side service role)
   return (
     <div className="min-h-screen">
-      <DataProvider mode="public">{children}</DataProvider>
+      <DataProvider mode="public" skip={!granted}>{children}</DataProvider>
     </div>
   );
 }

@@ -33,8 +33,8 @@ interface CalendarViewProps {
   currentDate: Date;
   events: GoogleCalendarEvent[];
   isLoading: boolean;
-  onEdit: (event: GoogleCalendarEvent) => void;
-  onDelete: (event: GoogleCalendarEvent) => void;
+  onEdit?: (event: GoogleCalendarEvent) => void;
+  onDelete?: (event: GoogleCalendarEvent) => void;
 }
 
 export function CalendarView({
@@ -189,38 +189,44 @@ export function CalendarView({
                                 </div>
                               </div>
 
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="outline" size="sm">
-                                    Ações
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => onEdit(ev)}>
-                                    <Edit className="h-4 w-4 mr-2" />
-                                    Editar
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      window.open(
-                                        ev.htmlLink || "#",
-                                        "_blank",
-                                        "noopener,noreferrer",
-                                      )
-                                    }
-                                  >
-                                    <CalendarIcon className="h-4 w-4 mr-2" />
-                                    Ver no Google
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className="text-destructive"
-                                    onClick={() => onDelete(ev)}
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Excluir
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              {(onEdit || onDelete) && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="sm">
+                                      Ações
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    {onEdit && (
+                                      <DropdownMenuItem onClick={() => onEdit(ev)}>
+                                        <Edit className="h-4 w-4 mr-2" />
+                                        Editar
+                                      </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        window.open(
+                                          ev.htmlLink || "#",
+                                          "_blank",
+                                          "noopener,noreferrer",
+                                        )
+                                      }
+                                    >
+                                      <CalendarIcon className="h-4 w-4 mr-2" />
+                                      Ver no Google
+                                    </DropdownMenuItem>
+                                    {onDelete && (
+                                      <DropdownMenuItem
+                                        className="text-destructive"
+                                        onClick={() => onDelete(ev)}
+                                      >
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Excluir
+                                      </DropdownMenuItem>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
                             </div>
                           </li>
                         );
