@@ -73,14 +73,18 @@ export function ProfessionalModal({
 
     setIsLoading(true);
     try {
+      let result;
       if (mode === "create") {
-        await addProfessional(
+        result = await addProfessional(
           formData as Omit<Professional, "id" | "created_at">,
         );
       } else if (mode === "edit" && professional) {
-        await updateProfessional(professional.id, formData);
+        result = await updateProfessional(professional.id, formData);
       }
-      onOpenChange(false);
+
+      if (result) {
+        onOpenChange(false);
+      }
     } catch (error) {
       console.error("Error saving professional:", error);
     } finally {
@@ -164,7 +168,7 @@ export function ProfessionalModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Role */}
               <div className="grid gap-2">
                 <Label htmlFor="role">Nível de Acesso</Label>

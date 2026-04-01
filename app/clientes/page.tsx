@@ -19,6 +19,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useData } from "@/lib/data-context";
 import { ClientList } from "@/components/features/clients/client-list";
 import { ClientModal } from "@/components/modals/client-modal";
+import { InactiveClientsModal } from "@/components/modals/inactive-clients-modal";
+import { PageHeader } from "@/components/layout/page-header";
 import { Client } from "@/types";
 import {
   Search,
@@ -27,6 +29,7 @@ import {
   Loader2,
   LayoutList,
   LayoutGrid,
+  Users,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -42,6 +45,7 @@ export default function ClientesPage() {
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
+  const [inactiveModalOpen, setInactiveModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit" | "view">(
     "create",
   );
@@ -127,35 +131,48 @@ export default function ClientesPage() {
     <TooltipProvider>
       <div className="flex flex-col h-screen overflow-hidden">
         <div className="p-4 md:p-6 space-y-4 flex-none">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Clientes</h1>
-              <p className="text-muted-foreground">
-                Gerencie sua base de clientes
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => refreshData()}
-                disabled={isLoading}
-              >
-                <RefreshCw
-                  className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
-                />
-              </Button>
-              <Button
-                onClick={() => {
-                  setSelectedClient(null);
-                  setModalMode("create");
-                  setModalOpen(true);
-                }}
-              >
-                <Plus className="mr-2 h-4 w-4" /> Novo Cliente
-              </Button>
-            </div>
-          </div>
+          <PageHeader
+            title="Clientes"
+            description="Gerencie sua base de clientes"
+            actions={
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setInactiveModalOpen(true)}
+                  className="hidden md:flex"
+                >
+                  Ver Clientes Desativados
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="md:hidden"
+                  onClick={() => setInactiveModalOpen(true)}
+                >
+                  <Users className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => refreshData()}
+                  disabled={isLoading}
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+                  />
+                </Button>
+                <Button
+                  onClick={() => {
+                    setSelectedClient(null);
+                    setModalMode("create");
+                    setModalOpen(true);
+                  }}
+                >
+                  <Plus className="mr-2 h-4 w-4" /> Novo Cliente
+                </Button>
+              </div>
+            }
+          />
 
           <Card className="p-4">
             <div className="flex flex-col sm:flex-row gap-3">
@@ -286,6 +303,16 @@ export default function ClientesPage() {
         onOpenChange={setModalOpen}
         mode={modalMode}
         client={selectedClient}
+      />
+
+      <InactiveClientsModal
+        open={inactiveModalOpen}
+        onOpenChange={setInactiveModalOpen}
+        onViewClient={(c) => {
+          setSelectedClient(c);
+          setModalMode("view");
+          setModalOpen(true);
+        }}
       />
 
       <AlertDialog

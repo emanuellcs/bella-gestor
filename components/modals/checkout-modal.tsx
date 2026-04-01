@@ -22,6 +22,7 @@ import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, AlertCircle, ExternalLink, Copy } from "lucide-react";
 import type { Appointment } from "@/types";
+import { useData } from "@/lib/data-context";
 import { formatCurrency } from "@/lib/utils";
 
 interface CheckoutModalProps {

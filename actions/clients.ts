@@ -106,3 +106,26 @@ export async function reactivateClientAction(id: string) {
     return { success: false, error: "Falha ao reativar cliente." };
   }
 }
+
+/**
+ * Permanently deletes a client.
+ */
+export async function deleteClientAction(id: string) {
+  try {
+    const supabase = getSupabaseAdmin();
+    const { error } = await supabase
+      .from("clients")
+      .delete()
+      .eq("id", parseInt(id));
+
+    if (error) {
+      return { success: false, error: parseSupabaseError(error).description };
+    }
+
+    revalidatePath("/clientes");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error in deleteClientAction:", error);
+    return { success: false, error: "Falha ao excluir cliente." };
+  }
+}

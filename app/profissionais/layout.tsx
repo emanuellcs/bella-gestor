@@ -26,10 +26,12 @@ export default function ProfissionaisLayout({
     }
   }, [isAuthenticated, user, router]);
 
-  if (!isAuthenticated || (user && !canAccessRoute(user.role, "profissionais"))) {
+  if (
+    !isAuthenticated ||
+    (user && !canAccessRoute(user.role, "profissionais"))
+  ) {
     return null;
   }
 
   return <AppShell>{children}</AppShell>;
 }
-

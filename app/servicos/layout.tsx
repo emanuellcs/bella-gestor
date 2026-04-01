@@ -33,4 +33,3 @@ export default function ServicosLayout({
 
   return <AppShell>{children}</AppShell>;
 }
-

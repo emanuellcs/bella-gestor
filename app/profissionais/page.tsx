@@ -41,6 +41,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ProfessionalModal } from "@/components/modals/professional-modal";
+import { PageHeader } from "@/components/layout/page-header";
 import type { Professional } from "@/types";
 import { useData } from "@/lib/data-context";
 
@@ -113,30 +114,28 @@ export default function ProfessionalsPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Profissionais</h1>
-          <p className="text-muted-foreground">
-            Gerencie a equipe e suas comissões
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => refreshData()}
-            disabled={isLoading}
-          >
-            <RefreshCw
-              className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
-            />
-          </Button>
-          <Button onClick={handleNewProfessional} size="default">
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Profissional
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Profissionais"
+        description="Gerencie a equipe e suas comissões"
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => refreshData()}
+              disabled={isLoading}
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+              />
+            </Button>
+            <Button onClick={handleNewProfessional} size="default">
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Profissional
+            </Button>
+          </>
+        }
+      />
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />

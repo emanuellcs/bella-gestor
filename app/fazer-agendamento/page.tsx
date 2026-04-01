@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { createCalendarEvent, listCalendarEvents } from "@/services/googleCalendarAppsScript";
+import {
+  createCalendarEvent,
+  listCalendarEvents,
+} from "@/services/googleCalendarAppsScript";
 import type { Professional, Appointment } from "@/types";
 import { AppointmentStatus } from "@/types";
 import { useData } from "@/lib/data-context";
@@ -40,11 +43,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
+  Calendar as CalendarIcon,
 } from "lucide-react";
 import { formatBrazilianPhone, unformatPhone } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { CalendarView } from "@/components/features/agenda/calendar-view";
 import { Card, CardContent } from "@/components/ui/card";
+import { Calendar } from "@/components/ui/calendar";
+import { ptBR } from "date-fns/locale";
 
 // ─── Reusable Combobox ────────────────────────────────────────────────────────
 function CustomCombobox({
@@ -89,7 +95,10 @@ function CustomCombobox({
                 <CommandItem
                   key={`${it.value}-${i}`}
                   value={[it.label, it.hint].filter(Boolean).join(" ")}
-                  onSelect={() => { onChange(it.value); setOpen(false); }}
+                  onSelect={() => {
+                    onChange(it.value);
+                    setOpen(false);
+                  }}
                   className="flex items-center justify-between"
                 >
                   <span className="truncate">{it.label}</span>
@@ -140,7 +149,8 @@ export default function CreateAppointmentPage() {
   const clients = useMemo(
     () =>
       (allClients || []).filter(
-        (c) => c.status === "active" || (c as { is_active?: boolean }).is_active,
+        (c) =>
+          c.status === "active" || (c as { is_active?: boolean }).is_active,
       ),
     [allClients],
   );
@@ -165,7 +175,8 @@ export default function CreateAppointmentPage() {
     endTime: "",
     notes: "",
   };
-  const [formData, setFormData] = useState<AppointmentFormData>(initialFormState);
+  const [formData, setFormData] =
+    useState<AppointmentFormData>(initialFormState);
 
   // ── View appointments state ───────────────────────────────────────────────
   const [viewChoiceOpen, setViewChoiceOpen] = useState(false);
@@ -197,7 +208,10 @@ export default function CreateAppointmentPage() {
 
         // For "own" mode, pass the professional's email as a search query
         const professional = professionals.find((p) => p.id === professionalId);
-        const query = mode === "own" && professional?.email ? professional.email : undefined;
+        const query =
+          mode === "own" && professional?.email
+            ? professional.email
+            : undefined;
 
         const result = await listCalendarEvents(
           start.toISOString(),
@@ -209,7 +223,8 @@ export default function CreateAppointmentPage() {
           toast({
             variant: "destructive",
             title: "Erro ao carregar agenda",
-            description: result.error || "Não foi possível buscar os agendamentos.",
+            description:
+              result.error || "Não foi possível buscar os agendamentos.",
           });
           setViewEvents([]);
           return;
@@ -244,8 +259,8 @@ export default function CreateAppointmentPage() {
   useEffect(() => {
     if (!viewOpen) return;
     if (viewMode === "own" && !filterProfId) {
-        setViewEvents([]);
-        return;
+      setViewEvents([]);
+      return;
     }
     void fetchEvents(viewMode, filterProfId, currentDate);
   }, [viewOpen, viewMode, filterProfId, currentDate, fetchEvents]);
@@ -282,7 +297,7 @@ export default function CreateAppointmentPage() {
     const name = p.name ?? (p as { fullName?: string }).fullName;
     return name && p.functionTitle
       ? `${name} (${p.functionTitle})`
-      : p.email ?? "Sem e-mail";
+      : (p.email ?? "Sem e-mail");
   }
 
   // ── Create appointment ────────────────────────────────────────────────────
@@ -375,21 +390,32 @@ export default function CreateAppointmentPage() {
       };
 
       const googleRes = await createCalendarEvent(googlePayload);
-      if (!googleRes?.success) throw new Error(googleRes?.error || "Erro ao criar agendamento no Google");
+      if (!googleRes?.success)
+        throw new Error(
+          googleRes?.error || "Erro ao criar agendamento no Google",
+        );
 
       const supabasePayload: Omit<Appointment, "id" | "created_at"> = {
         clientId: formData.clientId,
         professionalId: formData.professionalId,
         startTime: new Date(formData.startTime).toISOString(),
-        endTime: formData.endTime ? new Date(formData.endTime).toISOString() : new Date(new Date(formData.startTime).getTime() + (sv.duration || 30) * 60000).toISOString(),
+        endTime: formData.endTime
+          ? new Date(formData.endTime).toISOString()
+          : new Date(
+              new Date(formData.startTime).getTime() +
+                (sv.duration || 30) * 60000,
+            ).toISOString(),
         status: AppointmentStatus.SCHEDULED,
         notes: formData.notes,
-        serviceVariants: [{ serviceVariantId: formData.serviceVariantId, quantity: 1 }],
+        serviceVariants: [
+          { serviceVariantId: formData.serviceVariantId, quantity: 1 },
+        ],
         totalPrice: sv.price,
       };
 
       const supabaseRes = await addAppointment(supabasePayload);
-      if (!supabaseRes) throw new Error("Erro ao registrar agendamento no banco de dados.");
+      if (!supabaseRes)
+        throw new Error("Erro ao registrar agendamento no banco de dados.");
 
       toast({
         title: "Agendamento criado!",
@@ -398,8 +424,15 @@ export default function CreateAppointmentPage() {
       setFormOpen(false);
       setFormData(initialFormState);
     } catch (e: unknown) {
-      const errorMessage = e instanceof Error ? e.message : "Ocorreu um erro ao salvar o agendamento.";
-      toast({ variant: "destructive", title: "Falha ao criar", description: errorMessage });
+      const errorMessage =
+        e instanceof Error
+          ? e.message
+          : "Ocorreu um erro ao salvar o agendamento.";
+      toast({
+        variant: "destructive",
+        title: "Falha ao criar",
+        description: errorMessage,
+      });
     } finally {
       setSaving(false);
     }
@@ -409,29 +442,43 @@ export default function CreateAppointmentPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-2">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-muted-foreground animate-pulse">Carregando dados...</p>
+        <p className="text-muted-foreground animate-pulse">
+          Carregando dados...
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-4">
-      <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Agendamentos</h1>
-        <p className="text-muted-foreground max-w-md mx-auto">
-          Crie um novo agendamento ou visualize os agendamentos existentes.
+    <div className="flex flex-col items-center justify-center min-h-screen gap-8 p-6 bg-gradient-to-b from-background to-muted/20">
+      <div className="text-center space-y-4 max-w-2xl px-4">
+        <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-primary">
+          Agendamentos
+        </h1>
+        <p className="text-lg sm:text-xl text-muted-foreground">
+          Crie um novo agendamento ou visualize os agendamentos existentes no
+          Spaço Bellas.
         </p>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
-        <Button size="lg" onClick={() => setFormOpen(true)} className="flex-1 h-12 text-base shadow-lg">
-          <CalendarPlus className="mr-2 h-5 w-5" />
-          Criar Agendamento
+      <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md px-4">
+        <Button
+          size="lg"
+          onClick={() => setFormOpen(true)}
+          className="w-full sm:flex-1 h-16 text-lg font-semibold shadow-xl hover:scale-105 transition-transform"
+        >
+          <CalendarPlus className="mr-3 h-6 w-6" />
+          Novo Agendamento
         </Button>
 
-        <Button size="lg" variant="outline" onClick={() => setViewChoiceOpen(true)} className="flex-1 h-12 text-base">
-          <CalendarSearch className="mr-2 h-5 w-5" />
-          Ver Agendamentos
+        <Button
+          size="lg"
+          variant="outline"
+          onClick={() => setViewChoiceOpen(true)}
+          className="w-full sm:flex-1 h-16 text-lg font-semibold shadow-md hover:bg-muted transition-colors"
+        >
+          <CalendarSearch className="mr-3 h-6 w-6" />
+          Ver Agenda
         </Button>
       </div>
 
@@ -440,21 +487,35 @@ export default function CreateAppointmentPage() {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Visualizar agendamentos</DialogTitle>
-            <DialogDescription>Escolha quais agendamentos você deseja ver.</DialogDescription>
+            <DialogDescription>
+              Escolha quais agendamentos você deseja ver.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 py-2">
-            <button type="button" onClick={handleChooseAll} className="flex items-center gap-3 rounded-md border p-4 text-left hover:bg-muted transition">
+            <button
+              type="button"
+              onClick={handleChooseAll}
+              className="flex items-center gap-3 rounded-md border p-4 text-left hover:bg-muted transition"
+            >
               <Users className="h-5 w-5 text-primary flex-shrink-0" />
               <div>
                 <div className="font-medium">Todos os agendamentos</div>
-                <div className="text-sm text-muted-foreground">Visualizar a agenda completa</div>
+                <div className="text-sm text-muted-foreground">
+                  Visualizar a agenda completa
+                </div>
               </div>
             </button>
-            <button type="button" onClick={handleChooseOwn} className="flex items-center gap-3 rounded-md border p-4 text-left hover:bg-muted transition">
+            <button
+              type="button"
+              onClick={handleChooseOwn}
+              className="flex items-center gap-3 rounded-md border p-4 text-left hover:bg-muted transition"
+            >
               <User className="h-5 w-5 text-primary flex-shrink-0" />
               <div>
                 <div className="font-medium">Meus agendamentos</div>
-                <div className="text-sm text-muted-foreground">Filtrar por profissional</div>
+                <div className="text-sm text-muted-foreground">
+                  Filtrar por profissional
+                </div>
               </div>
             </button>
           </div>
@@ -462,10 +523,20 @@ export default function CreateAppointmentPage() {
       </Dialog>
 
       {/* Full View Dialog */}
-      <Dialog open={viewOpen} onOpenChange={(open) => { setViewOpen(open); if (!open) setViewEvents([]); }}>
+      <Dialog
+        open={viewOpen}
+        onOpenChange={(open) => {
+          setViewOpen(open);
+          if (!open) setViewEvents([]);
+        }}
+      >
         <DialogContent className="sm:max-w-4xl max-h-[95vh] flex flex-col p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>{viewMode === "all" ? "Todos os Agendamentos" : "Meus Agendamentos"}</DialogTitle>
+            <DialogTitle>
+              {viewMode === "all"
+                ? "Todos os Agendamentos"
+                : "Meus Agendamentos"}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="flex-1 overflow-auto space-y-4 pr-1">
@@ -491,46 +562,88 @@ export default function CreateAppointmentPage() {
                     />
                   )}
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => {
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-10 w-10"
+                      onClick={() => {
                         const d = new Date(currentDate);
                         d.setDate(d.getDate() - 7);
                         setCurrentDate(d);
-                    }}>
+                      }}
+                    >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="sm" className="h-10 flex-1" onClick={() => setCurrentDate(new Date())}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-10 px-4"
+                      onClick={() => setCurrentDate(new Date())}
+                    >
                       Hoje
                     </Button>
-                    <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => {
+
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-10 w-10"
+                        >
+                          <CalendarIcon className="h-4 w-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={currentDate}
+                          onSelect={(date) => date && setCurrentDate(date)}
+                          locale={ptBR}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-10 w-10"
+                      onClick={() => {
                         const d = new Date(currentDate);
                         d.setDate(d.getDate() + 7);
                         setCurrentDate(d);
-                    }}>
+                      }}
+                    >
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
                 <div className="mt-4 text-center text-lg font-semibold uppercase">
-                  {currentDate.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
+                  {currentDate.toLocaleDateString("pt-BR", {
+                    month: "long",
+                    year: "numeric",
+                  })}
                 </div>
               </CardContent>
             </Card>
 
             {viewMode === "own" && !filterProfId ? (
-                <p className="text-center text-muted-foreground py-10 text-sm">
-                    Selecione um profissional acima para ver os agendamentos.
-                </p>
+              <p className="text-center text-muted-foreground py-10 text-sm">
+                Selecione um profissional acima para ver os agendamentos.
+              </p>
             ) : (
-                <CalendarView
-                    currentDate={currentDate}
-                    events={filteredEvents}
-                    isLoading={loadingEvents}
-                />
+              <CalendarView
+                currentDate={currentDate}
+                events={filteredEvents}
+                isLoading={loadingEvents}
+              />
             )}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setViewOpen(false)}>Fechar</Button>
+            <Button variant="outline" onClick={() => setViewOpen(false)}>
+              Fechar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -540,46 +653,120 @@ export default function CreateAppointmentPage() {
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Novo agendamento</DialogTitle>
-            <DialogDescription>Preencha os dados abaixo para sincronizar com o Google Calendar.</DialogDescription>
+            <DialogDescription>
+              Preencha os dados abaixo para sincronizar com o Google Calendar.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-sm font-medium">Cliente</label>
-                <CustomCombobox placeholder="Selecione o cliente" items={clientItems} value={formData.clientId} onChange={(v) => setFormData((p) => ({ ...p, clientId: v }))} />
+                <CustomCombobox
+                  placeholder="Selecione o cliente"
+                  items={clientItems}
+                  value={formData.clientId}
+                  onChange={(v) => setFormData((p) => ({ ...p, clientId: v }))}
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium">Serviço</label>
-                <CustomCombobox placeholder="Selecione o serviço" items={serviceItems} value={formData.serviceId} onChange={(v) => setFormData((p) => ({ ...p, serviceId: v, serviceVariantId: "" }))} />
+                <CustomCombobox
+                  placeholder="Selecione o serviço"
+                  items={serviceItems}
+                  value={formData.serviceId}
+                  onChange={(v) =>
+                    setFormData((p) => ({
+                      ...p,
+                      serviceId: v,
+                      serviceVariantId: "",
+                    }))
+                  }
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium">Tipo de Serviço</label>
-                <CustomCombobox placeholder="Selecione o tipo" items={availableVariants} value={formData.serviceVariantId} onChange={(v) => setFormData((p) => ({ ...p, serviceVariantId: v }))} disabled={!formData.serviceId || availableVariants.length === 0} emptyText={formData.serviceId ? "Nenhum tipo encontrado" : "Selecione um serviço primeiro"} />
+                <CustomCombobox
+                  placeholder="Selecione o tipo"
+                  items={availableVariants}
+                  value={formData.serviceVariantId}
+                  onChange={(v) =>
+                    setFormData((p) => ({ ...p, serviceVariantId: v }))
+                  }
+                  disabled={
+                    !formData.serviceId || availableVariants.length === 0
+                  }
+                  emptyText={
+                    formData.serviceId
+                      ? "Nenhum tipo encontrado"
+                      : "Selecione um serviço primeiro"
+                  }
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium">Profissional</label>
-                <CustomCombobox placeholder="Selecione a profissional" items={professionalItems} value={formData.professionalId} onChange={(v) => setFormData((p) => ({ ...p, professionalId: v }))} />
+                <CustomCombobox
+                  placeholder="Selecione a profissional"
+                  items={professionalItems}
+                  value={formData.professionalId}
+                  onChange={(v) =>
+                    setFormData((p) => ({ ...p, professionalId: v }))
+                  }
+                />
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-sm font-medium">Data/Hora Início</label>
-                <Input type="datetime-local" value={formData.startTime} onChange={(e) => setFormData((p) => ({ ...p, startTime: e.target.value }))} />
+                <Input
+                  type="datetime-local"
+                  value={formData.startTime}
+                  onChange={(e) =>
+                    setFormData((p) => ({ ...p, startTime: e.target.value }))
+                  }
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium">Data/Hora Término</label>
-                <Input type="datetime-local" value={formData.endTime} onChange={(e) => setFormData((p) => ({ ...p, endTime: e.target.value }))} />
+                <Input
+                  type="datetime-local"
+                  value={formData.endTime}
+                  onChange={(e) =>
+                    setFormData((p) => ({ ...p, endTime: e.target.value }))
+                  }
+                />
               </div>
             </div>
             <div className="space-y-1">
               <label className="text-sm font-medium">Observações</label>
-              <Input value={formData.notes} onChange={(e) => setFormData((p) => ({ ...p, notes: e.target.value }))} placeholder="Notas internas (opcional)" />
+              <Input
+                value={formData.notes}
+                onChange={(e) =>
+                  setFormData((p) => ({ ...p, notes: e.target.value }))
+                }
+                placeholder="Notas internas (opcional)"
+              />
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setFormOpen(false)} disabled={saving}>Cancelar</Button>
+            <Button
+              variant="outline"
+              onClick={() => setFormOpen(false)}
+              disabled={saving}
+            >
+              Cancelar
+            </Button>
             <Button onClick={onSave} disabled={saving}>
-              {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : <><Plus className="mr-2 h-4 w-4" />Criar Agendamento</>}
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Criar Agendamento
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

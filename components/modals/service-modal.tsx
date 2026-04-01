@@ -106,7 +106,6 @@ export function ServiceModal({
       field === "commissionPct"
     ) {
       const numValue = Number(value);
-      // @ts-expect-error - value is dynamically handled
       variant[field] = Number.isNaN(numValue) ? 0 : numValue;
     } else {
       // @ts-expect-error - value is dynamically handled
@@ -172,17 +171,7 @@ export function ServiceModal({
       if (mode === "create") {
         const result = await addService(serviceData as unknown as Service);
         if (result) {
-          toast({
-            title: "Serviço criado",
-            description: "O serviço e seus tipos foram criados com sucesso.",
-          });
           onOpenChange(false);
-        } else {
-          toast({
-            title: "Erro ao criar serviço",
-            description: "Não foi possível criar o serviço.",
-            variant: "destructive",
-          });
         }
       } else if (mode === "edit" && service) {
         const result = await updateService(
@@ -190,27 +179,11 @@ export function ServiceModal({
           serviceData as unknown as Service,
         );
         if (result) {
-          toast({
-            title: "Serviço atualizado",
-            description:
-              "As informações do serviço e seus tipos foram atualizadas.",
-          });
           onOpenChange(false);
-        } else {
-          toast({
-            title: "Erro ao atualizar serviço",
-            description: "Não foi possível atualizar o serviço.",
-            variant: "destructive",
-          });
         }
       }
     } catch (error) {
       console.error("Error submitting service:", error);
-      toast({
-        title: "Erro",
-        description: "Ocorreu um erro ao processar a solicitação.",
-        variant: "destructive",
-      });
     } finally {
       setIsLoading(false);
     }

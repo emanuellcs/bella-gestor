@@ -8,6 +8,7 @@ import type { Sale, Payment } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { PaymentStatus, SaleStatus } from "@/types";
 import { useData } from "@/lib/data-context";
+import { PageHeader } from "@/components/layout/page-header";
 
 import {
   Select,
@@ -642,13 +643,10 @@ export default function FinanceiroPage() {
 
   return (
     <div className="space-y-4 p-4">
-      {/* Title */}
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Financeiro</h1>
-        <p className="text-sm text-muted-foreground">
-          Vendas, pagamentos e links de checkout
-        </p>
-      </div>
+      <PageHeader
+        title="Financeiro"
+        description="Vendas, pagamentos e links de checkout"
+      />
 
       {/* Filters and actions (mobile-first, responsive) */}
       <Card>
@@ -711,7 +709,7 @@ export default function FinanceiroPage() {
             />
 
             {/* Quick actions */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <Button
                 variant="outline"
                 className="h-10 w-full"
@@ -1209,7 +1207,7 @@ export default function FinanceiroPage() {
             </div>
 
             {/* Client and Email */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="customerName" className="mb-2">
                   Cliente (opcional)
@@ -1297,7 +1295,7 @@ export default function FinanceiroPage() {
             </div>
 
             {/* Rua e Bairro (NOVA LINHA) */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="addressStreet" className="mb-2">
                   Rua (opcional)
@@ -1694,7 +1692,7 @@ export default function FinanceiroPage() {
 
           {selectedPayment ? (
             <div className="space-y-4 text-sm">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div className="rounded-md border p-3">
                   <div className="text-muted-foreground">ID Pagamento</div>
                   <div className="font-medium">{selectedPayment.id}</div>

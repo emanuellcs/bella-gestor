@@ -2,18 +2,37 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
-import { listCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from "@/services/googleCalendarAppsScript";
+import {
+  listCalendarEvents,
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+} from "@/services/googleCalendarAppsScript";
 import { useData } from "@/lib/data-context";
-import type { Appointment } from "@/types";
+import type { Appointment, Professional } from "@/types";
 import { AppointmentStatus } from "@/types";
 
+import { PageHeader } from "@/components/layout/page-header";
 import { CalendarView } from "@/components/features/agenda/calendar-view";
 import { AppointmentFormModal } from "@/components/features/agenda/appointment-form-modal";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Search,
+  Calendar as CalendarIcon,
+} from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ptBR } from "date-fns/locale";
 
 interface GoogleCalendarEvent {
   id: string;
@@ -21,6 +40,14 @@ interface GoogleCalendarEvent {
   description?: string;
   start: { dateTime: string };
   end: { dateTime: string };
+  attendees?: Array<{ email: string }>;
+}
+
+function professionalDisplay(p: Professional) {
+  const name = p.name ?? (p as { fullName?: string }).fullName;
+  return name && p.functionTitle
+    ? `${name} (${p.functionTitle})`
+    : (p.email ?? "Sem e-mail");
 }
 
 export default function AgendaPage() {
@@ -30,6 +57,7 @@ export default function AgendaPage() {
     professionals,
     isLoading: dataLoading,
     refreshData,
+    addAppointment,
   } = useData();
   const [appointments, setAppointments] = useState<GoogleCalendarEvent[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
@@ -41,6 +69,7 @@ export default function AgendaPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterClientId, setFilterClientId] = useState("");
   const [filterServiceId, setFilterServiceId] = useState("");
+  const [filterProfessionalId, setFilterProfessionalId] = useState("");
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -61,9 +90,15 @@ export default function AgendaPage() {
       const end = new Date(start);
       end.setDate(end.getDate() + 7);
 
+      const professional = professionals.find(
+        (p) => p.id === filterProfessionalId,
+      );
+      const query = professional?.email ? professional.email : undefined;
+
       const resp = await listCalendarEvents(
         start.toISOString(),
         end.toISOString(),
+        query,
       );
       if (resp?.success) {
         setAppointments(resp.events || []);
@@ -75,7 +110,7 @@ export default function AgendaPage() {
     } finally {
       setIsLoadingEvents(false);
     }
-  }, [currentDate]);
+  }, [currentDate, filterProfessionalId, professionals]);
 
   useEffect(() => {
     fetchEvents();
@@ -101,15 +136,30 @@ export default function AgendaPage() {
       const matchService =
         !filterServiceId || desc.includes(`serviço: ${serviceName}`);
 
-      return matchSearch && matchClient && matchService;
+      const professional = professionals.find(
+        (p) => p.id === filterProfessionalId,
+      );
+      const matchProfessional =
+        !filterProfessionalId ||
+        (professional &&
+          ((ev.attendees || []).some(
+            (a) => a.email.toLowerCase() === professional.email?.toLowerCase(),
+          ) ||
+            desc.includes(
+              `profissional: ${professional.name?.toLowerCase()}`,
+            )));
+
+      return matchSearch && matchClient && matchService && matchProfessional;
     });
   }, [
     appointments,
     searchQuery,
     filterClientId,
     filterServiceId,
+    filterProfessionalId,
     clients,
     services,
+    professionals,
   ]);
 
   const handleSave = async (values: {
@@ -174,7 +224,9 @@ export default function AgendaPage() {
             ],
             totalPrice: variant?.price || 0,
           };
-          await addAppointment(supabasePayload);
+          if (addAppointment) {
+            await addAppointment(supabasePayload);
+          }
         }
       }
 
@@ -211,16 +263,14 @@ export default function AgendaPage() {
 
   return (
     <div className="space-y-4 p-4">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Agenda</h1>
-        <p className="text-sm text-muted-foreground">
-          Gerencie seus agendamentos sincronizados com Google Calendar
-        </p>
-      </div>
+      <PageHeader
+        title="Agenda"
+        description="Gerencie seus agendamentos sincronizados com Google Calendar"
+      />
 
       <Card>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
             <div className="relative sm:col-span-2">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -242,12 +292,22 @@ export default function AgendaPage() {
               value={filterServiceId}
               onChange={setFilterServiceId}
             />
+            <Combobox
+              placeholder="Filtrar Profissional"
+              items={professionals.map((p) => ({
+                value: p.id,
+                label: professionalDisplay(p),
+              }))}
+              value={filterProfessionalId}
+              onChange={setFilterProfessionalId}
+            />
             <Button
               variant="outline"
               onClick={() => {
                 setSearchQuery("");
                 setFilterClientId("");
                 setFilterServiceId("");
+                setFilterProfessionalId("");
               }}
             >
               Limpar Filtros
@@ -274,11 +334,29 @@ export default function AgendaPage() {
             <Button
               variant="outline"
               size="sm"
-              className="h-9"
+              className="h-9 px-3"
               onClick={() => setCurrentDate(new Date())}
             >
               Hoje
             </Button>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="icon" className="h-9 w-9">
+                  <CalendarIcon className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={currentDate}
+                  onSelect={(date) => date && setCurrentDate(date)}
+                  locale={ptBR}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+
             <Button
               variant="outline"
               size="icon"

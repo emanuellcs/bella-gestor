@@ -46,7 +46,13 @@ export function AppointmentModal({
   defaultDate,
   defaultTime,
 }: AppointmentModalProps) {
-  const { clients, services, professionals, addAppointment, updateAppointment } = useData();
+  const {
+    clients,
+    services,
+    professionals,
+    addAppointment,
+    updateAppointment,
+  } = useData();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(
@@ -90,8 +96,12 @@ export function AppointmentModal({
           professionalId: appointment.professionalId || "",
           serviceId: service?.id || "",
           variantId: variant?.id || "",
-          startTime: appointment.startTime ? appointment.startTime.substring(0, 16) : "",
-          endTime: appointment.endTime ? appointment.endTime.substring(0, 16) : "",
+          startTime: appointment.startTime
+            ? appointment.startTime.substring(0, 16)
+            : "",
+          endTime: appointment.endTime
+            ? appointment.endTime.substring(0, 16)
+            : "",
           status: appointment.status || AppointmentStatus.SCHEDULED,
           notes: appointment.notes || "",
         });
@@ -121,7 +131,12 @@ export function AppointmentModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.clientId || !formData.professionalId || !selectedVariantId || !formData.startTime) {
+    if (
+      !formData.clientId ||
+      !formData.professionalId ||
+      !selectedVariantId ||
+      !formData.startTime
+    ) {
       toast({
         title: "Campos obrigatórios",
         description: "Por favor, preencha todos os campos obrigatórios.",
@@ -133,13 +148,20 @@ export function AppointmentModal({
     setIsLoading(true);
     try {
       const selectedService = services.find((s) => s.id === selectedServiceId);
-      const selectedVariant = selectedService?.variants?.find((v) => v.id === selectedVariantId);
+      const selectedVariant = selectedService?.variants?.find(
+        (v) => v.id === selectedVariantId,
+      );
 
       const appointmentPayload: Omit<Appointment, "id" | "created_at"> = {
         clientId: formData.clientId,
         professionalId: formData.professionalId,
         startTime: new Date(formData.startTime).toISOString(),
-        endTime: formData.endTime ? new Date(formData.endTime).toISOString() : new Date(new Date(formData.startTime).getTime() + (selectedVariant?.duration || 30) * 60000).toISOString(),
+        endTime: formData.endTime
+          ? new Date(formData.endTime).toISOString()
+          : new Date(
+              new Date(formData.startTime).getTime() +
+                (selectedVariant?.duration || 30) * 60000,
+            ).toISOString(),
         status: formData.status,
         notes: formData.notes,
         serviceVariants: [
@@ -151,12 +173,16 @@ export function AppointmentModal({
         totalPrice: selectedVariant?.price || 0,
       };
 
+      let result;
       if (mode === "create") {
-        await addAppointment(appointmentPayload);
+        result = await addAppointment(appointmentPayload);
       } else if (mode === "edit" && appointment) {
-        await updateAppointment(appointment.id, appointmentPayload);
+        result = await updateAppointment(appointment.id, appointmentPayload);
       }
-      onOpenChange(false);
+
+      if (result) {
+        onOpenChange(false);
+      }
     } catch (error) {
       console.error("Error saving appointment:", error);
       toast({

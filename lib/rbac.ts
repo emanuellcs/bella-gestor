@@ -21,7 +21,7 @@ export const ROUTE_PERMISSIONS: Record<string, AppRole[]> = {
  * Wait, the user said Secretary is blocked from /dashboard too?
  * "Secretary: MUST BE BLOCKED FROM: /financeiro, /relatorios, /dashboard, and /configuracoes."
  * Okay, updating ROUTE_PERMISSIONS.
- * 
+ *
  * Professional: ALLOWED ONLY: /agenda and viewing client details.
  * MUST BE BLOCKED FROM: /fazer-agendamento, /financeiro, /relatorios, /dashboard, /profissionais, /servicos, /configuracoes.
  */
@@ -42,11 +42,16 @@ export const ROUTE_PERMISSIONS_STRICT: Record<string, AppRole[]> = {
  * Returns true if the given role is allowed to visit the route segment.
  * Route segment should be the folder name, e.g. "financeiro", "agenda".
  */
-export function canAccessRoute(role: AppRole | undefined, routeSegment: string): boolean {
+export function canAccessRoute(
+  role: AppRole | undefined,
+  routeSegment: string,
+): boolean {
   if (!role) return false;
-  
+
   // Normalize route segment (remove leading slash if any)
-  const segment = routeSegment.startsWith("/") ? routeSegment.substring(1) : routeSegment;
+  const segment = routeSegment.startsWith("/")
+    ? routeSegment.substring(1)
+    : routeSegment;
   const baseSegment = segment.split("/")[0];
 
   const allowed = ROUTE_PERMISSIONS_STRICT[baseSegment];

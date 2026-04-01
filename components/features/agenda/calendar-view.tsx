@@ -198,7 +198,9 @@ export function CalendarView({
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
                                     {onEdit && (
-                                      <DropdownMenuItem onClick={() => onEdit(ev)}>
+                                      <DropdownMenuItem
+                                        onClick={() => onEdit(ev)}
+                                      >
                                         <Edit className="h-4 w-4 mr-2" />
                                         Editar
                                       </DropdownMenuItem>

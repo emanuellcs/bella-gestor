@@ -48,6 +48,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { PageHeader } from "@/components/layout/page-header";
 import { useData } from "@/lib/data-context";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { MultiBackend } from "react-dnd-multi-backend";
@@ -312,24 +313,22 @@ export default function SettingsPage() {
   return (
     <DndProvider backend={MultiBackend} options={HTML5toTouch}>
       <div className="p-6 space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Configurações</h1>
-            <p className="text-muted-foreground">
-              Ajuste as preferências globais do sistema
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => refreshData()}
-            disabled={isLoading}
-          >
-            <RefreshCw
-              className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
-            />
-          </Button>
-        </div>
+        <PageHeader
+          title="Configurações"
+          description="Ajuste as preferências globais do sistema"
+          actions={
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => refreshData()}
+              disabled={isLoading}
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+              />
+            </Button>
+          }
+        />
 
         <Tabs
           value={activeTab}

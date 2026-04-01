@@ -26,10 +26,12 @@ export default function ConfiguracoesLayout({
     }
   }, [isAuthenticated, user, router]);
 
-  if (!isAuthenticated || (user && !canAccessRoute(user.role, "configuracoes"))) {
+  if (
+    !isAuthenticated ||
+    (user && !canAccessRoute(user.role, "configuracoes"))
+  ) {
     return null;
   }
 
   return <AppShell>{children}</AppShell>;
 }
-

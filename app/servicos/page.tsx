@@ -47,6 +47,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ServiceModal } from "@/components/modals/service-modal";
+import { PageHeader } from "@/components/layout/page-header";
 import type { Service, ServiceVariant } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { useData } from "@/lib/data-context";
@@ -142,30 +143,28 @@ export default function ServicesPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Serviços</h1>
-          <p className="text-muted-foreground">
-            Gerencie os serviços oferecidos
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => refreshData()}
-            disabled={isLoading}
-          >
-            <RefreshCw
-              className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
-            />
-          </Button>
-          <Button onClick={handleNewService} size="default">
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Serviço
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Serviços"
+        description="Gerencie os serviços oferecidos"
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => refreshData()}
+              disabled={isLoading}
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+              />
+            </Button>
+            <Button onClick={handleNewService} size="default">
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Serviço
+            </Button>
+          </>
+        }
+      />
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">

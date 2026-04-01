@@ -225,19 +225,11 @@ export function ClientModal({
       if (mode === "create") {
         const result = await addClient(dataToSubmit);
         if (result) {
-          toast({
-            title: "Cliente criado",
-            description: "O cliente foi criado com sucesso.",
-          });
           onOpenChange(false);
         }
       } else if (mode === "edit" && client) {
         const result = await updateClient(client.id, dataToSubmit);
         if (result) {
-          toast({
-            title: "Cliente atualizado",
-            description: "Os dados do cliente foram atualizados com sucesso.",
-          });
           onOpenChange(false);
         }
       }
