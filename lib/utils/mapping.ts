@@ -152,22 +152,38 @@ export function supabaseSaleToSale(
       variant?:
         | {
             variant_name: string;
+            services?: { name: string } | { name: string }[];
             service?: { name: string } | { name: string }[];
           }
         | {
             variant_name: string;
+            services?: { name: string } | { name: string }[];
             service?: { name: string } | { name: string }[];
           }[];
     })[];
     items?: (SupabaseSaleItem & {
+      professionals?: { full_name: string } | { full_name: string }[];
       professional?: { full_name: string } | { full_name: string }[];
       variant?:
         | {
             variant_name: string;
+            services?: { name: string } | { name: string }[];
             service?: { name: string } | { name: string }[];
           }
         | {
             variant_name: string;
+            services?: { name: string } | { name: string }[];
+            service?: { name: string } | { name: string }[];
+          }[];
+      service_variants?:
+        | {
+            variant_name: string;
+            services?: { name: string } | { name: string }[];
+            service?: { name: string } | { name: string }[];
+          }
+        | {
+            variant_name: string;
+            services?: { name: string } | { name: string }[];
             service?: { name: string } | { name: string }[];
           }[];
     })[];
@@ -250,10 +266,47 @@ export function supabasePaymentToPayment(
               | {
                   variant_name: string;
                   service?: { name: string } | { name: string }[];
+                  services?: { name: string } | { name: string }[];
                 }
               | {
                   variant_name: string;
                   service?: { name: string } | { name: string }[];
+                  services?: { name: string } | { name: string }[];
+                }[];
+            service_variants?:
+              | {
+                  variant_name: string;
+                  service?: { name: string } | { name: string }[];
+                  services?: { name: string } | { name: string }[];
+                }
+              | {
+                  variant_name: string;
+                  service?: { name: string } | { name: string }[];
+                  services?: { name: string } | { name: string }[];
+                }[];
+          })[];
+          sale_items?: (SupabaseSaleItem & {
+            variant?:
+              | {
+                  variant_name: string;
+                  service?: { name: string } | { name: string }[];
+                  services?: { name: string } | { name: string }[];
+                }
+              | {
+                  variant_name: string;
+                  service?: { name: string } | { name: string }[];
+                  services?: { name: string } | { name: string }[];
+                }[];
+            service_variants?:
+              | {
+                  variant_name: string;
+                  service?: { name: string } | { name: string }[];
+                  services?: { name: string } | { name: string }[];
+                }
+              | {
+                  variant_name: string;
+                  service?: { name: string } | { name: string }[];
+                  services?: { name: string } | { name: string }[];
                 }[];
           })[];
         })
@@ -265,10 +318,47 @@ export function supabasePaymentToPayment(
               | {
                   variant_name: string;
                   service?: { name: string } | { name: string }[];
+                  services?: { name: string } | { name: string }[];
                 }
               | {
                   variant_name: string;
                   service?: { name: string } | { name: string }[];
+                  services?: { name: string } | { name: string }[];
+                }[];
+            service_variants?:
+              | {
+                  variant_name: string;
+                  service?: { name: string } | { name: string }[];
+                  services?: { name: string } | { name: string }[];
+                }
+              | {
+                  variant_name: string;
+                  service?: { name: string } | { name: string }[];
+                  services?: { name: string } | { name: string }[];
+                }[];
+          })[];
+          sale_items?: (SupabaseSaleItem & {
+            variant?:
+              | {
+                  variant_name: string;
+                  service?: { name: string } | { name: string }[];
+                  services?: { name: string } | { name: string }[];
+                }
+              | {
+                  variant_name: string;
+                  service?: { name: string } | { name: string }[];
+                  services?: { name: string } | { name: string }[];
+                }[];
+            service_variants?:
+              | {
+                  variant_name: string;
+                  service?: { name: string } | { name: string }[];
+                  services?: { name: string } | { name: string }[];
+                }
+              | {
+                  variant_name: string;
+                  service?: { name: string } | { name: string }[];
+                  services?: { name: string } | { name: string }[];
                 }[];
           })[];
         })[];

@@ -4,12 +4,10 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import {
   listCalendarEvents,
-  createCalendarEvent,
-  updateCalendarEvent,
   deleteCalendarEvent,
 } from "@/services/googleCalendarAppsScript";
 import { useData } from "@/lib/data-context";
-import type { Appointment, Professional, Sale } from "@/types";
+import type { Sale, Payment } from "@/types";
 import { AppointmentStatus } from "@/types";
 
 import { PageHeader } from "@/components/layout/page-header";
@@ -35,6 +33,17 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ptBR } from "date-fns/locale";
+
+type AppointmentFormValues = {
+  clientId: string;
+  serviceId: string;
+  serviceVariantId: string;
+  professionalId: string;
+  startTime: string;
+  endTime: string;
+  status: AppointmentStatus;
+  notes?: string;
+};
 
 interface GoogleCalendarEvent {
   id: string;
@@ -64,8 +73,6 @@ export default function AgendaPage() {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterClientId, setFilterClientId] = useState("");
-  const [filterServiceId, setFilterServiceId] = useState("");
   const [filterProfessionalId, setFilterProfessionalId] = useState("");
 
   // Modal States
@@ -167,12 +174,6 @@ export default function AgendaPage() {
 
       const matchSearch = !q || summary.includes(q) || desc.includes(q);
 
-      const clientName = clients.find((c) => c.id === filterClientId)?.name?.toLowerCase();
-      const matchClient = !filterClientId || desc.includes(`cliente: ${clientName}`);
-
-      const serviceName = services.find((s) => s.id === filterServiceId)?.name?.toLowerCase();
-      const matchService = !filterServiceId || desc.includes(`serviço: ${serviceName}`);
-
       const professional = professionals.find((p) => p.id === filterProfessionalId);
       const matchProfessional =
         !filterProfessionalId ||
@@ -182,11 +183,12 @@ export default function AgendaPage() {
           ) ||
             desc.includes(`profissional: ${professional.name?.toLowerCase()}`)));
 
-      return matchSearch && matchClient && matchService && matchProfessional;
+      return matchSearch && matchProfessional;
     });
-  }, [appointments, searchQuery, filterClientId, filterServiceId, filterProfessionalId, clients, services, professionals]);
+  }, [appointments, searchQuery, filterProfessionalId, professionals]);
 
-  const handleSave = async (values: any) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleSave = async (_: AppointmentFormValues) => {
     // Existing logic...
     await refreshData();
     fetchEvents();
@@ -219,12 +221,12 @@ export default function AgendaPage() {
             <div className="flex flex-wrap items-center gap-2">
               <Combobox
                 placeholder="Profissional"
-                options={professionals.map((p) => ({
+                items={professionals.map((p) => ({
                   label: p.name || p.email || "",
                   value: p.id,
                 }))}
                 value={filterProfessionalId}
-                onSelect={setFilterProfessionalId}
+                onChange={setFilterProfessionalId}
               />
               <Popover>
                 <PopoverTrigger asChild>
@@ -316,8 +318,8 @@ export default function AgendaPage() {
           clientName={checkoutSale.clientName || "Cliente"}
           totalAmount={Number(checkoutSale.totalAmount)}
           alreadyPaidAmount={(checkoutSale.payments || [])
-            .filter((p: any) => p.status === "paid")
-            .reduce((acc: number, p: any) => acc + Number(p.amount), 0)}
+            .filter((p: Payment) => p.status === "paid")
+            .reduce((acc: number, p: Payment) => acc + Number(p.amount), 0)}
           onSuccess={(isFullyPaid) => {
             refreshData();
             if (isFullyPaid) setCheckoutSale(null);

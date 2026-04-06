@@ -31,9 +31,7 @@ export async function GET(req: NextRequest) {
   while (true) {
     const { data, error } = await supabase
       .from("services")
-      .select(
-        "id,name,description,category,is_active,created_at,updated_at,service_variants(*)",
-      )
+      .select("*, service_variants(*)")
       .eq("is_active", true)
       .order("created_at", { ascending: false })
       .range(from, from + PAGE_SIZE - 1);

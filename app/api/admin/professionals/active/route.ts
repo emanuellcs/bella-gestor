@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
   while (true) {
     const { data, error } = await supabase
       .from("professionals")
-      .select("user_id,role,email,full_name,function_title")
+      .select("*")
       .eq("role", AppRole.PROFESSIONAL)
       .order("created_at", { ascending: false })
       .range(from, from + PAGE_SIZE - 1);

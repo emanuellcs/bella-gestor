@@ -86,6 +86,7 @@ export interface SupabaseSale {
   created_at: string;
   updated_at: string | null;
   created_by: string | null;
+  professional_id: string | null;
 }
 
 export interface SupabaseSaleItem {

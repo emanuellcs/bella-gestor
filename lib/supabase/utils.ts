@@ -7,7 +7,7 @@ export async function fetchAll<T>(
   queryBuilder: (range: {
     from: number;
     to: number;
-  }) => Promise<PostgrestResponse<T>>,
+  }) => PromiseLike<PostgrestResponse<T>>,
   pageSize = 1000,
 ): Promise<T[]> {
   const allData: T[] = [];

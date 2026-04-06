@@ -2,10 +2,8 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useMemo, useState } from "react";
-import { Combobox } from "@/components/ui/combobox";
-import type { Sale, Payment } from "@/types";
-import { useToast } from "@/hooks/use-toast";
+import { useMemo, useState } from "react";
+import type { Sale } from "@/types";
 import { PaymentStatus, SaleStatus } from "@/types";
 import { useData } from "@/lib/data-context";
 import { PageHeader } from "@/components/layout/page-header";
@@ -18,77 +16,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { zonedNowForInput } from "@/lib/utils";
-import {
-  formatBrazilianPhone,
-  formatCEP,
-  formatPhoneForInfinitePay,
-  unformatCEP,
-} from "@/lib/utils";
-import * as XLSX from "xlsx";
 
 // shadcn/ui
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // icons
 import {
   Search,
-  Filter,
   RefreshCw,
-  MoreHorizontal,
-  Link as LinkIcon,
   CreditCard,
-  CheckCircle2,
-  XCircle,
-  Receipt,
-  Download,
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-  Trash2,
 } from "lucide-react";
 
 // Form types
-type LinkForm = {
-  amount: number;
-  customerName?: string;
-  customerEmail?: string;
-  customerPhone?: string;
-  addressCep?: string;
-  addressStreet?: string;
-  addressNumber?: string;
-  addressNeighborhood?: string;
-  addressComplement?: string;
-};
-
-type PaymentForm = {
-  amount: number;
-  paymentMethod?: string;
-  externalTransactionId?: string;
-  paidAt?: string;
-  professionalId?: string;
-};
-
 type DateRange = {
   start?: string; // yyyy-MM-dd
   end?: string; // yyyy-MM-dd
@@ -109,69 +51,24 @@ function withinRange(iso: string, range: DateRange) {
 }
 
 export default function FinanceiroPage() {
-  const { toast } = useToast();
   const {
     sales,
-    payments,
-    clients,
-    services,
-    serviceVariants: variants,
-    professionals,
-    isLoading: loading,
     refreshData: refreshAll,
-    createSale,
-    createPayment,
-    updateSaleStatus,
-    cancelPayment,
-    appOptions,
   } = useData();
-
-  const paymentMethods = useMemo(
-    () =>
-      (appOptions || []).filter(
-        (o) => o.optionType === "payment_method" && o.isActive,
-      ),
-    [appOptions],
-  );
 
   // Filters
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"" | SaleStatus>("");
-  const [dateRange, setDateRange] = useState<DateRange>({});
+  const [dateRange] = useState<DateRange>({});
 
   // Pagination
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [page] = useState(1);
+  const [pageSize] = useState(10);
 
   // Sections (sales | payments)
   const [activeTab, setActiveTab] = useState<"sales" | "payments">("sales");
 
-  // Selections
-  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
-  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
-
-  // Modals
-  const [choiceOpen, setChoiceOpen] = useState(false);
-  const [linkOpen, setLinkOpen] = useState(false);
-  const [payOpen, setPayOpen] = useState(false);
-  const [saleDetailsOpen, setSaleDetailsOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState<null | {
-    sale: Sale;
-    type: "paid" | "cancel";
-  }>(null);
-  const [confirmPaymentCancelOpen, setConfirmPaymentCancelOpen] =
-    useState<Payment | null>(null);
-
   const [posCheckoutSale, setPosCheckoutSale] = useState<Sale | null>(null);
-
-  // Forms
-  const [linkForm, setLinkForm] = useState<LinkForm>({ amount: 0 });
-  const [payForm, setPayForm] = useState<PaymentForm>({
-    amount: 0,
-    paidAt: "",
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   function paidAmount(s: Sale) {
     return (s.payments || [])
@@ -228,20 +125,20 @@ export default function FinanceiroPage() {
                     onChange={(e) => setSearch(e.target.value)}
                   />
                 </div>
-                <Select
-                  value={statusFilter}
-                  onValueChange={(v) => setStatusFilter(v as SaleStatus)}
-                >
-                  <SelectTrigger className="w-full md:w-[180px]">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Todos Status</SelectItem>
-                    <SelectItem value={SaleStatus.PENDING}>Pendente</SelectItem>
-                    <SelectItem value={SaleStatus.PAID}>Pago</SelectItem>
-                    <SelectItem value={SaleStatus.CANCELLED}>Cancelado</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <Select
+                    value={statusFilter || "all"}
+                    onValueChange={(v) => setStatusFilter(v === "all" ? "" : v as SaleStatus)}
+                  >
+                    <SelectTrigger className="w-full md:w-[180px]">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos Status</SelectItem>
+                      <SelectItem value={SaleStatus.PENDING}>Pendente</SelectItem>
+                      <SelectItem value={SaleStatus.PAID}>Pago</SelectItem>
+                      <SelectItem value={SaleStatus.CANCELLED}>Cancelado</SelectItem>
+                    </SelectContent>
+                  </Select>
               </div>
 
               <div className="rounded-md border">
@@ -269,27 +166,9 @@ export default function FinanceiroPage() {
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm" onClick={() => { setSelectedSale(s); setSaleDetailsOpen(true); }}>
-                              <Eye className="h-4 w-4 mr-2" /> Detalhes
+                            <Button variant="outline" size="sm" onClick={() => setPosCheckoutSale(s)} disabled={due <= 0 || s.status === SaleStatus.CANCELLED}>
+                              <CreditCard className="h-4 w-4 mr-2" /> Checkout Rápido (POS)
                             </Button>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm">
-                                  <MoreHorizontal className="h-4 w-4 mr-2" /> Ações
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-56">
-                                <DropdownMenuItem onClick={() => setPosCheckoutSale(s)} disabled={due <= 0 || s.status === SaleStatus.CANCELLED}>
-                                  <CreditCard className="h-4 w-4 mr-2" /> Checkout Rápido (POS)
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => { setSelectedSale(s); setChoiceOpen(true); }}>
-                                  <LinkIcon className="h-4 w-4 mr-2" /> Gerar link de pagamento
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="text-destructive" onClick={() => { setSelectedSale(s); setConfirmOpen({ sale: s, type: 'cancel' }); }} disabled={s.status === SaleStatus.CANCELLED}>
-                                  <XCircle className="h-4 w-4 mr-2" /> Cancelar Venda
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
                           </div>
                         </div>
                       </li>
@@ -320,7 +199,7 @@ export default function FinanceiroPage() {
   );
 }
 
-function Tabs({ active, onChange }: { active: string; onChange: (v: any) => void }) {
+function Tabs({ active, onChange }: { active: "sales" | "payments"; onChange: (v: "sales" | "payments") => void }) {
   return (
     <div className="flex border-b">
       <button onClick={() => onChange("sales")} className={`px-4 py-2 text-sm font-medium border-b-2 transition ${active === "sales" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>

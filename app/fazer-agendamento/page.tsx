@@ -5,7 +5,7 @@ import {
   createCalendarEvent,
   listCalendarEvents,
 } from "@/services/googleCalendarAppsScript";
-import type { Professional, Appointment, Sale } from "@/types";
+import type { Appointment, Sale, Payment } from "@/types";
 import { AppointmentStatus } from "@/types";
 import { useData } from "@/lib/data-context";
 import { Button } from "@/components/ui/button";
@@ -52,6 +52,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { CheckoutModal } from "@/components/modals/checkout-modal";
 import { ptBR } from "date-fns/locale";
+
+interface GoogleCalendarEvent {
+  id: string;
+  summary: string;
+  description?: string;
+  start: { dateTime: string };
+  end: { dateTime: string };
+  attendees?: Array<{ email: string }>;
+}
 
 // ─── Reusable Combobox ────────────────────────────────────────────────────────
 function CustomCombobox({
@@ -285,7 +294,7 @@ export default function CreateAppointmentPage() {
     setViewOpen(true);
   }
 
-  const handleCheckout = async (ev: any) => {
+  const handleCheckout = async (ev: GoogleCalendarEvent) => {
     setIsSearchingSale(true);
     try {
       const parseField = (desc: string | undefined, label: string) => {
@@ -320,7 +329,8 @@ export default function CreateAppointmentPage() {
 
       setCheckoutSale(sale);
     } catch (err) {
-      toast({ variant: "destructive", title: "Erro ao buscar dados financeiros" });
+      const errorMsg = err instanceof Error ? err.message : "Erro desconhecido ao buscar dados financeiros";
+      toast({ variant: "destructive", title: "Erro", description: errorMsg });
     } finally {
       setIsSearchingSale(false);
     }
@@ -683,8 +693,8 @@ export default function CreateAppointmentPage() {
           clientName={checkoutSale.clientName || "Cliente"}
           totalAmount={Number(checkoutSale.totalAmount)}
           alreadyPaidAmount={(checkoutSale.payments || [])
-            .filter((p: any) => p.status === "paid")
-            .reduce((acc: number, p: any) => acc + Number(p.amount), 0)}
+            .filter((p: Payment) => p.status === "paid")
+            .reduce((acc: number, p: Payment) => acc + Number(p.amount), 0)}
           onSuccess={(isFullyPaid) => {
             refreshData();
             if (isFullyPaid) setCheckoutSale(null);

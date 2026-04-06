@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase/client";
 import { fetchAll } from "@/lib/supabase/utils";
 import { supabaseClientToClient } from "@/lib/utils";
 import { parseSupabaseError } from "@/lib/error-handler";
-import { Client } from "@/types";
+import { Client, SupabaseClient } from "@/types";
 
 /**
  * Fetches the count of clients grouped by referral source.
@@ -69,7 +69,7 @@ export async function getClients(
  */
 export async function getActiveClients(): Promise<Client[]> {
   try {
-    const data = await fetchAll(({ from, to }) =>
+    const data = await fetchAll<SupabaseClient & { total_spent?: number }>(({ from, to }) =>
       supabase
         .from("clients")
         .select("*")
@@ -112,7 +112,7 @@ export async function getClientById(id: string): Promise<Client | null> {
  */
 export async function getInactiveClients(): Promise<Client[]> {
   try {
-    const data = await fetchAll(({ from, to }) =>
+    const data = await fetchAll<SupabaseClient & { total_spent?: number }>(({ from, to }) =>
       supabase
         .from("clients")
         .select("*")
@@ -133,7 +133,7 @@ export async function getInactiveClients(): Promise<Client[]> {
 export async function searchClients(query: string): Promise<Client[]> {
   try {
     const q = `%${query}%`;
-    const data = await fetchAll(({ from, to }) =>
+    const data = await fetchAll<SupabaseClient & { total_spent?: number }>(({ from, to }) =>
       supabase
         .from("clients")
         .select("*")
