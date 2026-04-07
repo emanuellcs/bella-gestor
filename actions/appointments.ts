@@ -42,6 +42,28 @@ export async function createAppointmentAction(
       };
     }
 
+    // Sync sale's created_at to appointment's start_time
+    if (data?.id) {
+      try {
+        const appointmentId = parseInt(data.id, 10);
+        const appointmentStartTime = appointment.startTime;
+        
+        await supabase
+          .from("sales")
+          .update({ created_at: appointmentStartTime })
+          .eq("appointment_id", appointmentId);
+        
+        console.log(
+          `Sale created_at synced to appointment start_time: ${appointmentStartTime}`
+        );
+      } catch (syncError) {
+        console.warn(
+          "Failed to sync sale created_at to appointment start_time:",
+          syncError
+        );
+      }
+    }
+
     revalidatePath("/agenda");
     revalidatePath("/financeiro");
 

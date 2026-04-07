@@ -14,6 +14,7 @@ export type NewSale = Omit<
   "id" | "payments" | "created_at" | "updatedAt" | "clientName" | "totalAmount"
 > & {
   totalAmount?: number;
+  createdAt?: string;
 };
 
 /**
@@ -22,6 +23,41 @@ export type NewSale = Omit<
 export async function createSaleAction(sale: NewSale) {
   try {
     const supabase = getSupabaseAdmin();
+
+    // Fetch appointment start time if linked
+    let inheritedCreatedAt = sale.createdAt || new Date().toISOString();
+    if (sale.appointmentId) {
+      try {
+        const appointmentId = parseInt(sale.appointmentId, 10);
+        if (isNaN(appointmentId)) {
+          console.warn(
+            `Invalid appointmentId provided to createSaleAction: ${sale.appointmentId}`
+          );
+        } else {
+          const { data: appt, error: apptErr } = await supabase
+            .from("appointments")
+            .select("start_time")
+            .eq("id", appointmentId)
+            .single();
+
+          if (apptErr) {
+            console.warn(
+              `Failed to fetch appointment ${appointmentId}: ${apptErr.message}`
+            );
+          } else if (appt?.start_time) {
+            inheritedCreatedAt = appt.start_time;
+            console.log(
+              `Sale linked to appointment ${appointmentId}: using start_time ${appt.start_time}`
+            );
+          }
+        }
+      } catch (appointmentFetchError) {
+        console.error(
+          "Error fetching appointment for sale creation:",
+          appointmentFetchError
+        );
+      }
+    }
 
     // Get default commission
     const { data: settingData } = await supabase
@@ -48,6 +84,7 @@ export async function createSaleAction(sale: NewSale) {
           total_amount: computedTotal,
           status: sale.status || "pending",
           notes: sale.notes || null,
+          created_at: inheritedCreatedAt,
         },
       ])
       .select("*")

@@ -26,20 +26,18 @@ import { Separator } from "@/components/ui/separator";
 import {
   formatBrazilianPhone,
   formatCurrency,
-  formatDate,
   formatDateTime,
   cn,
 } from "@/lib/utils";
 
 // shadcn/ui
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -74,13 +72,13 @@ import {
   MoreHorizontal,
   CreditCard,
   Download,
-  ChevronLeft,
-  ChevronRight,
   Eye,
   Trash2,
   Plus,
   Receipt,
-  Filter,
+  CalendarRange,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
 
 type DateRange = {
@@ -91,10 +89,17 @@ type DateRange = {
 function withinRange(iso: string, range: DateRange) {
   if (!range.start && !range.end) return true;
   const d = new Date(iso).getTime();
-  if (range.start && d < new Date(range.start + "T00:00:00").getTime())
-    return false;
-  if (range.end && d > new Date(range.end + "T23:59:59").getTime())
-    return false;
+  
+  if (range.start) {
+    const startVal = new Date(range.start + "T00:00:00").getTime();
+    if (d < startVal) return false;
+  }
+  
+  if (range.end) {
+    const endVal = new Date(range.end + "T23:59:59").getTime();
+    if (d > endVal) return false;
+  }
+  
   return true;
 }
 
@@ -115,11 +120,10 @@ export default function FinanceiroPage() {
   // Filters
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"" | SaleStatus>("");
+  const [showFilters, setShowFilters] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>({
-    start: new Date(new Date().setDate(new Date().getDate() - 30))
-      .toISOString()
-      .split("T")[0],
-    end: new Date().toISOString().split("T")[0],
+    start: "",
+    end: "",
   });
 
   // Pagination
@@ -348,189 +352,343 @@ export default function FinanceiroPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
-      <PageHeader
-        title="Financeiro"
-        description="Controle de vendas e fluxo de caixa."
-        actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => refreshAll()}
-              disabled={isLoading}
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
-              />
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleExport}
-              className="hidden md:flex"
-            >
-              <Download className="h-4 w-4 mr-2" /> Exportar
-            </Button>
-            <Button
-              onClick={() => {
-                addItemRow();
-                setNewSaleOpen(true);
-              }}
-              className="shadow-sm"
-            >
-              <Plus className="h-4 w-4 mr-2" /> Nova Venda
-            </Button>
-          </div>
-        }
-      />
+    <div className="flex flex-col h-screen overflow-hidden bg-muted/5">
+      <div className="p-4 md:p-6 space-y-4 flex-none">
+        <PageHeader
+          title="Financeiro"
+          description="Controle de vendas e fluxo de caixa"
+          actions={
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => refreshAll()}
+                disabled={isLoading}
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+                />
+              </Button>
 
-      <Card className="p-4 shadow-sm border">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por cliente ou ID..."
-              className="pl-9 h-10"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-          <Select
-            value={statusFilter || "all"}
-            onValueChange={(v) => {
-              setStatusFilter(v === "all" ? "" : (v as SaleStatus));
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="h-10">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos Status</SelectItem>
-              <SelectItem value={SaleStatus.PENDING}>Pendente</SelectItem>
-              <SelectItem value={SaleStatus.PAID}>Pago</SelectItem>
-              <SelectItem value={SaleStatus.CANCELLED}>Cancelado</SelectItem>
-            </SelectContent>
-          </Select>
-          <div className="flex items-center gap-2 lg:col-span-2">
-            <div className="flex items-center gap-2 bg-muted/20 border rounded-md px-3 h-10 flex-1">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <Input
-                type="date"
-                className="border-none bg-transparent focus-visible:ring-0 px-1 text-sm h-8"
-                value={dateRange.start}
-                onChange={(e) => {
-                  setDateRange((p) => ({ ...p, start: e.target.value }));
-                  setPage(1);
+              <Button
+                variant={showFilters ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowFilters(!showFilters)}
+                className="h-9 shadow-sm"
+              >
+                <CalendarRange className="h-4 w-4 mr-2" />
+                Filtrar
+              </Button>
+
+              {showFilters && (
+                <div className="flex flex-wrap items-center gap-1 sm:gap-2 animate-in fade-in slide-in-from-right-1">
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground whitespace-nowrap">
+                      De
+                    </Label>
+                    <Input
+                      type="date"
+                      className="h-9 w-24 sm:w-28 md:w-32 text-xs"
+                      value={dateRange.start}
+                      onChange={(e) => {
+                        setDateRange((p) => ({ ...p, start: e.target.value }));
+                        setPage(1);
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground whitespace-nowrap">
+                      Até
+                    </Label>
+                    <Input
+                      type="date"
+                      className="h-9 w-24 sm:w-28 md:w-32 text-xs"
+                      value={dateRange.end}
+                      onChange={(e) => {
+                        setDateRange((p) => ({ ...p, end: e.target.value }));
+                        setPage(1);
+                      }}
+                    />
+                  </div>
+                  {(dateRange.start || dateRange.end) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setDateRange({ start: "", end: "" });
+                        setPage(1);
+                      }}
+                      className="h-9 px-2 text-[10px] font-bold uppercase tracking-widest text-destructive hover:bg-destructive/5 min-h-9"
+                    >
+                      Limpar
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              <Button
+                variant="outline"
+                onClick={handleExport}
+                className="hidden md:flex"
+              >
+                <Download className="h-4 w-4 mr-2" /> Exportar
+              </Button>
+              <Button
+                onClick={() => {
+                  addItemRow();
+                  setNewSaleOpen(true);
                 }}
-              />
-              <span className="text-muted-foreground text-xs font-medium">
-                até
-              </span>
+                className="shadow-sm"
+              >
+                <Plus className="h-4 w-4 mr-2" /> Nova Venda
+              </Button>
+            </div>
+          }
+        />
+
+        <Card className="p-4 shadow-sm border">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="relative lg:col-span-3">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                type="date"
-                className="border-none bg-transparent focus-visible:ring-0 px-1 text-sm h-8"
-                value={dateRange.end}
+                placeholder="Buscar cliente ou ID..."
+                className="pl-9 h-10"
+                value={search}
                 onChange={(e) => {
-                  setDateRange((p) => ({ ...p, end: e.target.value }));
+                  setSearch(e.target.value);
                   setPage(1);
                 }}
               />
             </div>
+            <Select
+              value={statusFilter || "all"}
+              onValueChange={(v) => {
+                setStatusFilter(v === "all" ? "" : (v as SaleStatus));
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="h-10">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos Status</SelectItem>
+                <SelectItem value={SaleStatus.PENDING}>Pendente</SelectItem>
+                <SelectItem value={SaleStatus.PAID}>Pago</SelectItem>
+                <SelectItem value={SaleStatus.CANCELLED}>Cancelado</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        </div>
-      </Card>
+        </Card>
+      </div>
 
-      <Card className="shadow-sm border overflow-hidden">
-        <CardContent className="p-0 min-h-[400px]">
-          {pagedSales.length > 0 ? (
-            <>
-              <Table>
-                <TableHeader className="bg-muted/30">
-                  <TableRow>
-                    <TableHead className="w-[100px]">ID</TableHead>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Serviços</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+      <div className="flex-1 overflow-hidden px-4 md:px-6 pb-4">
+        <div className="rounded-xl border shadow-sm bg-card h-full overflow-hidden flex flex-col">
+          <div className="flex-1 overflow-auto">
+            {pagedSales.length > 0 ? (
+              <>
+                {/* Desktop Table View */}
+                <div className="hidden md:block">
+                  <Table>
+                    <TableHeader className="bg-muted/30 sticky top-0 z-10">
+                      <TableRow>
+                        <TableHead className="w-[100px]">ID</TableHead>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Serviços</TableHead>
+                        <TableHead>Total</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pagedSales.map((s) => {
+                        const due = balance(s);
+                        const isPending = s.status === SaleStatus.PENDING;
+                        return (
+                          <TableRow key={s.id} className="group transition-colors hover:bg-muted/50">
+                            <TableCell className="font-mono text-[10px] font-bold">#{s.id}</TableCell>
+                            <TableCell className="text-muted-foreground whitespace-nowrap text-xs">
+                              {formatDateTime(s.created_at)}
+                            </TableCell>
+                            <TableCell className="font-semibold text-sm">
+                              {s.clientName}
+                            </TableCell>
+                            <TableCell>
+                              <div
+                                className="text-xs text-muted-foreground max-w-[200px] truncate"
+                                title={(s.items || [])
+                                  .map((it) => it.serviceVariantName)
+                                  .join(", ")}
+                              >
+                                {(s.items || [])
+                                  .map((it) => it.serviceVariantName)
+                                  .join(", ")}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-bold text-sm">
+                                  {formatCurrency(Number(s.totalAmount))}
+                                </span>
+                                {due > 0 && s.status !== SaleStatus.CANCELLED && (
+                                  <span className="text-[10px] text-amber-600 font-bold tracking-tight">
+                                    Falta {formatCurrency(due)}
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>{getStatusBadge(s.status)}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {isPending && (
+                                  <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={() => setPosCheckoutSale(s)}
+                                    className="h-8 px-3 bg-primary hover:bg-primary/90 shadow-sm"
+                                  >
+                                    <CreditCard className="h-3.5 w-3.5 mr-1.5" />
+                                    <span className="text-xs font-bold uppercase tracking-tighter">Checkout</span>
+                                  </Button>
+                                )}
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                    >
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent
+                                    align="end"
+                                    className="w-48"
+                                  >
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setSelectedSale(s);
+                                        setSaleDetailsOpen(true);
+                                      }}
+                                    >
+                                      <Eye className="h-4 w-4 mr-2" /> Detalhes da
+                                      Venda
+                                    </DropdownMenuItem>
+                                    {!isPending &&
+                                      due > 0 &&
+                                      s.status !== SaleStatus.CANCELLED && (
+                                        <DropdownMenuItem
+                                          onClick={() => setPosCheckoutSale(s)}
+                                        >
+                                          <CreditCard className="h-4 w-4 mr-2" />{" "}
+                                          Registrar Pagamento
+                                        </DropdownMenuItem>
+                                      )}
+                                    <Separator className="my-1" />
+                                    <DropdownMenuItem
+                                      className="text-destructive"
+                                      onClick={() => {
+                                        if (
+                                          confirm(
+                                            "Deseja realmente cancelar esta venda?",
+                                          )
+                                        ) {
+                                          updateSaleStatus(
+                                            s.id,
+                                            SaleStatus.CANCELLED,
+                                          );
+                                        }
+                                      }}
+                                      disabled={s.status === SaleStatus.CANCELLED}
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" /> Cancelar
+                                      Venda
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden divide-y h-full overflow-auto">
                   {pagedSales.map((s) => {
                     const due = balance(s);
                     const isPending = s.status === SaleStatus.PENDING;
                     return (
-                      <TableRow key={s.id} className="group">
-                        <TableCell className="font-bold">#{s.id}</TableCell>
-                        <TableCell className="text-muted-foreground whitespace-nowrap">
-                          {formatDateTime(s.created_at)}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {s.clientName}
-                        </TableCell>
-                        <TableCell>
-                          <div
-                            className="text-xs text-muted-foreground max-w-[250px] truncate"
-                            title={(s.items || [])
-                              .map((it) => it.serviceVariantName)
-                              .join(", ")}
-                          >
+                      <div key={s.id} className="p-4 space-y-4 bg-card hover:bg-muted/30 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-[10px] font-bold px-2 py-0.5 bg-muted rounded">#{s.id}</span>
+                            <span className="text-[10px] text-muted-foreground font-medium">
+                              {formatDateTime(s.created_at)}
+                            </span>
+                          </div>
+                          {getStatusBadge(s.status)}
+                        </div>
+
+                        <div>
+                          <div className="font-bold text-base text-foreground leading-none">
+                            {s.clientName}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-2 line-clamp-1">
                             {(s.items || [])
                               .map((it) => it.serviceVariantName)
                               .join(", ")}
                           </div>
-                        </TableCell>
-                        <TableCell>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2">
                           <div className="flex flex-col">
-                            <span className="font-semibold">
+                            <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Total</span>
+                            <span className="font-black text-xl text-primary leading-none">
                               {formatCurrency(Number(s.totalAmount))}
                             </span>
                             {due > 0 && s.status !== SaleStatus.CANCELLED && (
-                              <span className="text-[10px] text-amber-600 font-medium tracking-tight">
-                                Falta {formatCurrency(due)}
+                              <span className="text-[10px] text-amber-600 font-bold tracking-tight mt-1">
+                                Resta {formatCurrency(due)}
                               </span>
                             )}
                           </div>
-                        </TableCell>
-                        <TableCell>{getStatusBadge(s.status)}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {isPending && (
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() => setPosCheckoutSale(s)}
-                                className="h-8 px-3 bg-primary hover:bg-primary/90 shadow-sm"
-                              >
-                                <CreditCard className="h-3.5 w-3.5 mr-1.5" />
-                                <span className="text-xs">Checkout</span>
-                              </Button>
-                            )}
+                          
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-10 px-4 font-bold uppercase text-[10px]"
+                              onClick={() => {
+                                setSelectedSale(s);
+                                setSaleDetailsOpen(true);
+                              }}
+                            >
+                              Ver Detalhes
+                            </Button>
+                            
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
-                                  variant="ghost"
+                                  variant="outline"
                                   size="icon"
-                                  className="h-8 w-8"
+                                  className="h-10 w-10"
                                 >
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-48">
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    setSelectedSale(s);
-                                    setSaleDetailsOpen(true);
-                                  }}
-                                >
-                                  <Eye className="h-4 w-4 mr-2" /> Detalhes da
-                                  Venda
-                                </DropdownMenuItem>
+                              <DropdownMenuContent align="end" className="w-56">
+                                {isPending && (
+                                  <DropdownMenuItem
+                                    onClick={() => setPosCheckoutSale(s)}
+                                    className="text-primary font-bold"
+                                  >
+                                    <CreditCard className="h-4 w-4 mr-2" /> Finalizar
+                                    Checkout
+                                  </DropdownMenuItem>
+                                )}
                                 {!isPending &&
                                   due > 0 &&
                                   s.status !== SaleStatus.CANCELLED && (
@@ -543,7 +701,7 @@ export default function FinanceiroPage() {
                                   )}
                                 <Separator className="my-1" />
                                 <DropdownMenuItem
-                                  className="text-destructive"
+                                  className="text-destructive font-medium"
                                   onClick={() => {
                                     if (
                                       confirm(
@@ -564,97 +722,109 @@ export default function FinanceiroPage() {
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
-                        </TableCell>
-                      </TableRow>
+                        </div>
+
+                        {isPending && (
+                          <Button
+                            className="w-full bg-primary hover:bg-primary/90 h-12 text-xs font-black uppercase tracking-widest shadow-lg shadow-primary/20"
+                            onClick={() => setPosCheckoutSale(s)}
+                          >
+                            <CreditCard className="h-4 w-4 mr-2" />
+                            Finalizar Checkout
+                          </Button>
+                        )}
+                      </div>
                     );
                   })}
-                </TableBody>
-              </Table>
-
-              <div className="flex items-center justify-between p-4 border-t bg-muted/10">
-                <p className="text-xs text-muted-foreground font-medium">
-                  Mostrando {(page - 1) * pageSize + 1} -{" "}
-                  {Math.min(page * pageSize, filteredSales.length)} de{" "}
-                  {filteredSales.length} vendas
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    disabled={page === 1}
-                    onClick={() => setPage((p) => p - 1)}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    disabled={page >= totalPages}
-                    onClick={() => setPage((p) => p + 1)}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
                 </div>
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center py-24 px-4 text-center">
+                <Empty>
+                  <EmptyMedia variant="icon">
+                    <Receipt className="size-12 text-muted-foreground/50" />
+                  </EmptyMedia>
+                  <EmptyHeader>
+                    <EmptyTitle className="text-xl">Nenhuma venda encontrada</EmptyTitle>
+                    <EmptyDescription>
+                      {search || statusFilter
+                        ? "Tente ajustar seus filtros para encontrar o que procura."
+                        : "As vendas realizadas aparecerão aqui para seu controle financeiro."}
+                    </EmptyDescription>
+                  </EmptyHeader>
+                  {!search && !statusFilter && (
+                    <EmptyContent>
+                      <Button
+                        onClick={() => {
+                          addItemRow();
+                          setNewSaleOpen(true);
+                        }}
+                        className="mt-4"
+                      >
+                        <Plus className="h-4 w-4 mr-2" /> Criar Primeira Venda
+                      </Button>
+                    </EmptyContent>
+                  )}
+                </Empty>
               </div>
-            </>
-          ) : (
-            <div className="py-24">
-              <Empty>
-                <EmptyMedia variant="icon">
-                  <Receipt className="size-10" />
-                </EmptyMedia>
-                <EmptyHeader>
-                  <EmptyTitle>Nenhuma venda encontrada</EmptyTitle>
-                  <EmptyDescription>
-                    {search || statusFilter
-                      ? "Tente ajustar seus filtros para encontrar o que procura."
-                      : "As vendas realizadas aparecerão aqui."}
-                  </EmptyDescription>
-                </EmptyHeader>
-                {!search && !statusFilter && (
-                  <EmptyContent>
-                    <Button
-                      onClick={() => {
-                        addItemRow();
-                        setNewSaleOpen(true);
-                      }}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <Plus className="h-4 w-4 mr-2" /> Criar Primeira Venda
-                    </Button>
-                  </EmptyContent>
-                )}
-              </Empty>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Pagination Footer */}
+      {totalPages > 1 && (
+        <div className="p-4 border-t bg-background flex items-center justify-between flex-none">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground font-medium">
+              Página <span className="text-foreground">{page}</span> de <span className="text-foreground">{totalPages}</span>
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="h-9 px-4 font-bold"
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="h-9 px-4 font-bold"
+            >
+              Próximo
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Sale Details Modal */}
       <Dialog open={saleDetailsOpen} onOpenChange={setSaleDetailsOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+        <DialogContent className="sm:max-w-2xl max-h-[95vh] flex flex-col p-0 overflow-hidden border-none sm:border sm:rounded-xl">
+          <DialogHeader className="p-6 pb-2 text-left">
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold tracking-tight">
               <Receipt className="h-5 w-5 text-primary" />
-              Venda #{selectedSale?.id}
+              Venda <span className="font-mono text-[10px] font-bold px-2 py-0.5 bg-muted rounded">#{selectedSale?.id}</span>
             </DialogTitle>
           </DialogHeader>
           {selectedSale && (
-            <div className="space-y-6">
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                  <Label className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">
                     Cliente
                   </Label>
-                  <div className="font-semibold text-sm">
+                  <div className="font-bold text-sm">
                     {selectedSale.clientName}
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                  <Label className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">
                     Status
                   </Label>
                   <div>{getStatusBadge(selectedSale.status)}</div>
@@ -662,53 +832,52 @@ export default function FinanceiroPage() {
               </div>
 
               <div className="space-y-3">
-                <Label className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                <Label className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">
                   Itens do Serviço
                 </Label>
-                <div className="border rounded-lg overflow-hidden">
-                  <Table className="text-xs">
+                <div className="border rounded-xl overflow-x-auto bg-muted/5">
+                  <Table className="text-xs min-w-[450px] sm:min-w-0">
                     <TableHeader className="bg-muted/50">
                       <TableRow>
-                        <TableHead className="h-8">Serviço</TableHead>
-                        <TableHead className="h-8 text-center">Qtd</TableHead>
-                        <TableHead className="h-8 text-right">Preço</TableHead>
-                        <TableHead className="h-8 text-right">
+                        <TableHead className="h-10 font-bold">Serviço</TableHead>
+                        <TableHead className="h-10 text-center font-bold w-16">Qtd</TableHead>
+                        <TableHead className="h-10 text-right font-bold w-24">Preço</TableHead>
+                        <TableHead className="h-10 text-right font-bold w-24">
                           Subtotal
                         </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {(selectedSale.items || []).map((it, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell className="py-2">
-                            <span className="font-semibold">
+                        <TableRow key={idx} className="hover:bg-transparent">
+                          <TableCell className="py-3">
+                            <div className="font-bold text-foreground">
                               {it.serviceName}
-                            </span>{" "}
-                            - {it.serviceVariantName}
-                            <div className="text-[9px] text-muted-foreground mt-0.5">
-                              Profissional: {it.professionalName || "N/A"}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground mt-0.5">
+                              {it.serviceVariantName} • {it.professionalName || "N/A"}
                             </div>
                           </TableCell>
-                          <TableCell className="py-2 text-center">
+                          <TableCell className="py-3 text-center font-medium">
                             {it.quantity}
                           </TableCell>
-                          <TableCell className="py-2 text-right">
+                          <TableCell className="py-3 text-right tabular-nums">
                             {formatCurrency(it.unitPrice)}
                           </TableCell>
-                          <TableCell className="py-2 text-right font-medium">
+                          <TableCell className="py-3 text-right font-bold tabular-nums">
                             {formatCurrency(it.subtotal)}
                           </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
-                    <TableRow className="bg-muted/20 font-bold">
+                    <TableRow className="bg-primary/5 font-black border-t-2">
                       <TableCell
                         colSpan={3}
-                        className="py-2 text-right uppercase tracking-tighter"
+                        className="py-4 text-right uppercase tracking-widest text-[10px]"
                       >
-                        Total
+                        Total Geral
                       </TableCell>
-                      <TableCell className="py-2 text-right text-sm text-primary">
+                      <TableCell className="py-4 text-right text-base text-primary tabular-nums">
                         {formatCurrency(selectedSale.totalAmount)}
                       </TableCell>
                     </TableRow>
@@ -717,29 +886,29 @@ export default function FinanceiroPage() {
               </div>
 
               {selectedSale.payments && selectedSale.payments.length > 0 && (
-                <div className="space-y-3">
-                  <Label className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                <div className="space-y-3 pt-2">
+                  <Label className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">
                     Histórico de Pagamentos
                   </Label>
                   <div className="space-y-2">
                     {selectedSale.payments.map((p: Payment, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center justify-between p-3 border rounded-lg text-xs bg-muted/5 group hover:bg-muted/10 transition-colors"
+                        className="flex items-center justify-between p-4 border-2 border-dashed rounded-xl text-xs bg-card hover:bg-muted/5 transition-colors"
                       >
                         <div className="flex flex-col gap-1">
-                          <span className="font-semibold text-foreground">
+                          <span className="font-bold text-foreground text-sm">
                             {p.paymentMethod || "N/A"}
                           </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {formatDate(p.created_at)}
+                          <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-tighter">
+                            {formatDateTime(p.created_at)}
                           </span>
                         </div>
                         <div className="flex items-center gap-4">
                           <Badge
                             variant="outline"
                             className={cn(
-                              "text-[9px] uppercase font-bold px-1.5 py-0",
+                              "text-[9px] uppercase font-black px-2 py-0.5 tracking-widest",
                               p.status === "paid"
                                 ? "text-emerald-600 border-emerald-200 bg-emerald-50"
                                 : "text-amber-600 border-amber-200 bg-amber-50",
@@ -747,7 +916,7 @@ export default function FinanceiroPage() {
                           >
                             {p.status}
                           </Badge>
-                          <span className="font-bold text-sm">
+                          <span className="font-black text-sm tabular-nums">
                             {formatCurrency(p.amount)}
                           </span>
                         </div>
@@ -758,30 +927,31 @@ export default function FinanceiroPage() {
               )}
             </div>
           )}
-          <DialogFooter>
+          <div className="p-6 border-t bg-muted/5">
             <Button
               onClick={() => setSaleDetailsOpen(false)}
               variant="outline"
-              className="w-full sm:w-auto"
+              className="w-full font-bold uppercase text-xs tracking-widest h-12"
             >
-              Fechar
+              Fechar Detalhes
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
       {/* New Sale Modal */}
       <Dialog open={newSaleOpen} onOpenChange={setNewSaleOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+        <DialogContent className="sm:max-w-lg max-h-[95vh] flex flex-col p-0 overflow-hidden border-none sm:border sm:rounded-xl">
+          <DialogHeader className="p-6 pb-2 text-left">
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold tracking-tight">
               <Plus className="h-5 w-5 text-primary" />
               Nova Venda Manual
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-5 py-2">
+          
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Cliente
               </Label>
               <Combobox
@@ -797,9 +967,9 @@ export default function FinanceiroPage() {
               />
             </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between px-1">
+                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
                   Itens da Venda
                 </Label>
                 <Button
@@ -807,18 +977,20 @@ export default function FinanceiroPage() {
                   variant="ghost"
                   size="sm"
                   onClick={addItemRow}
-                  className="h-7 text-xs text-primary hover:bg-primary/5"
+                  className="h-8 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/5 border border-primary/20 rounded-full px-3"
                 >
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar Item
+                  <Plus className="h-3 w-3 mr-1" /> Adicionar
                 </Button>
               </div>
 
-              <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+              <div className="space-y-4">
                 {newSaleForm.items.length === 0 && (
-                  <div className="text-center py-8 border-2 border-dashed rounded-xl bg-muted/5 flex flex-col items-center gap-2">
-                    <Receipt className="h-8 w-8 text-muted-foreground/30" />
-                    <p className="text-xs text-muted-foreground">
-                      Nenhum item adicionado.
+                  <div className="text-center py-12 border-2 border-dashed rounded-2xl bg-muted/5 flex flex-col items-center gap-3">
+                    <div className="h-12 w-12 rounded-full bg-muted/10 flex items-center justify-center">
+                      <Receipt className="h-6 w-6 text-muted-foreground/30" />
+                    </div>
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                      Nenhum item adicionado
                     </p>
                   </div>
                 )}
@@ -830,24 +1002,24 @@ export default function FinanceiroPage() {
                   return (
                     <div
                       key={it.rowId}
-                      className="p-4 border rounded-xl bg-muted/5 space-y-4 relative group hover:border-primary/20 transition-colors shadow-sm"
+                      className="p-5 border-2 rounded-2xl bg-card space-y-5 relative group hover:border-primary/20 transition-all shadow-sm"
                     >
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="absolute top-2 right-2 h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors"
+                        className="absolute -top-2 -right-2 h-8 w-8 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={() => removeItemRow(idx)}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
 
-                      <div className="grid grid-cols-1 gap-4">
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-tighter">
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">
                             1. Serviço Base
                           </Label>
                           <Combobox
-                            placeholder="Serviço..."
+                            placeholder="Buscar serviço..."
                             items={(services || []).map((s) => ({
                               value: s.id,
                               label: s.name,
@@ -859,9 +1031,9 @@ export default function FinanceiroPage() {
                           />
                         </div>
 
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-tighter">
-                            2. Variação / Tipo
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">
+                            2. Variação / Valor
                           </Label>
                           <Combobox
                             placeholder={
@@ -888,9 +1060,9 @@ export default function FinanceiroPage() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-5 gap-3">
-                        <div className="col-span-3 space-y-1.5">
-                          <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-tighter">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">
                             3. Profissional
                           </Label>
                           <Combobox
@@ -905,15 +1077,15 @@ export default function FinanceiroPage() {
                             }
                           />
                         </div>
-                        <div className="col-span-2 space-y-1.5">
-                          <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-tighter">
-                            Qtd.
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">
+                            4. Quantidade
                           </Label>
                           <Input
                             type="number"
                             min="1"
                             value={it.quantity}
-                            className="h-9 shadow-none bg-background"
+                            className="h-10 text-base font-bold tabular-nums border-2 focus-visible:ring-primary/20"
                             onChange={(e) =>
                               onChangeItem(idx, {
                                 quantity: Number(e.target.value),
@@ -928,37 +1100,36 @@ export default function FinanceiroPage() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Observações (Opcional)
+            <div className="space-y-2 px-1">
+              <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Observações
               </Label>
               <Input
-                placeholder="Ex: Cliente VIP, desconto especial..."
+                placeholder="Ex: Desconto aplicado, observação especial..."
                 value={newSaleForm.notes}
                 onChange={(e) =>
                   setNewSaleForm((f) => ({ ...f, notes: e.target.value }))
                 }
-                className="bg-muted/10 h-10 border-muted"
+                className="bg-muted/10 h-12 border-2 focus-visible:ring-primary/20"
               />
             </div>
 
             {newSaleError && (
-              <Alert variant="destructive" className="py-2">
-                <AlertDescription className="text-xs">
+              <Alert variant="destructive" className="animate-in fade-in zoom-in duration-200">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-xs font-bold">
                   {newSaleError}
                 </AlertDescription>
               </Alert>
             )}
           </div>
 
-          <Separator />
-
-          <DialogFooter className="flex-row items-center justify-between gap-4 pt-2">
-            <div className="text-left">
-              <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">
-                Valor Total
+          <div className="p-6 border-t bg-muted/5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">
+                Total da Venda
               </div>
-              <div className="text-2xl font-black text-primary tracking-tight">
+              <div className="text-3xl font-black text-primary tracking-tighter tabular-nums">
                 {formatCurrency(
                   newSaleForm.items.reduce(
                     (acc, it) => acc + it.quantity * it.unitPrice,
@@ -967,23 +1138,31 @@ export default function FinanceiroPage() {
                 )}
               </div>
             </div>
-            <div className="flex gap-2">
+            
+            <div className="flex gap-3">
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={() => setNewSaleOpen(false)}
-                className="px-6"
+                className="flex-1 h-14 font-black uppercase text-[10px] tracking-widest hover:bg-destructive/5 hover:text-destructive transition-colors"
               >
                 Cancelar
               </Button>
               <Button
                 onClick={submitNewSale}
-                disabled={newSaleLoading}
-                className="px-6 shadow-md"
+                disabled={newSaleLoading || newSaleForm.items.length === 0}
+                className="flex-[2] h-14 bg-primary hover:bg-primary/90 text-white font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20 transition-all active:scale-[0.98]"
               >
-                {newSaleLoading ? "Salvando..." : "Confirmar Venda"}
+                {newSaleLoading ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    Salvando...
+                  </>
+                ) : (
+                  "Finalizar Venda"
+                )}
               </Button>
             </div>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 

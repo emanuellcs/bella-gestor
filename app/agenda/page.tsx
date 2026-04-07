@@ -248,20 +248,29 @@ export default function AgendaPage() {
 
         const supabaseRes = await addAppointment(supabasePayload);
         if (supabaseRes) {
+          // Close modal immediately after successful DB save (independent operation)
+          setIsModalOpen(false);
+          toast.success("Agendamento criado!");
+          // Attempt Google Calendar sync (non-blocking)
           res = await createCalendarEvent(googlePayload);
+          if (!res?.success) {
+            toast.error(res?.error || "Erro ao sincronizar com Google Agenda");
+          }
         } else {
           throw new Error("Falha ao salvar no banco de dados.");
         }
       }
 
       if (res?.success) {
-        toast.success(
-          selectedEvent ? "Agendamento atualizado!" : "Agendamento criado!",
-        );
-        setIsModalOpen(false);
+        if (selectedEvent) {
+          // Edit mode: only show success toast for Google Calendar result
+          toast.success("Agendamento atualizado!");
+          setIsModalOpen(false);
+        }
         fetchEvents();
-      } else {
-        toast.error(res?.error || "Erro ao salvar no Google Agenda");
+      } else if (selectedEvent) {
+        // Edit mode: Google Calendar sync failed
+        toast.error(res?.error || "Erro ao atualizar no Google Agenda");
       }
     } catch (e) {
       console.error(e);
