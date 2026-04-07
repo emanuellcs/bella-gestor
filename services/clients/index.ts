@@ -69,13 +69,14 @@ export async function getClients(
  */
 export async function getActiveClients(): Promise<Client[]> {
   try {
-    const data = await fetchAll<SupabaseClient & { total_spent?: number }>(({ from, to }) =>
-      supabase
-        .from("clients")
-        .select("*")
-        .eq("is_active", true)
-        .order("created_at", { ascending: false })
-        .range(from, to),
+    const data = await fetchAll<SupabaseClient & { total_spent?: number }>(
+      ({ from, to }) =>
+        supabase
+          .from("clients")
+          .select("*")
+          .eq("is_active", true)
+          .order("created_at", { ascending: false })
+          .range(from, to),
     );
     return data.map(supabaseClientToClient);
   } catch (error: any) {
@@ -112,13 +113,14 @@ export async function getClientById(id: string): Promise<Client | null> {
  */
 export async function getInactiveClients(): Promise<Client[]> {
   try {
-    const data = await fetchAll<SupabaseClient & { total_spent?: number }>(({ from, to }) =>
-      supabase
-        .from("clients")
-        .select("*")
-        .eq("is_active", false)
-        .order("created_at", { ascending: false })
-        .range(from, to),
+    const data = await fetchAll<SupabaseClient & { total_spent?: number }>(
+      ({ from, to }) =>
+        supabase
+          .from("clients")
+          .select("*")
+          .eq("is_active", false)
+          .order("created_at", { ascending: false })
+          .range(from, to),
     );
     return data.map(supabaseClientToClient);
   } catch (error: any) {
@@ -133,13 +135,14 @@ export async function getInactiveClients(): Promise<Client[]> {
 export async function searchClients(query: string): Promise<Client[]> {
   try {
     const q = `%${query}%`;
-    const data = await fetchAll<SupabaseClient & { total_spent?: number }>(({ from, to }) =>
-      supabase
-        .from("clients")
-        .select("*")
-        .or(`full_name.ilike.${q},phone.ilike.${q},email.ilike.${q}`)
-        .order("created_at", { ascending: false })
-        .range(from, to),
+    const data = await fetchAll<SupabaseClient & { total_spent?: number }>(
+      ({ from, to }) =>
+        supabase
+          .from("clients")
+          .select("*")
+          .or(`full_name.ilike.${q},phone.ilike.${q},email.ilike.${q}`)
+          .order("created_at", { ascending: false })
+          .range(from, to),
     );
     return data.map(supabaseClientToClient);
   } catch (error: any) {

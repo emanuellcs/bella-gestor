@@ -59,14 +59,17 @@ export default function AgendaPage() {
     addAppointment,
   } = useData();
 
-  const [calendarEvents, setCalendarEvents] = useState<GoogleCalendarEvent[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<GoogleCalendarEvent[]>(
+    [],
+  );
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [checkoutSale, setCheckoutSale] = useState<Sale | null>(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<GoogleCalendarEvent | null>(null);
+  const [selectedEvent, setSelectedEvent] =
+    useState<GoogleCalendarEvent | null>(null);
 
   // Filters (Restored from main)
   const [searchQuery, setSearchQuery] = useState("");
@@ -84,23 +87,31 @@ export default function AgendaPage() {
       const end = new Date(start);
       end.setDate(end.getDate() + 7);
 
-      const professional = professionals.find((p) => p.id === filterProfessionalId);
+      const professional = professionals.find(
+        (p) => p.id === filterProfessionalId,
+      );
       const query = professional?.email ? professional.email : undefined;
 
-      const resp = await listCalendarEvents(start.toISOString(), end.toISOString(), query);
+      const resp = await listCalendarEvents(
+        start.toISOString(),
+        end.toISOString(),
+        query,
+      );
       if (resp?.success) {
         // Map Google events to internal status (Rule 3 Alignment)
-        const events: GoogleCalendarEvent[] = (resp.events || []).map((ev: GoogleCalendarEvent) => {
-          const startTime = new Date(ev.start.dateTime).getTime();
-          const matchedAppt = internalAppointments?.find(a => {
-            const aTime = new Date(a.startTime).getTime();
-            return Math.abs(aTime - startTime) < 60000; // Match within 1 minute
-          });
-          return {
-            ...ev,
-            internalStatus: matchedAppt?.status
-          };
-        });
+        const events: GoogleCalendarEvent[] = (resp.events || []).map(
+          (ev: GoogleCalendarEvent) => {
+            const startTime = new Date(ev.start.dateTime).getTime();
+            const matchedAppt = internalAppointments?.find((a) => {
+              const aTime = new Date(a.startTime).getTime();
+              return Math.abs(aTime - startTime) < 60000; // Match within 1 minute
+            });
+            return {
+              ...ev,
+              internalStatus: matchedAppt?.status,
+            };
+          },
+        );
         setCalendarEvents(events);
       } else {
         toast.error(resp?.error || "Erro ao carregar agendamentos");
@@ -124,27 +135,52 @@ export default function AgendaPage() {
 
       const matchSearch = !q || summary.includes(q) || desc.includes(q);
 
-      const clientName = clients.find((c) => c.id === filterClientId)?.name?.toLowerCase();
-      const matchClient = !filterClientId || desc.includes(`cliente: ${clientName}`);
+      const clientName = clients
+        .find((c) => c.id === filterClientId)
+        ?.name?.toLowerCase();
+      const matchClient =
+        !filterClientId || desc.includes(`cliente: ${clientName}`);
 
-      const serviceName = services.find((s) => s.id === filterServiceId)?.name?.toLowerCase();
-      const matchService = !filterServiceId || desc.includes(`serviço: ${serviceName}`);
+      const serviceName = services
+        .find((s) => s.id === filterServiceId)
+        ?.name?.toLowerCase();
+      const matchService =
+        !filterServiceId || desc.includes(`serviço: ${serviceName}`);
 
-      const professional = professionals.find((p) => p.id === filterProfessionalId);
-      const matchProfessional = !filterProfessionalId || 
-        (professional && ((ev.attendees || []).some(a => a.email.toLowerCase() === professional.email?.toLowerCase()) || 
-        desc.includes(`profissional: ${professional.name?.toLowerCase()}`)));
+      const professional = professionals.find(
+        (p) => p.id === filterProfessionalId,
+      );
+      const matchProfessional =
+        !filterProfessionalId ||
+        (professional &&
+          ((ev.attendees || []).some(
+            (a) => a.email.toLowerCase() === professional.email?.toLowerCase(),
+          ) ||
+            desc.includes(
+              `profissional: ${professional.name?.toLowerCase()}`,
+            )));
 
       return matchSearch && matchClient && matchService && matchProfessional;
     });
-  }, [calendarEvents, searchQuery, filterClientId, filterServiceId, filterProfessionalId, clients, services, professionals]);
+  }, [
+    calendarEvents,
+    searchQuery,
+    filterClientId,
+    filterServiceId,
+    filterProfessionalId,
+    clients,
+    services,
+    professionals,
+  ]);
 
   const handleCheckout = (ev: GoogleCalendarEvent) => {
     const startTime = new Date(ev.start.dateTime).getTime();
-    const matchedAppt = internalAppointments?.find(a => Math.abs(new Date(a.startTime).getTime() - startTime) < 60000);
-    
+    const matchedAppt = internalAppointments?.find(
+      (a) => Math.abs(new Date(a.startTime).getTime() - startTime) < 60000,
+    );
+
     if (matchedAppt) {
-      const sale = sales?.find(s => s.appointmentId === matchedAppt.id);
+      const sale = sales?.find((s) => s.appointmentId === matchedAppt.id);
       if (sale) {
         setCheckoutSale(sale);
       } else {
@@ -167,8 +203,12 @@ export default function AgendaPage() {
     try {
       const client = clients.find((c) => c.id === values.clientId);
       const service = services.find((s) => s.id === values.serviceId);
-      const variant = service?.variants?.find((v) => v.id === values.serviceVariantId);
-      const professional = professionals.find((p) => p.id === values.professionalId);
+      const variant = service?.variants?.find(
+        (v) => v.id === values.serviceVariantId,
+      );
+      const professional = professionals.find(
+        (p) => p.id === values.professionalId,
+      );
 
       const professionalLine = professional
         ? `\nProfissional: ${professional.name} (${professional.functionTitle})`
@@ -200,7 +240,9 @@ export default function AgendaPage() {
           endTime: new Date(values.endTime).toISOString(),
           status: AppointmentStatus.SCHEDULED,
           notes: values.notes,
-          serviceVariants: [{ serviceVariantId: values.serviceVariantId, quantity: 1 }],
+          serviceVariants: [
+            { serviceVariantId: values.serviceVariantId, quantity: 1 },
+          ],
           totalPrice: variant?.price || 0,
         };
 
@@ -213,7 +255,9 @@ export default function AgendaPage() {
       }
 
       if (res?.success) {
-        toast.success(selectedEvent ? "Agendamento atualizado!" : "Agendamento criado!");
+        toast.success(
+          selectedEvent ? "Agendamento atualizado!" : "Agendamento criado!",
+        );
         setIsModalOpen(false);
         fetchEvents();
       } else {
@@ -226,7 +270,12 @@ export default function AgendaPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Tem certeza que deseja excluir este agendamento no Google Agenda?")) return;
+    if (
+      !confirm(
+        "Tem certeza que deseja excluir este agendamento no Google Agenda?",
+      )
+    )
+      return;
     try {
       const res = await deleteCalendarEvent(id);
       if (res?.success) {
@@ -242,7 +291,10 @@ export default function AgendaPage() {
 
   return (
     <div className="space-y-4 p-4">
-      <PageHeader title="Agenda" description="Gerencie agendamentos sincronizados com Google Calendar" />
+      <PageHeader
+        title="Agenda"
+        description="Gerencie agendamentos sincronizados com Google Calendar"
+      />
 
       {/* Rich Filter Bar (Restored from main) */}
       <Card>
@@ -271,7 +323,10 @@ export default function AgendaPage() {
             />
             <Combobox
               placeholder="Filtrar Profissional"
-              items={professionals.map((p) => ({ value: p.id, label: p.name || p.email }))}
+              items={professionals.map((p) => ({
+                value: p.id,
+                label: p.name || p.email,
+              }))}
               value={filterProfessionalId}
               onChange={setFilterProfessionalId}
             />
@@ -292,19 +347,74 @@ export default function AgendaPage() {
 
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-card p-4 rounded-lg border">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate() - 7); setCurrentDate(d); }}><ChevronLeft className="h-4 w-4" /></Button>
-          <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>Hoje</Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              const d = new Date(currentDate);
+              d.setDate(d.getDate() - 7);
+              setCurrentDate(d);
+            }}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentDate(new Date())}
+          >
+            Hoje
+          </Button>
           <Popover>
-            <PopoverTrigger asChild><Button variant="outline" size="icon"><CalendarIcon className="h-4 w-4" /></Button></PopoverTrigger>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="icon">
+                <CalendarIcon className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={currentDate} onSelect={(date) => date && setCurrentDate(date)} locale={ptBR} initialFocus />
+              <Calendar
+                mode="single"
+                selected={currentDate}
+                onSelect={(date) => date && setCurrentDate(date)}
+                locale={ptBR}
+                initialFocus
+              />
             </PopoverContent>
           </Popover>
-          <Button variant="outline" size="icon" onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate() + 7); setCurrentDate(d); }}><ChevronRight className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" onClick={() => fetchEvents()} disabled={isLoadingEvents}><RefreshCw className={`h-4 w-4 ${isLoadingEvents ? 'animate-spin' : ''}`} /></Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              const d = new Date(currentDate);
+              d.setDate(d.getDate() + 7);
+              setCurrentDate(d);
+            }}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => fetchEvents()}
+            disabled={isLoadingEvents}
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${isLoadingEvents ? "animate-spin" : ""}`}
+            />
+          </Button>
         </div>
-        <div className="text-lg font-semibold uppercase">{currentDate.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}</div>
-        <Button onClick={() => { setSelectedEvent(null); setIsModalOpen(true); }}>
+        <div className="text-lg font-semibold uppercase">
+          {currentDate.toLocaleDateString("pt-BR", {
+            month: "long",
+            year: "numeric",
+          })}
+        </div>
+        <Button
+          onClick={() => {
+            setSelectedEvent(null);
+            setIsModalOpen(true);
+          }}
+        >
           <Plus className="h-4 w-4 mr-2" /> Novo Agendamento
         </Button>
       </div>
@@ -339,8 +449,13 @@ export default function AgendaPage() {
           saleId={Number(checkoutSale.id)}
           clientName={checkoutSale.clientName || "Cliente"}
           totalAmount={Number(checkoutSale.totalAmount)}
-          alreadyPaidAmount={(checkoutSale.payments || []).filter((p: Payment) => p.status === "paid").reduce((acc: number, p: Payment) => acc + Number(p.amount), 0)}
-          onSuccess={() => { refreshData(); setCheckoutSale(null); }}
+          alreadyPaidAmount={(checkoutSale.payments || [])
+            .filter((p: Payment) => p.status === "paid")
+            .reduce((acc: number, p: Payment) => acc + Number(p.amount), 0)}
+          onSuccess={() => {
+            refreshData();
+            setCheckoutSale(null);
+          }}
         />
       )}
     </div>

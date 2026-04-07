@@ -22,14 +22,18 @@ export async function createAppointmentAction(
       p_start_time: appointment.startTime,
       p_end_time: appointment.endTime,
       p_notes: appointment.notes || null,
-      p_service_variants: appointment.serviceVariants?.map(sv => ({
-        service_variant_id: parseInt(sv.serviceVariantId),
-        quantity: sv.quantity,
-      })) || []
+      p_service_variants:
+        appointment.serviceVariants?.map((sv) => ({
+          service_variant_id: parseInt(sv.serviceVariantId),
+          quantity: sv.quantity,
+        })) || [],
     };
 
     // Rule 1: Use atomic RPC to prevent "ghost appointments"
-    const { data, error } = await supabase.rpc('create_appointment_with_sale', rpcPayload);
+    const { data, error } = await supabase.rpc(
+      "create_appointment_with_sale",
+      rpcPayload,
+    );
 
     if (error) {
       return {
@@ -96,7 +100,10 @@ export async function updateAppointmentAction(
     if (appointment.status === AppointmentStatus.CANCELLED) {
       await supabase
         .from("sales")
-        .update({ status: SaleStatus.CANCELLED, updated_at: new Date().toISOString() })
+        .update({
+          status: SaleStatus.CANCELLED,
+          updated_at: new Date().toISOString(),
+        })
         .eq("appointment_id", parseInt(id));
     }
 

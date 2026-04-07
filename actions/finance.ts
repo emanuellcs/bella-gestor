@@ -351,11 +351,11 @@ export async function processManualPaymentAction(
   saleId: number,
   paymentMethod: string,
   amount: number,
-  professionalId?: string
+  professionalId?: string,
 ) {
   try {
     const supabase = getSupabaseAdmin();
-    
+
     // Rule 2 Fix: Resolve professional_id from the sale if not provided
     // This ensures commission tracking is maintained even if manual payment is registered without explicit prof ID
     let resolvedProfId = professionalId;
@@ -398,9 +398,9 @@ export async function processManualPaymentAction(
     revalidatePath("/agenda");
     revalidatePath("/relatorios");
 
-    return { 
-      success: true, 
-      isFullyPaid: freshSale?.status === "paid" 
+    return {
+      success: true,
+      isFullyPaid: freshSale?.status === "paid",
     };
   } catch (error: any) {
     console.error("Error in processManualPaymentAction:", error);

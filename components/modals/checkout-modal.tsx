@@ -50,7 +50,7 @@ export function CheckoutModal({
 }: CheckoutModalProps) {
   const { toast } = useToast();
   const balance = Math.max(0, totalAmount - alreadyPaidAmount);
-  
+
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<string>("");
   const [amount, setAmount] = useState<number>(balance);
@@ -71,7 +71,9 @@ export function CheckoutModal({
       return;
     }
     if (amount > Number((balance + 0.01).toFixed(2))) {
-      setError(`O valor não pode exceder o saldo restante (${formatCurrency(balance)}).`);
+      setError(
+        `O valor não pode exceder o saldo restante (${formatCurrency(balance)}).`,
+      );
       return;
     }
 
@@ -79,14 +81,18 @@ export function CheckoutModal({
       setError("");
       setLoading(true);
 
-      const data = await processManualPaymentAction(saleId, paymentMethod, amount);
+      const data = await processManualPaymentAction(
+        saleId,
+        paymentMethod,
+        amount,
+      );
 
       if (!data.success) {
         throw new Error(data.error || "Falha ao processar pagamento.");
       }
 
       onSuccess(data.isFullyPaid as boolean);
-      
+
       if (data.isFullyPaid) {
         toast({
           title: "Venda Finalizada!",
@@ -117,19 +123,29 @@ export function CheckoutModal({
             Registrar Pagamento
           </DialogTitle>
           <DialogDescription>
-            Cliente: <span className="font-semibold text-foreground">{clientName}</span> | Venda: #{saleId}
+            Cliente:{" "}
+            <span className="font-semibold text-foreground">{clientName}</span>{" "}
+            | Venda: #{saleId}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 pt-2">
           <div className="grid grid-cols-2 gap-4 text-center">
             <div className="rounded-md border p-3 bg-muted/30">
-              <div className="text-xs text-muted-foreground uppercase font-medium">Total</div>
-              <div className="font-semibold text-lg">{formatCurrency(totalAmount)}</div>
+              <div className="text-xs text-muted-foreground uppercase font-medium">
+                Total
+              </div>
+              <div className="font-semibold text-lg">
+                {formatCurrency(totalAmount)}
+              </div>
             </div>
             <div className="rounded-md border p-3 bg-primary/5 border-primary/20">
-              <div className="text-xs text-primary/70 uppercase font-medium">Saldo Restante</div>
-              <div className="font-bold text-xl text-primary">{formatCurrency(balance)}</div>
+              <div className="text-xs text-primary/70 uppercase font-medium">
+                Saldo Restante
+              </div>
+              <div className="font-bold text-xl text-primary">
+                {formatCurrency(balance)}
+              </div>
             </div>
           </div>
 
@@ -143,8 +159,12 @@ export function CheckoutModal({
                   <SelectValue placeholder="Como o cliente pagou?" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Cartão de Crédito">Cartão de Crédito (Maquininha)</SelectItem>
-                  <SelectItem value="Cartão de Débito">Cartão de Débito (Maquininha)</SelectItem>
+                  <SelectItem value="Cartão de Crédito">
+                    Cartão de Crédito (Maquininha)
+                  </SelectItem>
+                  <SelectItem value="Cartão de Débito">
+                    Cartão de Débito (Maquininha)
+                  </SelectItem>
                   <SelectItem value="PIX">PIX</SelectItem>
                   <SelectItem value="Dinheiro">Dinheiro</SelectItem>
                 </SelectContent>
@@ -154,7 +174,9 @@ export function CheckoutModal({
             <div className="space-y-2">
               <Label htmlFor="amount">Valor Recebido (R$)</Label>
               <div className="relative">
-                <span className="absolute left-3 top-3 text-muted-foreground text-lg">R$</span>
+                <span className="absolute left-3 top-3 text-muted-foreground text-lg">
+                  R$
+                </span>
                 <Input
                   id="amount"
                   type="number"
@@ -177,9 +199,11 @@ export function CheckoutModal({
           )}
 
           <div className="flex flex-col gap-3 pt-2">
-            <Button 
-              onClick={handleSubmit} 
-              disabled={loading || balance <= 0 || !paymentMethod || amount <= 0}
+            <Button
+              onClick={handleSubmit}
+              disabled={
+                loading || balance <= 0 || !paymentMethod || amount <= 0
+              }
               className="bg-green-600 hover:bg-green-700 text-white h-14 text-lg font-bold w-full shadow-lg"
             >
               {loading ? (
@@ -191,7 +215,12 @@ export function CheckoutModal({
                 "CONFIRMAR PAGAMENTO"
               )}
             </Button>
-            <Button variant="ghost" onClick={onClose} disabled={loading} className="w-full">
+            <Button
+              variant="ghost"
+              onClick={onClose}
+              disabled={loading}
+              className="w-full"
+            >
               Cancelar
             </Button>
           </div>
@@ -200,4 +229,3 @@ export function CheckoutModal({
     </Dialog>
   );
 }
-
