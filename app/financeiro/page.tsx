@@ -381,14 +381,14 @@ export default function FinanceiroPage() {
               </Button>
 
               {showFilters && (
-                <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-1">
+                <div className="flex flex-wrap items-center gap-1 sm:gap-2 animate-in fade-in slide-in-from-right-1">
                   <div className="flex items-center gap-1.5">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground whitespace-nowrap">
                       De
                     </Label>
                     <Input
                       type="date"
-                      className="h-9 w-32 text-xs"
+                      className="h-9 w-24 sm:w-28 md:w-32 text-xs"
                       value={dateRange.start}
                       onChange={(e) => {
                         setDateRange((p) => ({ ...p, start: e.target.value }));
@@ -402,7 +402,7 @@ export default function FinanceiroPage() {
                     </Label>
                     <Input
                       type="date"
-                      className="h-9 w-32 text-xs"
+                      className="h-9 w-24 sm:w-28 md:w-32 text-xs"
                       value={dateRange.end}
                       onChange={(e) => {
                         setDateRange((p) => ({ ...p, end: e.target.value }));
@@ -418,7 +418,7 @@ export default function FinanceiroPage() {
                         setDateRange({ start: "", end: "" });
                         setPage(1);
                       }}
-                      className="h-9 px-2 text-[10px] font-bold uppercase tracking-widest text-destructive hover:bg-destructive/5"
+                      className="h-9 px-2 text-[10px] font-bold uppercase tracking-widest text-destructive hover:bg-destructive/5 min-h-9"
                     >
                       Limpar
                     </Button>

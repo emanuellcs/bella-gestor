@@ -27,14 +27,35 @@ export async function createSaleAction(sale: NewSale) {
     // Fetch appointment start time if linked
     let inheritedCreatedAt = sale.createdAt || new Date().toISOString();
     if (sale.appointmentId) {
-      const { data: appt } = await supabase
-        .from("appointments")
-        .select("start_time")
-        .eq("id", parseInt(sale.appointmentId))
-        .single();
-      
-      if (appt?.start_time) {
-        inheritedCreatedAt = appt.start_time;
+      try {
+        const appointmentId = parseInt(sale.appointmentId, 10);
+        if (isNaN(appointmentId)) {
+          console.warn(
+            `Invalid appointmentId provided to createSaleAction: ${sale.appointmentId}`
+          );
+        } else {
+          const { data: appt, error: apptErr } = await supabase
+            .from("appointments")
+            .select("start_time")
+            .eq("id", appointmentId)
+            .single();
+
+          if (apptErr) {
+            console.warn(
+              `Failed to fetch appointment ${appointmentId}: ${apptErr.message}`
+            );
+          } else if (appt?.start_time) {
+            inheritedCreatedAt = appt.start_time;
+            console.log(
+              `Sale linked to appointment ${appointmentId}: using start_time ${appt.start_time}`
+            );
+          }
+        }
+      } catch (appointmentFetchError) {
+        console.error(
+          "Error fetching appointment for sale creation:",
+          appointmentFetchError
+        );
       }
     }
 
