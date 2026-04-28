@@ -54,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from("user_roles")
         .select("role")
         .eq("user_id", userId)
+        .is("deleted_at", null)
         .single();
 
       const userRole =

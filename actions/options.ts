@@ -12,6 +12,7 @@ export async function getAppOptionsAction() {
     const { data, error } = await supabase
       .from("app_options")
       .select("*")
+      .is("deleted_at", null)
       .order("display_order", { ascending: true });
 
     if (error) throw new Error(parseSupabaseError(error).description);
@@ -43,6 +44,7 @@ export async function upsertAppOptionAction(option: {
         .from("app_options")
         .update(option)
         .eq("id", option.id)
+        .is("deleted_at", null)
         .select("*")
         .single();
     } else {
@@ -69,7 +71,11 @@ export async function upsertAppOptionAction(option: {
 export async function deleteAppOptionAction(id: number) {
   try {
     const supabase = getSupabaseAdmin();
-    const { error } = await supabase.from("app_options").delete().eq("id", id);
+    const { error } = await supabase
+      .from("app_options")
+      .update({ is_active: false, deleted_at: new Date().toISOString() })
+      .eq("id", id)
+      .is("deleted_at", null);
 
     if (error) throw new Error(parseSupabaseError(error).description);
     revalidatePath("/configuracoes");
@@ -92,7 +98,8 @@ export async function updateAppOptionsOrderAction(
       supabase
         .from("app_options")
         .update({ display_order: opt.display_order })
-        .eq("id", opt.id),
+        .eq("id", opt.id)
+        .is("deleted_at", null),
     );
 
     const results = await Promise.all(updates);
@@ -111,7 +118,10 @@ export async function updateAppOptionsOrderAction(
 export async function getAppSettingsAction() {
   try {
     const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase.from("app_settings").select("*");
+    const { data, error } = await supabase
+      .from("app_settings")
+      .select("*")
+      .is("deleted_at", null);
 
     if (error) throw new Error(parseSupabaseError(error).description);
 
@@ -132,7 +142,9 @@ export async function updateAppSettingAction(key: string, value: string) {
     const supabase = getSupabaseAdmin();
     const { error } = await supabase
       .from("app_settings")
-      .upsert([{ key, value, updated_at: new Date().toISOString() }]);
+      .upsert([
+        { key, value, updated_at: new Date().toISOString(), deleted_at: null },
+      ]);
 
     if (error) throw new Error(parseSupabaseError(error).description);
     revalidatePath("/configuracoes");

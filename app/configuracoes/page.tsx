@@ -66,6 +66,8 @@ const ItemTypes = {
   OPTION: "option",
 };
 
+type DndHandlerId = string | symbol | null;
+
 interface DraggableRowProps {
   id: number;
   index: number;
@@ -86,7 +88,11 @@ const DraggableRow = ({
   onDelete,
 }: DraggableRowProps) => {
   const ref = useRef<HTMLTableRowElement>(null);
-  const [{ handlerId }, drop] = useDrop({
+  const [{ handlerId }, drop] = useDrop<
+    { id: number; index: number },
+    void,
+    { handlerId: DndHandlerId }
+  >({
     accept: ItemTypes.OPTION,
     collect(monitor) {
       return {

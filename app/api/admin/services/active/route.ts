@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
       .from("services")
       .select("*, service_variants(*)")
       .eq("is_active", true)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .range(from, from + PAGE_SIZE - 1);
 
@@ -40,7 +41,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
 
     if (!data || data.length === 0) break;
-    allData.push(...data);
+    allData.push(
+      ...data.map((service) => ({
+        ...service,
+        service_variants: (service.service_variants || []).filter(
+          (variant: SupabaseServiceVariant) => !variant.deleted_at,
+        ),
+      })),
+    );
 
     if (data.length < PAGE_SIZE) break;
     from += PAGE_SIZE;

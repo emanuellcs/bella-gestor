@@ -29,6 +29,7 @@ export interface SupabaseClient {
   referral_source: string | null;
   marketing_consent: boolean;
   is_client: boolean;
+  deleted_at: string | null;
   total_spent?: number;
 }
 
@@ -41,6 +42,7 @@ export interface SupabaseService {
   created_at: string;
   updated_at: string | null;
   user_id: string | null;
+  deleted_at: string | null;
 }
 
 export interface SupabaseServiceVariant {
@@ -53,6 +55,7 @@ export interface SupabaseServiceVariant {
   commission_pct: number | null;
   created_at: string;
   updated_at: string | null;
+  deleted_at: string | null;
 }
 
 export interface SupabaseAppointment {
@@ -66,6 +69,7 @@ export interface SupabaseAppointment {
   created_at: string;
   updated_at: string | null;
   created_by: string | null;
+  deleted_at: string | null;
 }
 
 export interface SupabaseAppointmentService {
@@ -74,6 +78,7 @@ export interface SupabaseAppointmentService {
   service_variant_id: number;
   quantity: number;
   created_at: string;
+  deleted_at: string | null;
 }
 
 export interface SupabaseSale {
@@ -87,6 +92,7 @@ export interface SupabaseSale {
   updated_at: string | null;
   created_by: string | null;
   professional_id: string | null;
+  deleted_at: string | null;
 }
 
 export interface SupabaseSaleItem {
@@ -100,6 +106,7 @@ export interface SupabaseSaleItem {
   commission_pct: number | null;
   commission_amount: number | null;
   created_at: string;
+  deleted_at: string | null;
 }
 
 export interface SupabasePayment {
@@ -114,12 +121,14 @@ export interface SupabasePayment {
   professional_id: string | null;
   created_at: string;
   updated_at: string | null;
+  deleted_at: string | null;
 }
 
 export interface SupabaseUserRole {
   user_id: string;
   role: AppRole;
   created_at: string;
+  deleted_at: string | null;
 }
 
 export interface SupabaseProfessional {
@@ -130,6 +139,7 @@ export interface SupabaseProfessional {
   function_title: string | null;
   commission_pct: number | null;
   created_at: string;
+  deleted_at: string | null;
 }
 
 export interface SupabaseAppOption {
@@ -140,6 +150,7 @@ export interface SupabaseAppOption {
   is_active: boolean;
   display_order: number;
   created_at: string;
+  deleted_at: string | null;
 }
 
 export interface SupabaseAppSetting {
@@ -147,6 +158,7 @@ export interface SupabaseAppSetting {
   value: string;
   created_at: string;
   updated_at: string | null;
+  deleted_at: string | null;
 }
 
 export interface SupabaseUserIntegration {
@@ -154,4 +166,5 @@ export interface SupabaseUserIntegration {
   user_id: string;
   created_at: string;
   updated_at: string | null;
+  deleted_at: string | null;
 }

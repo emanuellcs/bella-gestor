@@ -32,6 +32,7 @@ export async function getSales(
         payments (*)
       `,
       )
+      .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
     if (startDate) {
@@ -87,6 +88,7 @@ export async function getPayments(
         )
       `,
       )
+      .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
     if (startDate) query = query.gte("created_at", startDate);

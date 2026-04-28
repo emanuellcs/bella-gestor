@@ -199,6 +199,7 @@ export default function AgendaPage() {
     notes?: string;
     startTime: string;
     endTime: string;
+    customPrice: number;
   }) => {
     try {
       const client = clients.find((c) => c.id === values.clientId);
@@ -210,22 +211,38 @@ export default function AgendaPage() {
         (p) => p.id === values.professionalId,
       );
 
+      const customPrice = Number(values.customPrice ?? variant?.price ?? 0);
       const professionalLine = professional
         ? `\nProfissional: ${professional.name} (${professional.functionTitle})`
         : "";
 
+      const hasStructuredData = Boolean(client && service && variant);
+      const structuredDescription = hasStructuredData
+        ? `Cliente: ${client?.name}\nTelefone: ${client?.phone}\nServiço: ${service?.name}\nTipo: ${variant?.variantName}\nValor: R$ ${customPrice.toFixed(2)}${professionalLine}${
+            values.notes ? `\nObservações: ${values.notes}` : ""
+          }`
+        : values.notes || selectedEvent?.description || "";
+
       const googlePayload = {
-        summary: `${client?.name} - ${service?.name} (${variant?.variantName})`,
-        description: `Cliente: ${client?.name}\nTelefone: ${client?.phone}\nServiço: ${service?.name}\nTipo: ${variant?.variantName}${professionalLine}${
-          values.notes ? `\nObservações: ${values.notes}` : ""
-        }`,
-        location: "Spaço Bellas",
+        summary: hasStructuredData
+          ? `${client?.name} - ${service?.name} (${variant?.variantName})`
+          : selectedEvent?.summary || "Agendamento",
+        description: structuredDescription,
+        location: hasStructuredData
+          ? "Spaço Bellas"
+          : selectedEvent?.description
+            ? undefined
+            : "Spaço Bellas",
         startTime: new Date(values.startTime).toISOString(),
         endTime: new Date(values.endTime).toISOString(),
-        attendees: [
-          ...(client?.email ? [{ email: client.email }] : []),
-          ...(professional?.email ? [{ email: professional.email }] : []),
-        ],
+        ...(hasStructuredData
+          ? {
+              attendees: [
+                ...(client?.email ? [{ email: client.email }] : []),
+                ...(professional?.email ? [{ email: professional.email }] : []),
+              ],
+            }
+          : {}),
       };
 
       let res;
@@ -241,9 +258,13 @@ export default function AgendaPage() {
           status: AppointmentStatus.SCHEDULED,
           notes: values.notes,
           serviceVariants: [
-            { serviceVariantId: values.serviceVariantId, quantity: 1 },
+            {
+              serviceVariantId: values.serviceVariantId,
+              quantity: 1,
+              unitPrice: customPrice,
+            },
           ],
-          totalPrice: variant?.price || 0,
+          totalPrice: customPrice,
         };
 
         const supabaseRes = await addAppointment(supabasePayload);
@@ -281,14 +302,14 @@ export default function AgendaPage() {
   const handleDelete = async (id: string) => {
     if (
       !confirm(
-        "Tem certeza que deseja excluir este agendamento no Google Agenda?",
+        "Tem certeza que deseja remover este agendamento do Google Agenda?",
       )
     )
       return;
     try {
       const res = await deleteCalendarEvent(id);
       if (res?.success) {
-        toast.success("Agendamento excluído");
+        toast.success("Agendamento removido");
         fetchEvents();
       } else {
         toast.error(res?.error || "Erro ao excluir");
@@ -334,7 +355,7 @@ export default function AgendaPage() {
               placeholder="Filtrar Profissional"
               items={professionals.map((p) => ({
                 value: p.id,
-                label: p.name || p.email,
+                label: p.name || p.email || "Profissional",
               }))}
               value={filterProfessionalId}
               onChange={setFilterProfessionalId}
@@ -445,7 +466,7 @@ export default function AgendaPage() {
         onOpenChange={setIsModalOpen}
         selectedEvent={selectedEvent}
         onSave={handleSave}
-        onDelete={(ev) => handleDelete(ev.id)}
+        onDelete={(id) => handleDelete(id)}
         clients={clients}
         services={services}
         professionals={professionals}

@@ -96,6 +96,7 @@ export interface AppointmentService {
   serviceVariantId: string;
   serviceVariantName?: string;
   quantity: number;
+  unitPrice?: number;
 }
 
 export interface Sale {

@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
       .from("professionals")
       .select("*")
       .eq("role", AppRole.PROFESSIONAL)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .range(from, from + PAGE_SIZE - 1);
 

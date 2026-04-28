@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { parseSupabaseError } from "@/lib/error-handler";
-import { Sale, SaleStatus, Payment, PaymentStatus } from "@/types";
+import { Sale, SaleItem, SaleStatus, Payment, PaymentStatus } from "@/types";
 import {
   supabaseSaleToSale,
   supabasePaymentToPayment,
@@ -11,8 +11,15 @@ import {
 
 export type NewSale = Omit<
   Sale,
-  "id" | "payments" | "created_at" | "updatedAt" | "clientName" | "totalAmount"
+  | "id"
+  | "payments"
+  | "created_at"
+  | "updatedAt"
+  | "clientName"
+  | "totalAmount"
+  | "items"
 > & {
+  items: Array<Omit<SaleItem, "id" | "subtotal"> & { subtotal?: number }>;
   totalAmount?: number;
   createdAt?: string;
 };
@@ -31,30 +38,31 @@ export async function createSaleAction(sale: NewSale) {
         const appointmentId = parseInt(sale.appointmentId, 10);
         if (isNaN(appointmentId)) {
           console.warn(
-            `Invalid appointmentId provided to createSaleAction: ${sale.appointmentId}`
+            `Invalid appointmentId provided to createSaleAction: ${sale.appointmentId}`,
           );
         } else {
           const { data: appt, error: apptErr } = await supabase
             .from("appointments")
             .select("start_time")
             .eq("id", appointmentId)
+            .is("deleted_at", null)
             .single();
 
           if (apptErr) {
             console.warn(
-              `Failed to fetch appointment ${appointmentId}: ${apptErr.message}`
+              `Failed to fetch appointment ${appointmentId}: ${apptErr.message}`,
             );
           } else if (appt?.start_time) {
             inheritedCreatedAt = appt.start_time;
             console.log(
-              `Sale linked to appointment ${appointmentId}: using start_time ${appt.start_time}`
+              `Sale linked to appointment ${appointmentId}: using start_time ${appt.start_time}`,
             );
           }
         }
       } catch (appointmentFetchError) {
         console.error(
           "Error fetching appointment for sale creation:",
-          appointmentFetchError
+          appointmentFetchError,
         );
       }
     }
@@ -64,6 +72,7 @@ export async function createSaleAction(sale: NewSale) {
       .from("app_settings")
       .select("value")
       .eq("key", "default_commission_pct")
+      .is("deleted_at", null)
       .single();
 
     const defaultCommPct = settingData ? parseFloat(settingData.value) : 70;
@@ -106,6 +115,7 @@ export async function createSaleAction(sale: NewSale) {
               .from("service_variants")
               .select("commission_pct")
               .eq("id", parseInt(it.serviceVariantId))
+              .is("deleted_at", null)
               .single();
 
             if (variantData?.commission_pct != null) {
@@ -120,6 +130,7 @@ export async function createSaleAction(sale: NewSale) {
               .from("professionals")
               .select("commission_pct")
               .eq("user_id", it.professionalId)
+              .is("deleted_at", null)
               .single();
 
             if (profData?.commission_pct != null) {
@@ -189,6 +200,7 @@ async function syncSaleStatus(supabase: any, saleId: number) {
     .from("sales")
     .select("total_amount, appointment_id, payments(amount, status)")
     .eq("id", saleId)
+    .is("deleted_at", null)
     .single();
 
   if (!sale) return;
@@ -207,7 +219,8 @@ async function syncSaleStatus(supabase: any, saleId: number) {
       status: newStatus,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", saleId);
+    .eq("id", saleId)
+    .is("deleted_at", null);
 
   // Issue A & B Fix: Sync appointment status
   if (sale.appointment_id && newStatus === "paid") {
@@ -217,7 +230,8 @@ async function syncSaleStatus(supabase: any, saleId: number) {
         status: "completed",
         updated_at: new Date().toISOString(),
       })
-      .eq("id", sale.appointment_id);
+      .eq("id", sale.appointment_id)
+      .is("deleted_at", null);
   }
 }
 
@@ -238,6 +252,7 @@ export async function updateSaleStatusAction(
       .from("sales")
       .update(updateData)
       .eq("id", parseInt(id))
+      .is("deleted_at", null)
       .select(
         `*, client:clients(full_name), professional:professionals!sales_professional_id_fkey(full_name), items:sale_items(*, professional:professionals(full_name), variant:service_variants(variant_name, service:services(name))), payments(*)`,
       )
@@ -252,7 +267,8 @@ export async function updateSaleStatusAction(
       await supabase
         .from("payments")
         .update({ status: "cancelled", updated_at: new Date().toISOString() })
-        .eq("sale_id", parseInt(id));
+        .eq("sale_id", parseInt(id))
+        .is("deleted_at", null);
     }
 
     revalidatePath("/financeiro");
@@ -327,6 +343,7 @@ export async function updatePaymentStatusAction(
       .from("payments")
       .update(patch)
       .eq("id", parseInt(id))
+      .is("deleted_at", null)
       .select("*")
       .single();
 
@@ -362,6 +379,7 @@ export async function updateSaleAction(id: string, updates: Partial<Sale>) {
       .from("sales")
       .update(payload)
       .eq("id", parseInt(id))
+      .is("deleted_at", null)
       .select(
         `*, client:clients(full_name), professional:professionals!sales_professional_id_fkey(full_name), items:sale_items(*, professional:professionals(full_name), variant:service_variants(variant_name, service:services(name))), payments(*)`,
       )
@@ -401,6 +419,7 @@ export async function processManualPaymentAction(
         .from("sales")
         .select("professional_id")
         .eq("id", saleId)
+        .is("deleted_at", null)
         .single();
       resolvedProfId = saleRow?.professional_id;
     }
@@ -429,6 +448,7 @@ export async function processManualPaymentAction(
       .from("sales")
       .select("status")
       .eq("id", saleId)
+      .is("deleted_at", null)
       .single();
 
     revalidatePath("/financeiro");

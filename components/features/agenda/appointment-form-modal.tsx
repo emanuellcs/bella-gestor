@@ -28,12 +28,15 @@ import { AppointmentStatus, Client, Service, Professional } from "@/types";
 import { Loader2, Trash2 } from "lucide-react";
 
 const appointmentSchema = z.object({
-  clientId: z.string().min(1, "Selecione um cliente"),
-  serviceId: z.string().min(1, "Selecione um serviço"),
-  serviceVariantId: z.string().min(1, "Selecione um tipo de serviço"),
-  professionalId: z.string().min(1, "Selecione uma profissional"),
+  clientId: z.string(),
+  serviceId: z.string(),
+  serviceVariantId: z.string(),
+  professionalId: z.string(),
   startTime: z.string().min(1, "Data de início é obrigatória"),
   endTime: z.string().min(1, "Data de término é obrigatória"),
+  customPrice: z.coerce
+    .number({ invalid_type_error: "Informe um valor válido" })
+    .min(0, "O valor não pode ser negativo"),
   status: z.nativeEnum(AppointmentStatus),
   notes: z.string().optional(),
 });
@@ -42,6 +45,7 @@ type AppointmentFormValues = z.infer<typeof appointmentSchema>;
 
 interface GoogleCalendarEvent {
   id: string;
+  summary: string;
   description?: string;
   start: { dateTime: string };
   end: { dateTime: string };
@@ -77,6 +81,7 @@ export function AppointmentFormModal({
       professionalId: "",
       startTime: "",
       endTime: "",
+      customPrice: 0,
       status: AppointmentStatus.SCHEDULED,
       notes: "",
     },
@@ -91,6 +96,11 @@ export function AppointmentFormModal({
   const availableVariants = useMemo(
     () => selectedService?.variants || [],
     [selectedService],
+  );
+  const selectedVariantId = form.watch("serviceVariantId");
+  const selectedVariant = useMemo(
+    () => availableVariants.find((v) => v.id === selectedVariantId),
+    [availableVariants, selectedVariantId],
   );
 
   // Parse Google Event to Form
@@ -110,6 +120,10 @@ export function AppointmentFormModal({
         const serviceName = parseField("Serviço: ");
         const professionalText = parseField("Profissional: ");
         const notes = parseField("Observações: ");
+        const priceText = parseField("Valor: ");
+        const parsedPrice = priceText
+          ? Number(priceText.replace(/[^\d,.-]/g, "").replace(",", "."))
+          : undefined;
 
         const client = clients.find((c) => c.name === clientName);
         const service = services.find((s) => s.name === serviceName);
@@ -123,6 +137,9 @@ export function AppointmentFormModal({
               p.functionTitle &&
               `${p.name} (${p.functionTitle})` === professionalText) ||
             p.email === professionalText,
+        );
+        const isStructuredEvent = Boolean(
+          clientName || serviceName || variantName,
         );
 
         const toLocal = (iso: string) => {
@@ -141,8 +158,11 @@ export function AppointmentFormModal({
           professionalId: professional?.id || "",
           startTime: toLocal(selectedEvent.start.dateTime),
           endTime: toLocal(selectedEvent.end.dateTime),
+          customPrice: Number.isFinite(parsedPrice)
+            ? Number(parsedPrice)
+            : variant?.price || 0,
           status: AppointmentStatus.SCHEDULED,
-          notes,
+          notes: notes || (!isStructuredEvent ? desc : ""),
         });
       } else {
         form.reset({
@@ -152,6 +172,7 @@ export function AppointmentFormModal({
           professionalId: "",
           startTime: "",
           endTime: "",
+          customPrice: 0,
           status: AppointmentStatus.SCHEDULED,
           notes: "",
         });
@@ -160,6 +181,25 @@ export function AppointmentFormModal({
   }, [open, selectedEvent, clients, services, professionals, form]);
 
   const onSubmit = async (values: AppointmentFormValues) => {
+    if (!selectedEvent) {
+      const requiredFields: Array<keyof AppointmentFormValues> = [
+        "clientId",
+        "serviceId",
+        "serviceVariantId",
+        "professionalId",
+      ];
+      let hasError = false;
+
+      requiredFields.forEach((fieldName) => {
+        if (!values[fieldName]) {
+          form.setError(fieldName, { message: "Campo obrigatório" });
+          hasError = true;
+        }
+      });
+
+      if (hasError) return;
+    }
+
     await onSave(values);
   };
 
@@ -262,6 +302,7 @@ export function AppointmentFormModal({
                       onChange={(val) => {
                         field.onChange(val);
                         form.setValue("serviceVariantId", "");
+                        form.setValue("customPrice", 0);
                       }}
                     />
                     <FormMessage />
@@ -279,7 +320,13 @@ export function AppointmentFormModal({
                       placeholder="Selecione o tipo"
                       items={variantItems}
                       value={field.value}
-                      onChange={field.onChange}
+                      onChange={(val) => {
+                        field.onChange(val);
+                        const variant = availableVariants.find(
+                          (v) => v.id === val,
+                        );
+                        form.setValue("customPrice", variant?.price || 0);
+                      }}
                       disabled={!selectedServiceId || variantItems.length === 0}
                     />
                     <FormMessage />
@@ -309,6 +356,27 @@ export function AppointmentFormModal({
                     <FormLabel>Término</FormLabel>
                     <FormControl>
                       <Input type="datetime-local" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="customPrice"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Valor cobrado</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={field.value}
+                        onChange={(e) => field.onChange(e.target.value)}
+                        disabled={!selectedEvent && !selectedVariant}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

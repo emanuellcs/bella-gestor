@@ -20,12 +20,14 @@ async function ensureSaleStatus(supabaseAdmin: SupabaseClient, saleId: number) {
     .from("sales")
     .select("id,total_amount,status")
     .eq("id", saleId)
+    .is("deleted_at", null)
     .single();
   if (!sale) return;
   const { data: pays } = await supabaseAdmin
     .from("payments")
     .select("amount,status")
-    .eq("sale_id", saleId);
+    .eq("sale_id", saleId)
+    .is("deleted_at", null);
   const totalPaid = (pays || [])
     .filter((p) => p.status === "paid")
     .reduce((acc: number, p) => acc + Number(p.amount), 0);
@@ -33,7 +35,8 @@ async function ensureSaleStatus(supabaseAdmin: SupabaseClient, saleId: number) {
     await supabaseAdmin
       .from("sales")
       .update({ status: "paid" })
-      .eq("id", saleId);
+      .eq("id", saleId)
+      .is("deleted_at", null);
   }
 }
 
@@ -53,6 +56,7 @@ export async function POST(req: Request) {
       .from("payments")
       .select("id,sale_id,status")
       .in("external_transaction_id", [order_nsu, transaction_nsu])
+      .is("deleted_at", null)
       .limit(1);
 
     const paymentId: number | null = foundByAny?.[0]?.id ?? null;
@@ -70,7 +74,8 @@ export async function POST(req: Request) {
           external_transaction_id: transaction_nsu || order_nsu,
           paid_at: new Date().toISOString(),
         })
-        .eq("id", paymentId);
+        .eq("id", paymentId)
+        .is("deleted_at", null);
     } else if (saleId) {
       await supabaseAdmin.from("payments").insert([
         {

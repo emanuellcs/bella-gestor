@@ -32,15 +32,17 @@ export async function getActiveServices(): Promise<Service[]> {
     category: s.category ?? "",
     active: !!s.is_active,
     created_at: s.created_at,
-    variants: (s.service_variants ?? []).map((v: any) => ({
-      id: String(v.id),
-      serviceId: String(v.service_id),
-      variantName: v.variant_name,
-      price: Number(v.price),
-      duration: v.duration_minutes,
-      active: !!v.is_active,
-      created_at: v.created_at,
-    })),
+    variants: (s.service_variants ?? [])
+      .filter((v: any) => !v.deleted_at)
+      .map((v: any) => ({
+        id: String(v.id),
+        serviceId: String(v.service_id),
+        variantName: v.variant_name,
+        price: Number(v.price),
+        duration: v.duration_minutes,
+        active: !!v.is_active,
+        created_at: v.created_at,
+      })),
   })) as Service[];
 }
 

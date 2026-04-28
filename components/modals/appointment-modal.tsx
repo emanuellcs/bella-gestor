@@ -68,6 +68,7 @@ export function AppointmentModal({
     professionalId: "",
     serviceId: "", // New field for service
     variantId: "", // New field for variant
+    customPrice: 0,
     startTime:
       defaultDate && defaultTime
         ? `${defaultDate}T${defaultTime}`
@@ -96,6 +97,7 @@ export function AppointmentModal({
           professionalId: appointment.professionalId || "",
           serviceId: service?.id || "",
           variantId: variant?.id || "",
+          customPrice: appointment.totalPrice || variant?.price || 0,
           startTime: appointment.startTime
             ? appointment.startTime.substring(0, 16)
             : "",
@@ -114,6 +116,7 @@ export function AppointmentModal({
           professionalId: "",
           serviceId: "",
           variantId: "",
+          customPrice: 0,
           startTime:
             defaultDate && defaultTime
               ? `${defaultDate}T${defaultTime}`
@@ -168,9 +171,10 @@ export function AppointmentModal({
           {
             serviceVariantId: selectedVariantId,
             quantity: 1,
+            unitPrice: Number(formData.customPrice || 0),
           },
         ],
-        totalPrice: selectedVariant?.price || 0,
+        totalPrice: Number(formData.customPrice || 0),
       };
 
       let result;
@@ -209,12 +213,22 @@ export function AppointmentModal({
   const handleServiceSelect = (serviceId: string) => {
     setSelectedServiceId(serviceId);
     setSelectedVariantId(null); // Reset variant when service changes
-    setFormData((prev) => ({ ...prev, serviceId: serviceId, variantId: "" }));
+    setFormData((prev) => ({
+      ...prev,
+      serviceId: serviceId,
+      variantId: "",
+      customPrice: 0,
+    }));
   };
 
   const handleVariantSelect = (variantId: string) => {
     setSelectedVariantId(variantId);
-    setFormData((prev) => ({ ...prev, variantId: variantId }));
+    const variant = availableVariants.find((v) => v.id === variantId);
+    setFormData((prev) => ({
+      ...prev,
+      variantId: variantId,
+      customPrice: variant?.price || 0,
+    }));
   };
 
   const selectedService = services.find((s) => s.id === selectedServiceId);
@@ -293,6 +307,24 @@ export function AppointmentModal({
                 disabled={!selectedServiceId || availableVariants.length === 0}
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="customPrice">Valor cobrado *</Label>
+            <Input
+              id="customPrice"
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.customPrice}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  customPrice: Number(e.target.value || 0),
+                })
+              }
+              disabled={!selectedVariantId}
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

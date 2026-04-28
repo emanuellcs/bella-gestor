@@ -4,10 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useMemo, useState } from "react";
 import { Combobox } from "@/components/ui/combobox";
-import type {
-  Sale,
-  Payment,
-} from "@/types";
+import type { Sale, Payment } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { PaymentStatus, SaleStatus } from "@/types";
 import { useData } from "@/lib/data-context";
@@ -89,17 +86,17 @@ type DateRange = {
 function withinRange(iso: string, range: DateRange) {
   if (!range.start && !range.end) return true;
   const d = new Date(iso).getTime();
-  
+
   if (range.start) {
     const startVal = new Date(range.start + "T00:00:00").getTime();
     if (d < startVal) return false;
   }
-  
+
   if (range.end) {
     const endVal = new Date(range.end + "T23:59:59").getTime();
     if (d > endVal) return false;
   }
-  
+
   return true;
 }
 
@@ -505,8 +502,13 @@ export default function FinanceiroPage() {
                         const due = balance(s);
                         const isPending = s.status === SaleStatus.PENDING;
                         return (
-                          <TableRow key={s.id} className="group transition-colors hover:bg-muted/50">
-                            <TableCell className="font-mono text-[10px] font-bold">#{s.id}</TableCell>
+                          <TableRow
+                            key={s.id}
+                            className="group transition-colors hover:bg-muted/50"
+                          >
+                            <TableCell className="font-mono text-[10px] font-bold">
+                              #{s.id}
+                            </TableCell>
                             <TableCell className="text-muted-foreground whitespace-nowrap text-xs">
                               {formatDateTime(s.created_at)}
                             </TableCell>
@@ -530,11 +532,12 @@ export default function FinanceiroPage() {
                                 <span className="font-bold text-sm">
                                   {formatCurrency(Number(s.totalAmount))}
                                 </span>
-                                {due > 0 && s.status !== SaleStatus.CANCELLED && (
-                                  <span className="text-[10px] text-amber-600 font-bold tracking-tight">
-                                    Falta {formatCurrency(due)}
-                                  </span>
-                                )}
+                                {due > 0 &&
+                                  s.status !== SaleStatus.CANCELLED && (
+                                    <span className="text-[10px] text-amber-600 font-bold tracking-tight">
+                                      Falta {formatCurrency(due)}
+                                    </span>
+                                  )}
                               </div>
                             </TableCell>
                             <TableCell>{getStatusBadge(s.status)}</TableCell>
@@ -548,7 +551,9 @@ export default function FinanceiroPage() {
                                     className="h-8 px-3 bg-primary hover:bg-primary/90 shadow-sm"
                                   >
                                     <CreditCard className="h-3.5 w-3.5 mr-1.5" />
-                                    <span className="text-xs font-bold uppercase tracking-tighter">Checkout</span>
+                                    <span className="text-xs font-bold uppercase tracking-tighter">
+                                      Checkout
+                                    </span>
                                   </Button>
                                 )}
                                 <DropdownMenu>
@@ -571,8 +576,8 @@ export default function FinanceiroPage() {
                                         setSaleDetailsOpen(true);
                                       }}
                                     >
-                                      <Eye className="h-4 w-4 mr-2" /> Detalhes da
-                                      Venda
+                                      <Eye className="h-4 w-4 mr-2" /> Detalhes
+                                      da Venda
                                     </DropdownMenuItem>
                                     {!isPending &&
                                       due > 0 &&
@@ -599,10 +604,12 @@ export default function FinanceiroPage() {
                                           );
                                         }
                                       }}
-                                      disabled={s.status === SaleStatus.CANCELLED}
+                                      disabled={
+                                        s.status === SaleStatus.CANCELLED
+                                      }
                                     >
-                                      <Trash2 className="h-4 w-4 mr-2" /> Cancelar
-                                      Venda
+                                      <Trash2 className="h-4 w-4 mr-2" />{" "}
+                                      Cancelar Venda
                                     </DropdownMenuItem>
                                   </DropdownMenuContent>
                                 </DropdownMenu>
@@ -621,10 +628,15 @@ export default function FinanceiroPage() {
                     const due = balance(s);
                     const isPending = s.status === SaleStatus.PENDING;
                     return (
-                      <div key={s.id} className="p-4 space-y-4 bg-card hover:bg-muted/30 transition-colors">
+                      <div
+                        key={s.id}
+                        className="p-4 space-y-4 bg-card hover:bg-muted/30 transition-colors"
+                      >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-[10px] font-bold px-2 py-0.5 bg-muted rounded">#{s.id}</span>
+                            <span className="font-mono text-[10px] font-bold px-2 py-0.5 bg-muted rounded">
+                              #{s.id}
+                            </span>
                             <span className="text-[10px] text-muted-foreground font-medium">
                               {formatDateTime(s.created_at)}
                             </span>
@@ -645,7 +657,9 @@ export default function FinanceiroPage() {
 
                         <div className="flex items-center justify-between pt-2">
                           <div className="flex flex-col">
-                            <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Total</span>
+                            <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">
+                              Total
+                            </span>
                             <span className="font-black text-xl text-primary leading-none">
                               {formatCurrency(Number(s.totalAmount))}
                             </span>
@@ -655,7 +669,7 @@ export default function FinanceiroPage() {
                               </span>
                             )}
                           </div>
-                          
+
                           <div className="flex items-center gap-2">
                             <Button
                               variant="outline"
@@ -668,7 +682,7 @@ export default function FinanceiroPage() {
                             >
                               Ver Detalhes
                             </Button>
-                            
+
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
@@ -685,8 +699,8 @@ export default function FinanceiroPage() {
                                     onClick={() => setPosCheckoutSale(s)}
                                     className="text-primary font-bold"
                                   >
-                                    <CreditCard className="h-4 w-4 mr-2" /> Finalizar
-                                    Checkout
+                                    <CreditCard className="h-4 w-4 mr-2" />{" "}
+                                    Finalizar Checkout
                                   </DropdownMenuItem>
                                 )}
                                 {!isPending &&
@@ -745,7 +759,9 @@ export default function FinanceiroPage() {
                     <Receipt className="size-12 text-muted-foreground/50" />
                   </EmptyMedia>
                   <EmptyHeader>
-                    <EmptyTitle className="text-xl">Nenhuma venda encontrada</EmptyTitle>
+                    <EmptyTitle className="text-xl">
+                      Nenhuma venda encontrada
+                    </EmptyTitle>
                     <EmptyDescription>
                       {search || statusFilter
                         ? "Tente ajustar seus filtros para encontrar o que procura."
@@ -777,7 +793,8 @@ export default function FinanceiroPage() {
         <div className="p-4 border-t bg-background flex items-center justify-between flex-none">
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground font-medium">
-              Página <span className="text-foreground">{page}</span> de <span className="text-foreground">{totalPages}</span>
+              Página <span className="text-foreground">{page}</span> de{" "}
+              <span className="text-foreground">{totalPages}</span>
             </span>
           </div>
           <div className="flex gap-2">
@@ -809,7 +826,10 @@ export default function FinanceiroPage() {
           <DialogHeader className="p-6 pb-2 text-left">
             <DialogTitle className="flex items-center gap-2 text-xl font-bold tracking-tight">
               <Receipt className="h-5 w-5 text-primary" />
-              Venda <span className="font-mono text-[10px] font-bold px-2 py-0.5 bg-muted rounded">#{selectedSale?.id}</span>
+              Venda{" "}
+              <span className="font-mono text-[10px] font-bold px-2 py-0.5 bg-muted rounded">
+                #{selectedSale?.id}
+              </span>
             </DialogTitle>
           </DialogHeader>
           {selectedSale && (
@@ -839,9 +859,15 @@ export default function FinanceiroPage() {
                   <Table className="text-xs min-w-[450px] sm:min-w-0">
                     <TableHeader className="bg-muted/50">
                       <TableRow>
-                        <TableHead className="h-10 font-bold">Serviço</TableHead>
-                        <TableHead className="h-10 text-center font-bold w-16">Qtd</TableHead>
-                        <TableHead className="h-10 text-right font-bold w-24">Preço</TableHead>
+                        <TableHead className="h-10 font-bold">
+                          Serviço
+                        </TableHead>
+                        <TableHead className="h-10 text-center font-bold w-16">
+                          Qtd
+                        </TableHead>
+                        <TableHead className="h-10 text-right font-bold w-24">
+                          Preço
+                        </TableHead>
                         <TableHead className="h-10 text-right font-bold w-24">
                           Subtotal
                         </TableHead>
@@ -855,7 +881,8 @@ export default function FinanceiroPage() {
                               {it.serviceName}
                             </div>
                             <div className="text-[10px] text-muted-foreground mt-0.5">
-                              {it.serviceVariantName} • {it.professionalName || "N/A"}
+                              {it.serviceVariantName} •{" "}
+                              {it.professionalName || "N/A"}
                             </div>
                           </TableCell>
                           <TableCell className="py-3 text-center font-medium">
@@ -948,7 +975,7 @@ export default function FinanceiroPage() {
               Nova Venda Manual
             </DialogTitle>
           </DialogHeader>
-          
+
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
             <div className="space-y-2">
               <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">
@@ -1115,7 +1142,10 @@ export default function FinanceiroPage() {
             </div>
 
             {newSaleError && (
-              <Alert variant="destructive" className="animate-in fade-in zoom-in duration-200">
+              <Alert
+                variant="destructive"
+                className="animate-in fade-in zoom-in duration-200"
+              >
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription className="text-xs font-bold">
                   {newSaleError}
@@ -1138,7 +1168,7 @@ export default function FinanceiroPage() {
                 )}
               </div>
             </div>
-            
+
             <div className="flex gap-3">
               <Button
                 variant="ghost"

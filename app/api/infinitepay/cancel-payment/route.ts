@@ -31,6 +31,7 @@ export async function POST(req: Request) {
         updated_at: new Date().toISOString(),
       })
       .eq("external_transaction_id", externalTransactionId)
+      .is("deleted_at", null)
       .select("*")
       .single();
 

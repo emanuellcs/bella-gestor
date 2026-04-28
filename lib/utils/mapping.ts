@@ -196,7 +196,9 @@ export function supabaseSaleToSale(
   const rawProf = s.professional || s.professionals;
   const saleProf = Array.isArray(rawProf) ? rawProf[0] : rawProf;
 
-  const rawItems = s.items || s.sale_items || [];
+  const rawItems = (s.items || s.sale_items || []).filter(
+    (it) => !it.deleted_at,
+  );
 
   return {
     id: s.id.toString(),
@@ -247,7 +249,9 @@ export function supabaseSaleToSale(
         : s.total_amount,
     status: s.status,
     notes: s.notes || "",
-    payments: (s.payments || []).map(supabasePaymentToPayment),
+    payments: (s.payments || [])
+      .filter((p) => !p.deleted_at)
+      .map(supabasePaymentToPayment),
     created_at: s.created_at,
     updatedAt: s.updated_at || undefined,
   };
