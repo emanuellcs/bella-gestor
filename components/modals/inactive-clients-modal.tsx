@@ -226,7 +226,7 @@ export function InactiveClientsModal({
               </DialogTitle>
               <DialogDescription>
                 Gerencie os clientes inativos. Você pode reativá-los ou
-                excluí-los permanentemente.
+                removê-los das listas do sistema.
               </DialogDescription>
             </div>
             <Button
@@ -371,8 +371,7 @@ export function InactiveClientsModal({
                               setDeleteDialogOpen(true);
                             }}
                           >
-                            <Trash2 className="mr-2 h-4 w-4" /> Excluir
-                            permanentemente
+                            <Trash2 className="mr-2 h-4 w-4" /> Remover
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -420,11 +419,11 @@ export function InactiveClientsModal({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="text-destructive">
-              Excluir permanentemente?
+              Remover cliente?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser desfeita. Todos os dados do cliente serão
-              apagados. Para confirmar, digite{" "}
+              O cliente será ocultado das listas e preservado no banco. Para
+              confirmar, digite{" "}
               <strong className="text-foreground">quero excluir</strong> abaixo.
             </AlertDialogDescription>
             <Input
@@ -498,8 +497,8 @@ export function InactiveClientsModal({
               Excluir {selectedIds.size} cliente(s)?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser desfeita. Todos os dados dos clientes
-              selecionados serão apagados. Para confirmar, digite{" "}
+              Os clientes selecionados serão ocultados das listas e preservados
+              no banco. Para confirmar, digite{" "}
               <strong className="text-foreground">quero excluir</strong> abaixo.
             </AlertDialogDescription>
             <Input

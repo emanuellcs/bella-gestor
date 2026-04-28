@@ -15,13 +15,18 @@ export async function getReferralSourceCounts(): Promise<{
     const { data: options } = await supabase
       .from("app_options")
       .select("value")
-      .eq("option_type", "referral_source");
+      .eq("option_type", "referral_source")
+      .is("deleted_at", null);
 
     const validSources = (options || []).map((o) => o.value);
 
     const data = await fetchAll<{ referral_source: string | null }>(
       ({ from, to }) =>
-        supabase.from("clients").select("referral_source").range(from, to),
+        supabase
+          .from("clients")
+          .select("referral_source")
+          .is("deleted_at", null)
+          .range(from, to),
     );
 
     const counts: { [key: string]: number } = {};
@@ -75,6 +80,7 @@ export async function getActiveClients(): Promise<Client[]> {
           .from("clients")
           .select("*")
           .eq("is_active", true)
+          .is("deleted_at", null)
           .order("created_at", { ascending: false })
           .range(from, to),
     );
@@ -94,6 +100,7 @@ export async function getClientById(id: string): Promise<Client | null> {
       .from("clients")
       .select("*")
       .eq("id", parseInt(id))
+      .is("deleted_at", null)
       .single();
 
     if (error) {
@@ -119,6 +126,7 @@ export async function getInactiveClients(): Promise<Client[]> {
           .from("clients")
           .select("*")
           .eq("is_active", false)
+          .is("deleted_at", null)
           .order("created_at", { ascending: false })
           .range(from, to),
     );
@@ -141,6 +149,7 @@ export async function searchClients(query: string): Promise<Client[]> {
           .from("clients")
           .select("*")
           .or(`full_name.ilike.${q},phone.ilike.${q},email.ilike.${q}`)
+          .is("deleted_at", null)
           .order("created_at", { ascending: false })
           .range(from, to),
     );

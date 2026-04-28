@@ -29,13 +29,15 @@ async function getSaleAndPaidTotal(
     .from("sales")
     .select("id,total_amount,status")
     .eq("id", saleId)
+    .is("deleted_at", null)
     .single();
   if (saleErr || !sale) throw new Error("Venda não encontrada");
 
   const { data: pays, error: paysErr } = await supabaseAdmin
     .from("payments")
     .select("amount,status")
-    .eq("sale_id", saleId);
+    .eq("sale_id", saleId)
+    .is("deleted_at", null);
   if (paysErr) throw new Error("Falha ao consultar pagamentos");
 
   const totalPaid = (pays || [])
@@ -52,7 +54,8 @@ async function ensureSaleStatus(supabaseAdmin: SupabaseClient, saleId: number) {
     await supabaseAdmin
       .from("sales")
       .update({ status: "paid" })
-      .eq("id", saleId);
+      .eq("id", saleId)
+      .is("deleted_at", null);
   }
 }
 
@@ -92,6 +95,7 @@ export async function POST(req: Request) {
       .from("payments")
       .select("id,sale_id,status,external_transaction_id")
       .in("external_transaction_id", [order_nsu, transaction_nsu])
+      .is("deleted_at", null)
       .limit(1);
 
     const paymentId: number | null = foundByAny?.[0]?.id ?? null;
@@ -109,6 +113,7 @@ export async function POST(req: Request) {
         .from("payments")
         .select("id,status,sale_id")
         .eq("external_transaction_id", transaction_nsu)
+        .is("deleted_at", null)
         .limit(1);
       if (already?.[0]?.id && already?.[0]?.status === "paid") {
         if (already?.[0]?.sale_id)
@@ -132,7 +137,8 @@ export async function POST(req: Request) {
           paid_at: new Date().toISOString(),
           ...(paidAmountReais != null ? { amount: paidAmountReais } : {}),
         })
-        .eq("id", paymentId);
+        .eq("id", paymentId)
+        .is("deleted_at", null);
     } else if (saleId) {
       // Create paid record if no matching pending record exists
       await supabaseAdmin.from("payments").insert([

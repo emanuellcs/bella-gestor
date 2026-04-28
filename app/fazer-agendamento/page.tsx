@@ -5,7 +5,7 @@ import {
   createCalendarEvent,
   listCalendarEvents,
 } from "@/services/googleCalendarAppsScript";
-import type { Appointment, Sale, Payment } from "@/types";
+import type { Appointment, Sale, Payment, Professional } from "@/types";
 import { AppointmentStatus } from "@/types";
 import { useData } from "@/lib/data-context";
 import { Button } from "@/components/ui/button";
@@ -131,6 +131,7 @@ interface AppointmentFormData {
   professionalId: string;
   startTime: string;
   endTime: string;
+  customPrice: number;
   notes: string;
 }
 
@@ -185,6 +186,7 @@ export default function CreateAppointmentPage() {
     professionalId: "",
     startTime: "",
     endTime: "",
+    customPrice: 0,
     notes: "",
   };
   const [formData, setFormData] =
@@ -377,6 +379,16 @@ export default function CreateAppointmentPage() {
       return;
     }
 
+    const customPrice = Number(formData.customPrice ?? sv.price);
+    if (!Number.isFinite(customPrice) || customPrice < 0) {
+      toast({
+        variant: "destructive",
+        title: "Valor inválido",
+        description: "Informe um valor cobrado maior ou igual a zero.",
+      });
+      return;
+    }
+
     const profLine = prof ? `\nProfissional: ${prof.name || prof.email}` : "";
     setSaving(true);
 
@@ -390,9 +402,13 @@ export default function CreateAppointmentPage() {
         status: AppointmentStatus.SCHEDULED,
         notes: formData.notes,
         serviceVariants: [
-          { serviceVariantId: formData.serviceVariantId, quantity: 1 },
+          {
+            serviceVariantId: formData.serviceVariantId,
+            quantity: 1,
+            unitPrice: customPrice,
+          },
         ],
-        totalPrice: sv.price,
+        totalPrice: customPrice,
       };
 
       const supabaseRes = await addAppointment(supabasePayload);
@@ -403,7 +419,7 @@ export default function CreateAppointmentPage() {
       // 2. Google Calendar sync SECOND
       const googlePayload = {
         summary: `${c.name} - ${s.name} (${sv.variantName})`,
-        description: `Cliente: ${c.name}\nTelefone: ${c.phone}\nServiço: ${s.name}\nTipo: ${sv.variantName}${profLine}${
+        description: `Cliente: ${c.name}\nTelefone: ${c.phone}\nServiço: ${s.name}\nTipo: ${sv.variantName}\nValor: R$ ${customPrice.toFixed(2)}${profLine}${
           formData.notes ? `\nObservações: ${formData.notes}` : ""
         }`,
         location: "Spaço Bellas",
@@ -747,6 +763,7 @@ export default function CreateAppointmentPage() {
                       ...p,
                       serviceId: v,
                       serviceVariantId: "",
+                      customPrice: 0,
                     }))
                   }
                 />
@@ -757,9 +774,16 @@ export default function CreateAppointmentPage() {
                   placeholder="Selecione o tipo"
                   items={availableVariants}
                   value={formData.serviceVariantId}
-                  onChange={(v) =>
-                    setFormData((p) => ({ ...p, serviceVariantId: v }))
-                  }
+                  onChange={(v) => {
+                    const variant = selectedService?.variants?.find(
+                      (item) => item.id === v,
+                    );
+                    setFormData((p) => ({
+                      ...p,
+                      serviceVariantId: v,
+                      customPrice: variant?.price || 0,
+                    }));
+                  }}
                   disabled={
                     !formData.serviceId || availableVariants.length === 0
                   }
@@ -768,6 +792,22 @@ export default function CreateAppointmentPage() {
                       ? "Nenhum tipo encontrado"
                       : "Selecione um serviço primeiro"
                   }
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Valor cobrado</label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.customPrice}
+                  onChange={(e) =>
+                    setFormData((p) => ({
+                      ...p,
+                      customPrice: Number(e.target.value || 0),
+                    }))
+                  }
+                  disabled={!formData.serviceVariantId}
                 />
               </div>
               <div className="space-y-1">

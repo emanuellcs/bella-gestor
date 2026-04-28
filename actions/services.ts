@@ -96,6 +96,7 @@ export async function updateServiceAction(
       .from("services")
       .update(payload)
       .eq("id", serviceIdNum)
+      .is("deleted_at", null)
       .select("*")
       .single();
 
@@ -141,12 +142,21 @@ export async function updateServiceAction(
         await supabase
           .from("service_variants")
           .update(updatePayload)
-          .eq("id", parseInt(variant.id));
+          .eq("id", parseInt(variant.id))
+          .is("deleted_at", null);
       }
 
       if (variantsToDelete.length > 0) {
         const deleteIds = variantsToDelete.map((v) => parseInt(v.id));
-        await supabase.from("service_variants").delete().in("id", deleteIds);
+        await supabase
+          .from("service_variants")
+          .update({
+            is_active: false,
+            deleted_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .in("id", deleteIds)
+          .is("deleted_at", null);
       }
     }
 
@@ -164,10 +174,34 @@ export async function updateServiceAction(
 export async function deleteServiceAction(id: string) {
   try {
     const supabase = getSupabaseAdmin();
+    const deletedAt = new Date().toISOString();
+
+    const { error: variantsError } = await supabase
+      .from("service_variants")
+      .update({
+        is_active: false,
+        deleted_at: deletedAt,
+        updated_at: deletedAt,
+      })
+      .eq("service_id", parseInt(id))
+      .is("deleted_at", null);
+
+    if (variantsError) {
+      return {
+        success: false,
+        error: parseSupabaseError(variantsError).description,
+      };
+    }
+
     const { error } = await supabase
       .from("services")
-      .delete()
-      .eq("id", parseInt(id));
+      .update({
+        is_active: false,
+        deleted_at: deletedAt,
+        updated_at: deletedAt,
+      })
+      .eq("id", parseInt(id))
+      .is("deleted_at", null);
 
     if (error) {
       return { success: false, error: parseSupabaseError(error).description };
@@ -243,6 +277,7 @@ export async function updateServiceVariantAction(
       .from("service_variants")
       .update(payload)
       .eq("id", parseInt(id))
+      .is("deleted_at", null)
       .select("*")
       .single();
 
@@ -266,8 +301,13 @@ export async function deleteServiceVariantAction(id: string) {
     const supabase = getSupabaseAdmin();
     const { error } = await supabase
       .from("service_variants")
-      .delete()
-      .eq("id", parseInt(id));
+      .update({
+        is_active: false,
+        deleted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", parseInt(id))
+      .is("deleted_at", null);
 
     if (error) {
       return { success: false, error: parseSupabaseError(error).description };

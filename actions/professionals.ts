@@ -63,6 +63,7 @@ export async function updateProfessionalAction(
       .from("professionals")
       .update(payload)
       .eq("user_id", id)
+      .is("deleted_at", null)
       .select("*")
       .single();
 
@@ -91,8 +92,9 @@ export async function deleteProfessionalAction(id: string) {
     const supabase = getSupabaseAdmin();
     const { error } = await supabase
       .from("professionals")
-      .delete()
-      .eq("user_id", id);
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("user_id", id)
+      .is("deleted_at", null);
 
     if (error) throw new Error(parseSupabaseError(error).description);
     revalidatePath("/profissionais");

@@ -255,9 +255,9 @@ export default function ProfessionalsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir este profissional? Esta ação não
-              pode ser desfeita e pode afetar o histórico de agendamentos e
-              vendas.
+              Tem certeza que deseja excluir este profissional? Ele será
+              removido das listas ativas sem apagar o histórico de agendamentos
+              e vendas.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

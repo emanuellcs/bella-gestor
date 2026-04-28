@@ -420,8 +420,8 @@ export default function ServicesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir este serviço? Esta ação não pode
-              ser desfeita e todos os tipos relacionados também serão removidos.
+              Tem certeza que deseja excluir este serviço? Ele será removido das
+              listas ativas e seus tipos relacionados também serão ocultados.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

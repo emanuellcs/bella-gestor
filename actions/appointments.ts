@@ -26,6 +26,7 @@ export async function createAppointmentAction(
         appointment.serviceVariants?.map((sv) => ({
           service_variant_id: parseInt(sv.serviceVariantId),
           quantity: sv.quantity,
+          unit_price: sv.unitPrice,
         })) || [],
     };
 
@@ -40,28 +41,6 @@ export async function createAppointmentAction(
         success: false,
         error: parseSupabaseError(error).description,
       };
-    }
-
-    // Sync sale's created_at to appointment's start_time
-    if (data?.id) {
-      try {
-        const appointmentId = parseInt(data.id, 10);
-        const appointmentStartTime = appointment.startTime;
-        
-        await supabase
-          .from("sales")
-          .update({ created_at: appointmentStartTime })
-          .eq("appointment_id", appointmentId);
-        
-        console.log(
-          `Sale created_at synced to appointment start_time: ${appointmentStartTime}`
-        );
-      } catch (syncError) {
-        console.warn(
-          "Failed to sync sale created_at to appointment start_time:",
-          syncError
-        );
-      }
     }
 
     revalidatePath("/agenda");
@@ -111,6 +90,7 @@ export async function updateAppointmentAction(
       .from("appointments")
       .update(payload)
       .eq("id", parseInt(id))
+      .is("deleted_at", null)
       .select(`*, clients(full_name)`)
       .single();
 
@@ -126,7 +106,8 @@ export async function updateAppointmentAction(
           status: SaleStatus.CANCELLED,
           updated_at: new Date().toISOString(),
         })
-        .eq("appointment_id", parseInt(id));
+        .eq("appointment_id", parseInt(id))
+        .is("deleted_at", null);
     }
 
     revalidatePath("/agenda");
@@ -144,16 +125,32 @@ export async function updateAppointmentAction(
 export async function deleteAppointmentAction(id: string) {
   try {
     const supabase = getSupabaseAdmin();
+    const deletedAt = new Date().toISOString();
     const { error } = await supabase
       .from("appointments")
-      .delete()
-      .eq("id", parseInt(id));
+      .update({
+        status: AppointmentStatus.CANCELLED,
+        deleted_at: deletedAt,
+        updated_at: deletedAt,
+      })
+      .eq("id", parseInt(id))
+      .is("deleted_at", null);
 
     if (error) {
       return { success: false, error: parseSupabaseError(error).description };
     }
 
+    await supabase
+      .from("sales")
+      .update({
+        status: SaleStatus.CANCELLED,
+        updated_at: deletedAt,
+      })
+      .eq("appointment_id", parseInt(id))
+      .is("deleted_at", null);
+
     revalidatePath("/agenda");
+    revalidatePath("/financeiro");
     return { success: true };
   } catch (error: unknown) {
     console.error("Error in deleteAppointmentAction:", error);

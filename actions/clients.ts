@@ -46,6 +46,7 @@ export async function updateClientAction(id: string, client: Partial<Client>) {
       .from("clients")
       .update(payload)
       .eq("id", parseInt(id))
+      .is("deleted_at", null)
       .select("*")
       .single();
 
@@ -69,8 +70,9 @@ export async function deactivateClientAction(id: string) {
     const supabase = getSupabaseAdmin();
     const { error } = await supabase
       .from("clients")
-      .update({ is_active: false })
-      .eq("id", parseInt(id));
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq("id", parseInt(id))
+      .is("deleted_at", null);
 
     if (error) {
       return { success: false, error: parseSupabaseError(error).description };
@@ -92,8 +94,9 @@ export async function reactivateClientAction(id: string) {
     const supabase = getSupabaseAdmin();
     const { error } = await supabase
       .from("clients")
-      .update({ is_active: true })
-      .eq("id", parseInt(id));
+      .update({ is_active: true, updated_at: new Date().toISOString() })
+      .eq("id", parseInt(id))
+      .is("deleted_at", null);
 
     if (error) {
       return { success: false, error: parseSupabaseError(error).description };
@@ -108,15 +111,20 @@ export async function reactivateClientAction(id: string) {
 }
 
 /**
- * Permanently deletes a client.
+ * Logically deletes a client.
  */
 export async function deleteClientAction(id: string) {
   try {
     const supabase = getSupabaseAdmin();
     const { error } = await supabase
       .from("clients")
-      .delete()
-      .eq("id", parseInt(id));
+      .update({
+        is_active: false,
+        deleted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", parseInt(id))
+      .is("deleted_at", null);
 
     if (error) {
       return { success: false, error: parseSupabaseError(error).description };

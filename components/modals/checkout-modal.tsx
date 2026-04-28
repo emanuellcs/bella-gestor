@@ -135,7 +135,9 @@ export function CheckoutModal({
             </DialogTitle>
           </div>
           <DialogDescription className="text-sm">
-            Cliente: <span className="font-bold text-foreground">{clientName}</span> | Venda <span className="font-mono font-bold">#{saleId}</span>
+            Cliente:{" "}
+            <span className="font-bold text-foreground">{clientName}</span> |
+            Venda <span className="font-mono font-bold">#{saleId}</span>
           </DialogDescription>
         </DialogHeader>
 
@@ -165,26 +167,50 @@ export function CheckoutModal({
           {/* Form Fields */}
           <div className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="method" className="text-xs font-bold uppercase tracking-wider text-muted-foreground ml-1">
+              <Label
+                htmlFor="method"
+                className="text-xs font-bold uppercase tracking-wider text-muted-foreground ml-1"
+              >
                 Como o cliente pagou?
               </Label>
               <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                <SelectTrigger id="method" className="h-14 text-base font-medium bg-background border-2 focus:ring-primary/20 transition-all">
+                <SelectTrigger
+                  id="method"
+                  className="h-14 text-base font-medium bg-background border-2 focus:ring-primary/20 transition-all"
+                >
                   <SelectValue placeholder="Selecione o método..." />
                 </SelectTrigger>
                 <SelectContent className="max-h-[300px]">
                   {paymentMethods.length > 0 ? (
                     paymentMethods.map((method) => (
-                      <SelectItem key={method.id} value={method.label} className="py-3 text-base">
+                      <SelectItem
+                        key={method.id}
+                        value={method.label}
+                        className="py-3 text-base"
+                      >
                         {method.label}
                       </SelectItem>
                     ))
                   ) : (
                     <>
-                      <SelectItem value="Cartão de Crédito" className="py-3 text-base">Cartão de Crédito</SelectItem>
-                      <SelectItem value="Cartão de Débito" className="py-3 text-base">Cartão de Débito</SelectItem>
-                      <SelectItem value="PIX" className="py-3 text-base">PIX</SelectItem>
-                      <SelectItem value="Dinheiro" className="py-3 text-base">Dinheiro</SelectItem>
+                      <SelectItem
+                        value="Cartão de Crédito"
+                        className="py-3 text-base"
+                      >
+                        Cartão de Crédito
+                      </SelectItem>
+                      <SelectItem
+                        value="Cartão de Débito"
+                        className="py-3 text-base"
+                      >
+                        Cartão de Débito
+                      </SelectItem>
+                      <SelectItem value="PIX" className="py-3 text-base">
+                        PIX
+                      </SelectItem>
+                      <SelectItem value="Dinheiro" className="py-3 text-base">
+                        Dinheiro
+                      </SelectItem>
                     </>
                   )}
                 </SelectContent>
@@ -192,7 +218,10 @@ export function CheckoutModal({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="amount" className="text-xs font-bold uppercase tracking-wider text-muted-foreground ml-1">
+              <Label
+                htmlFor="amount"
+                className="text-xs font-bold uppercase tracking-wider text-muted-foreground ml-1"
+              >
                 Valor Recebido agora
               </Label>
               <div className="relative group">
@@ -209,9 +238,9 @@ export function CheckoutModal({
                   value={amount}
                   onChange={(e) => setAmount(Number(e.target.value))}
                 />
-                <Button 
+                <Button
                   type="button"
-                  variant="ghost" 
+                  variant="ghost"
                   size="sm"
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold uppercase text-primary hover:bg-primary/5"
                   onClick={() => setAmount(Number(balance.toFixed(2)))}
@@ -223,9 +252,14 @@ export function CheckoutModal({
           </div>
 
           {error && (
-            <Alert variant="destructive" className="animate-in fade-in zoom-in duration-200">
+            <Alert
+              variant="destructive"
+              className="animate-in fade-in zoom-in duration-200"
+            >
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-xs font-medium">{error}</AlertDescription>
+              <AlertDescription className="text-xs font-medium">
+                {error}
+              </AlertDescription>
             </Alert>
           )}
         </div>
@@ -233,9 +267,7 @@ export function CheckoutModal({
         <div className="p-6 pt-2 flex flex-col gap-3 bg-muted/5 border-t">
           <Button
             onClick={handleSubmit}
-            disabled={
-              loading || balance <= 0 || !paymentMethod || amount <= 0
-            }
+            disabled={loading || balance <= 0 || !paymentMethod || amount <= 0}
             className="w-full h-16 bg-green-600 hover:bg-green-700 text-white text-lg font-black uppercase tracking-widest shadow-xl shadow-green-600/20 active:scale-[0.98] transition-all"
           >
             {loading ? (

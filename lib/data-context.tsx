@@ -546,7 +546,7 @@ export function DataProvider({
       await refreshData();
       toast({
         title: "Cliente excluído",
-        description: "O cliente foi excluído permanentemente.",
+        description: "O cliente foi removido da visualização ativa.",
       });
       return true;
     } catch (err) {

@@ -11,6 +11,7 @@ export async function getProfessionals(): Promise<Professional[]> {
     const { data, error } = await supabase
       .from("professionals")
       .select("*")
+      .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
     if (error) {
