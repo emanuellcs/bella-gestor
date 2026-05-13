@@ -1,14 +1,24 @@
+import {
+  googleAppsScriptResponseSchema,
+  googleCalendarEventSchema,
+} from "@/lib/validation/schemas";
+import type { z } from "zod";
+
 const APPS_SCRIPT_URL = process.env.NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL || "";
 
-export async function createCalendarEvent(eventData: any) {
+type GoogleCalendarEventPayload = z.input<typeof googleCalendarEventSchema>;
+
+export async function createCalendarEvent(eventData: GoogleCalendarEventPayload) {
   try {
     if (!APPS_SCRIPT_URL) {
       throw new Error("NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL não configurada");
     }
 
+    const parsedEventData = googleCalendarEventSchema.parse(eventData);
+
     const params = new URLSearchParams({
       action: "create",
-      eventData: JSON.stringify(eventData),
+      eventData: JSON.stringify(parsedEventData),
     });
 
     const response = await fetch(`${APPS_SCRIPT_URL}?${params.toString()}`, {
@@ -19,23 +29,28 @@ export async function createCalendarEvent(eventData: any) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    return await response.json();
+    return googleAppsScriptResponseSchema.parse(await response.json());
   } catch (error) {
     console.error("Error creating calendar event:", error);
     return { success: false, error: String(error) };
   }
 }
 
-export async function updateCalendarEvent(eventId: string, eventData: any) {
+export async function updateCalendarEvent(
+  eventId: string,
+  eventData: GoogleCalendarEventPayload,
+) {
   try {
     if (!APPS_SCRIPT_URL) {
       throw new Error("NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL não configurada");
     }
 
+    const parsedEventData = googleCalendarEventSchema.parse(eventData);
+
     const params = new URLSearchParams({
       action: "update",
       eventId,
-      eventData: JSON.stringify(eventData),
+      eventData: JSON.stringify(parsedEventData),
     });
 
     const response = await fetch(`${APPS_SCRIPT_URL}?${params.toString()}`, {
@@ -46,7 +61,7 @@ export async function updateCalendarEvent(eventId: string, eventData: any) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    return await response.json();
+    return googleAppsScriptResponseSchema.parse(await response.json());
   } catch (error) {
     console.error("Error updating calendar event:", error);
     return { success: false, error: String(error) };
@@ -72,7 +87,7 @@ export async function deleteCalendarEvent(eventId: string) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    return await response.json();
+    return googleAppsScriptResponseSchema.parse(await response.json());
   } catch (error) {
     console.error("Error deleting calendar event:", error);
     return { success: false, error: String(error) };
@@ -106,7 +121,7 @@ export async function listCalendarEvents(
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    return await response.json();
+    return googleAppsScriptResponseSchema.parse(await response.json());
   } catch (error) {
     console.error("Error listing calendar events:", error);
     return { success: false, error: String(error), events: [] };

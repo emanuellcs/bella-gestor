@@ -35,6 +35,13 @@ interface ServiceModalProps {
   mode: "create" | "edit";
 }
 
+type EditableVariantField =
+  | "variantName"
+  | "price"
+  | "duration"
+  | "commissionPct"
+  | "active";
+
 export function ServiceModal({
   open,
   onOpenChange,
@@ -95,11 +102,11 @@ export function ServiceModal({
 
   const handleVariantChange = (
     index: number,
-    field: keyof ServiceVariant,
+    field: EditableVariantField,
     value: string | number | boolean,
   ) => {
     const newVariants = [...variants];
-    const variant = newVariants[index];
+    const variant = { ...newVariants[index] };
     if (
       field === "price" ||
       field === "duration" ||
@@ -107,10 +114,12 @@ export function ServiceModal({
     ) {
       const numValue = Number(value);
       variant[field] = Number.isNaN(numValue) ? 0 : numValue;
+    } else if (field === "active") {
+      variant.active = Boolean(value);
     } else {
-      // @ts-expect-error - value is dynamically handled
-      variant[field] = value;
+      variant.variantName = String(value);
     }
+    newVariants[index] = variant;
     setVariants(newVariants);
   };
 

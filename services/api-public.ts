@@ -1,14 +1,57 @@
 // services/api-public.ts
-import type { Client, Service, Professional } from "@/types";
+import type { Client, Service, Professional, ServiceVariant, Appointment, Sale, Payment } from "@/types";
+
+interface PublicClientRow {
+  id: number | string;
+  full_name: string;
+  email?: string | null;
+  phone: string;
+  created_at: string;
+  is_active: boolean;
+}
+
+interface PublicServiceVariantRow {
+  id: number | string;
+  service_id: number | string;
+  variant_name: string;
+  price: number | string;
+  duration_minutes: number;
+  is_active: boolean;
+  created_at: string;
+  deleted_at?: string | null;
+}
+
+interface PublicServiceRow {
+  id: number | string;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  is_active: boolean;
+  created_at: string;
+  service_variants?: PublicServiceVariantRow[];
+}
+
+interface PublicProfessionalRow {
+  id: string;
+  email?: string;
+  fullName?: string;
+  functionTitle?: string;
+  role: Professional["role"];
+}
+
+async function readJsonArray<T>(response: Response): Promise<T[]> {
+  const json = (await response.json()) as unknown;
+  return Array.isArray(json) ? (json as T[]) : [];
+}
 
 export async function getActiveClients(): Promise<Client[]> {
   const r = await fetch("/api/admin/clients/active", {
     credentials: "include",
   });
   if (!r.ok) throw new Error("Falha ao carregar clientes");
-  const rows = await r.json();
+  const rows = await readJsonArray<PublicClientRow>(r);
   // Minimum domain mapping if required
-  return rows.map((c: any) => ({
+  return rows.map((c) => ({
     id: String(c.id),
     name: c.full_name,
     email: c.email ?? undefined,
@@ -24,8 +67,8 @@ export async function getActiveServices(): Promise<Service[]> {
     credentials: "include",
   });
   if (!r.ok) throw new Error("Falha ao carregar serviços");
-  const rows = await r.json();
-  return rows.map((s: any) => ({
+  const rows = await readJsonArray<PublicServiceRow>(r);
+  return rows.map((s) => ({
     id: String(s.id),
     name: s.name,
     description: s.description ?? undefined,
@@ -33,8 +76,8 @@ export async function getActiveServices(): Promise<Service[]> {
     active: !!s.is_active,
     created_at: s.created_at,
     variants: (s.service_variants ?? [])
-      .filter((v: any) => !v.deleted_at)
-      .map((v: any) => ({
+      .filter((v) => !v.deleted_at)
+      .map((v) => ({
         id: String(v.id),
         serviceId: String(v.service_id),
         variantName: v.variant_name,
@@ -51,7 +94,15 @@ export async function getProfessionals(): Promise<Professional[]> {
     credentials: "include",
   });
   if (!r.ok) throw new Error("Falha ao carregar profissionais");
-  return (await r.json()) as Professional[];
+  const rows = await readJsonArray<PublicProfessionalRow>(r);
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.fullName || row.email || "Profissional",
+    email: row.email,
+    functionTitle: row.functionTitle,
+    role: row.role,
+    created_at: "",
+  }));
 }
 
 export const getServices = getActiveServices;
@@ -63,9 +114,6 @@ export async function getInactiveClients(): Promise<Client[]> {
   return [];
 }
 
-// service variants are embedded inside each service object from
-// getActiveServices(), so a flat list isn't needed here.
-import type { ServiceVariant, Appointment, Sale, Payment } from "@/types";
 export async function getServiceVariants(): Promise<ServiceVariant[]> {
   return [];
 }

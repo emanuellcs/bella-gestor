@@ -12,9 +12,12 @@ import {
   createClientAction,
   updateClientAction,
   deactivateClientAction,
-  reactivateClientAction,
 } from "@/actions/clients";
 import { Client } from "@/types";
+
+function messageFromError(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
 
 /**
  * Hook to manage clients state and operations.
@@ -32,8 +35,8 @@ export function useClients() {
         : await getInactiveClients();
       setClients(data);
       setError(null);
-    } catch (err: any) {
-      const msg = err.message || "Falha ao carregar clientes";
+    } catch (err: unknown) {
+      const msg = messageFromError(err, "Falha ao carregar clientes");
       setError(msg);
       toast.error(msg);
     } finally {
@@ -54,7 +57,8 @@ export function useClients() {
         }
         throw new Error(res.error);
       },
-      error: (err) => err.message || "Erro ao criar cliente.",
+      error: (err: unknown) =>
+        messageFromError(err, "Erro ao criar cliente."),
     });
     return (await promise).data;
   };
@@ -70,7 +74,8 @@ export function useClients() {
         }
         throw new Error(res.error);
       },
-      error: (err) => err.message || "Erro ao atualizar cliente.",
+      error: (err: unknown) =>
+        messageFromError(err, "Erro ao atualizar cliente."),
     });
     return (await promise).data;
   };
@@ -86,7 +91,8 @@ export function useClients() {
         }
         throw new Error(res.error);
       },
-      error: (err) => err.message || "Erro ao desativar cliente.",
+      error: (err: unknown) =>
+        messageFromError(err, "Erro ao desativar cliente."),
     });
     return (await promise).success;
   };

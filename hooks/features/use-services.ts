@@ -12,11 +12,23 @@ import {
   createServiceAction,
   updateServiceAction,
   deleteServiceAction,
-  createServiceVariantAction,
-  updateServiceVariantAction,
-  deleteServiceVariantAction,
 } from "@/actions/services";
 import { Service, ServiceVariant } from "@/types";
+
+type ServiceDraft = Omit<Service, "id" | "created_at" | "updatedAt"> & {
+  variants?: Omit<
+    ServiceVariant,
+    "id" | "serviceId" | "created_at" | "updatedAt"
+  >[];
+};
+
+type ServiceUpdate = Partial<Service> & {
+  variants?: Partial<ServiceVariant>[];
+};
+
+function messageFromError(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
 
 /**
  * Hook to manage services state and operations.
@@ -32,8 +44,8 @@ export function useServices() {
       const data = onlyActive ? await getActiveServices() : await getServices();
       setServices(data);
       setError(null);
-    } catch (err: any) {
-      const msg = err.message || "Falha ao carregar serviços";
+    } catch (err: unknown) {
+      const msg = messageFromError(err, "Falha ao carregar serviços");
       setError(msg);
       toast.error(msg);
     } finally {
@@ -41,34 +53,36 @@ export function useServices() {
     }
   }, []);
 
-  const addService = async (service: any) => {
+  const addService = async (service: ServiceDraft) => {
     const promise = createServiceAction(service);
     toast.promise(promise, {
       loading: "Criando serviço...",
-      success: (res: any) => {
+      success: (res) => {
         if (res.success) {
           refreshServices();
           return "Serviço criado com sucesso!";
         }
         throw new Error(res.error);
       },
-      error: (err: any) => err.message || "Erro ao criar serviço.",
+      error: (err: unknown) =>
+        messageFromError(err, "Erro ao criar serviço."),
     });
     return (await promise).data;
   };
 
-  const updateService = async (id: string, service: any) => {
+  const updateService = async (id: string, service: ServiceUpdate) => {
     const promise = updateServiceAction(id, service);
     toast.promise(promise, {
       loading: "Atualizando serviço...",
-      success: (res: any) => {
+      success: (res) => {
         if (res.success) {
           refreshServices();
           return "Serviço atualizado com sucesso!";
         }
         throw new Error(res.error);
       },
-      error: (err: any) => err.message || "Erro ao atualizar serviço.",
+      error: (err: unknown) =>
+        messageFromError(err, "Erro ao atualizar serviço."),
     });
     return (await promise).data;
   };
@@ -84,7 +98,8 @@ export function useServices() {
         }
         throw new Error(res.error);
       },
-      error: (err) => err.message || "Erro ao excluir serviço.",
+      error: (err: unknown) =>
+        messageFromError(err, "Erro ao excluir serviço."),
     });
     return (await promise).success;
   };

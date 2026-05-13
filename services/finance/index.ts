@@ -54,7 +54,8 @@ export async function getSales(
       throw new Error(parseSupabaseError(error).description);
     }
 
-    return (data || []).map((s: any) => supabaseSaleToSale(s));
+    return ((data as Parameters<typeof supabaseSaleToSale>[0][] | null) || [])
+      .map((sale) => supabaseSaleToSale(sale));
   } catch (error) {
     console.error("Error in getSales:", error);
     throw error;
@@ -100,7 +101,9 @@ export async function getPayments(
       throw new Error(parseSupabaseError(error).description);
     }
 
-    return (data || []).map((p: any) => supabasePaymentToPayment(p));
+    return (
+      (data as Parameters<typeof supabasePaymentToPayment>[0][] | null) || []
+    ).map((payment) => supabasePaymentToPayment(payment));
   } catch (error) {
     console.error("Error in getPayments:", error);
     throw error;

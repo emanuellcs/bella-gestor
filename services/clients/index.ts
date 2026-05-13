@@ -4,6 +4,15 @@ import { supabaseClientToClient } from "@/lib/utils";
 import { parseSupabaseError } from "@/lib/error-handler";
 import { Client, SupabaseClient } from "@/types";
 
+function isNotFoundError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "PGRST116"
+  );
+}
+
 /**
  * Fetches the count of clients grouped by referral source.
  * Note: Modern reports calculate this locally from the shared data context.
@@ -12,13 +21,11 @@ export async function getReferralSourceCounts(): Promise<{
   [key: string]: number;
 }> {
   try {
-    const { data: options } = await supabase
+    await supabase
       .from("app_options")
       .select("value")
       .eq("option_type", "referral_source")
       .is("deleted_at", null);
-
-    const validSources = (options || []).map((o) => o.value);
 
     const data = await fetchAll<{ referral_source: string | null }>(
       ({ from, to }) =>
@@ -37,7 +44,7 @@ export async function getReferralSourceCounts(): Promise<{
       }
     });
     return counts;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in getReferralSourceCounts:", error);
     throw new Error(parseSupabaseError(error).description);
   }
@@ -85,7 +92,7 @@ export async function getActiveClients(): Promise<Client[]> {
           .range(from, to),
     );
     return data.map(supabaseClientToClient);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in getActiveClients:", error);
     throw new Error(parseSupabaseError(error).description);
   }
@@ -104,7 +111,7 @@ export async function getClientById(id: string): Promise<Client | null> {
       .single();
 
     if (error) {
-      if ((error as any)?.code === "PGRST116") return null;
+      if (isNotFoundError(error)) return null;
       throw new Error(parseSupabaseError(error).description);
     }
     if (!data) return null;
@@ -131,7 +138,7 @@ export async function getInactiveClients(): Promise<Client[]> {
           .range(from, to),
     );
     return data.map(supabaseClientToClient);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in getInactiveClients:", error);
     throw new Error(parseSupabaseError(error).description);
   }
@@ -154,7 +161,7 @@ export async function searchClients(query: string): Promise<Client[]> {
           .range(from, to),
     );
     return data.map(supabaseClientToClient);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in searchClients:", error);
     throw new Error(parseSupabaseError(error).description);
   }

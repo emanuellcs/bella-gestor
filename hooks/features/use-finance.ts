@@ -7,9 +7,13 @@ import {
   createSaleAction,
   updateSaleStatusAction,
   createPaymentAction,
-  updatePaymentStatusAction,
+  type NewSale,
 } from "@/actions/finance";
-import { Sale, SaleStatus, Payment, PaymentStatus } from "@/types";
+import { Sale, SaleStatus, Payment } from "@/types";
+
+function messageFromError(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
 
 /**
  * Hook to manage finance state and operations.
@@ -30,8 +34,11 @@ export function useFinance() {
       setSales(salesData);
       setPayments(paymentsData);
       setError(null);
-    } catch (err: any) {
-      const msg = err.message || "Falha ao carregar dados financeiros";
+    } catch (err: unknown) {
+      const msg = messageFromError(
+        err,
+        "Falha ao carregar dados financeiros",
+      );
       setError(msg);
       toast.error(msg);
     } finally {
@@ -39,7 +46,7 @@ export function useFinance() {
     }
   }, []);
 
-  const addSale = async (sale: any) => {
+  const addSale = async (sale: NewSale) => {
     const promise = createSaleAction(sale);
     toast.promise(promise, {
       loading: "Registrando venda...",
@@ -50,7 +57,8 @@ export function useFinance() {
         }
         throw new Error(res.error);
       },
-      error: (err) => err.message || "Erro ao registrar venda.",
+      error: (err: unknown) =>
+        messageFromError(err, "Erro ao registrar venda."),
     });
     return (await promise).data;
   };
@@ -70,7 +78,8 @@ export function useFinance() {
         }
         throw new Error(res.error);
       },
-      error: (err) => err.message || "Erro ao atualizar status.",
+      error: (err: unknown) =>
+        messageFromError(err, "Erro ao atualizar status."),
     });
     return (await promise).data;
   };
@@ -86,7 +95,8 @@ export function useFinance() {
         }
         throw new Error(res.error);
       },
-      error: (err) => err.message || "Erro ao registrar pagamento.",
+      error: (err: unknown) =>
+        messageFromError(err, "Erro ao registrar pagamento."),
     });
     return (await promise).data;
   };
