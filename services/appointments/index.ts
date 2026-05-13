@@ -122,16 +122,19 @@ function mapAppointment(
     );
   }, 0);
 
-  const projectedPrice = appointmentServices.reduce((sum, appointmentService) => {
-    const variant = first(appointmentService.service_variants);
-    if (variant?.deleted_at) return sum;
+  const projectedPrice = appointmentServices.reduce(
+    (sum, appointmentService) => {
+      const variant = first(appointmentService.service_variants);
+      if (variant?.deleted_at) return sum;
 
-    const price =
-      typeof variant?.price === "string"
-        ? parseFloat(variant.price)
-        : (variant?.price ?? 0);
-    return sum + price * (appointmentService.quantity ?? 1);
-  }, 0);
+      const price =
+        typeof variant?.price === "string"
+          ? parseFloat(variant.price)
+          : (variant?.price ?? 0);
+      return sum + price * (appointmentService.quantity ?? 1);
+    },
+    0,
+  );
 
   return {
     id: apt.id.toString(),

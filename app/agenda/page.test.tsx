@@ -20,8 +20,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/services/googleCalendarAppsScript", () => ({
-  listCalendarEvents: (...args: unknown[]) =>
-    mocks.listCalendarEvents(...args),
+  listCalendarEvents: (...args: unknown[]) => mocks.listCalendarEvents(...args),
   createCalendarEvent: vi.fn(),
   updateCalendarEvent: vi.fn(),
   deleteCalendarEvent: (...args: unknown[]) =>
@@ -71,9 +70,7 @@ vi.mock("@/components/ui/combobox", () => ({
 
 vi.mock("@/components/ui/popover", () => ({
   Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  PopoverTrigger: ({ children }: { children: ReactNode }) => (
-    <>{children}</>
-  ),
+  PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
   PopoverContent: ({ children }: { children: ReactNode }) => (
     <div>{children}</div>
   ),
@@ -129,7 +126,9 @@ vi.mock("@/components/features/agenda/appointment-form-modal", () => ({
   }) =>
     open ? (
       <div>
-        {requireFinancialDetails ? "Completar agendamento" : "Editar agendamento"}
+        {requireFinancialDetails
+          ? "Completar agendamento"
+          : "Editar agendamento"}
       </div>
     ) : null,
 }));
@@ -295,7 +294,9 @@ describe("AgendaPage reconciliation flows", () => {
 
     fireEvent.click(await screen.findByText("Finalizar e Pagar"));
 
-    expect(await screen.findByText("Completar agendamento")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Completar agendamento"),
+    ).toBeInTheDocument();
     expect(mocks.toastMessage).toHaveBeenCalledWith(
       "Complete cliente, profissional, serviço e valor.",
     );
@@ -315,9 +316,9 @@ describe("AgendaPage reconciliation flows", () => {
 
     await waitFor(() => {
       expect(mocks.deleteCalendarEvent).toHaveBeenCalledWith("google-1");
-      expect(mocks.deleteAppointmentForCalendarEventAction).toHaveBeenCalledWith(
-        googleEvent,
-      );
+      expect(
+        mocks.deleteAppointmentForCalendarEventAction,
+      ).toHaveBeenCalledWith(googleEvent);
       expect(mocks.toastSuccess).toHaveBeenCalledWith("Agendamento removido");
     });
   });

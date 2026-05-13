@@ -1,5 +1,13 @@
 // services/api-public.ts
-import type { Client, Service, Professional, ServiceVariant, Appointment, Sale, Payment } from "@/types";
+import type {
+  Client,
+  Service,
+  Professional,
+  ServiceVariant,
+  Appointment,
+  Sale,
+  Payment,
+} from "@/types";
 
 interface PublicClientRow {
   id: number | string;

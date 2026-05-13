@@ -4,10 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { parseSupabaseError } from "@/lib/error-handler";
 import { Sale, SaleItem, SaleStatus, Payment, PaymentStatus } from "@/types";
-import type {
-  SupabasePayment,
-  SupabaseSale,
-} from "@/types/db";
+import type { SupabasePayment, SupabaseSale } from "@/types/db";
 import {
   supabaseSaleToSale,
   supabasePaymentToPayment,

@@ -259,11 +259,11 @@ export function isCompletionDraftReady(
   CompletionDraft {
   return Boolean(
     draft.clientId &&
-      draft.professionalId &&
-      draft.serviceVariantId &&
-      draft.unitPrice !== undefined &&
-      Number.isFinite(draft.unitPrice) &&
-      draft.unitPrice >= 0,
+    draft.professionalId &&
+    draft.serviceVariantId &&
+    draft.unitPrice !== undefined &&
+    Number.isFinite(draft.unitPrice) &&
+    draft.unitPrice >= 0,
   );
 }
 
@@ -285,7 +285,9 @@ function buildCompleteInput(
     unitPrice: draft.unitPrice,
     quantity: draft.quantity || 1,
     notes: draft.notes ?? appointment?.notes,
-    startTime: toIso(draft.startTime || appointment?.startTime || event.start.dateTime),
+    startTime: toIso(
+      draft.startTime || appointment?.startTime || event.start.dateTime,
+    ),
     endTime: toIso(draft.endTime || appointment?.endTime || event.end.dateTime),
     status: draft.status || appointment?.status || AppointmentStatus.SCHEDULED,
   };
@@ -304,7 +306,8 @@ function needsCompletion(
     defaults: {
       ...defaults,
       appointmentId: appointment?.id || defaults.appointmentId,
-      startTime: defaults.startTime || appointment?.startTime || event.start.dateTime,
+      startTime:
+        defaults.startTime || appointment?.startTime || event.start.dateTime,
       endTime: defaults.endTime || appointment?.endTime || event.end.dateTime,
       notes: defaults.notes ?? parsed.notes ?? appointment?.notes,
     },

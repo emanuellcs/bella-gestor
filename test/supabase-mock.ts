@@ -116,7 +116,9 @@ function rlsAllows(
   }
   if (table === "appointments") {
     if (isNonProfessional(role)) return true;
-    const owner = String(row?.professional_id ?? payload?.professional_id ?? "");
+    const owner = String(
+      row?.professional_id ?? payload?.professional_id ?? "",
+    );
     return role === AppRole.PROFESSIONAL && owner === userId;
   }
   if (table === "appointment_services") {
@@ -364,14 +366,18 @@ class QueryBuilder implements PromiseLike<QueryResult> {
 
   private shapeRows(rows: TestRow[]) {
     const joined = rows.map((row) =>
-      this.selected.includes("(") ? attachJoins(this.table, row, this.client.tables) : cloneRow(row),
+      this.selected.includes("(")
+        ? attachJoins(this.table, row, this.client.tables)
+        : cloneRow(row),
     );
 
     if (!this.orderBy) return joined;
     return joined.sort((a, b) => {
       const left = String(a[this.orderBy?.column ?? ""] ?? "");
       const right = String(b[this.orderBy?.column ?? ""] ?? "");
-      return this.orderBy?.ascending ? left.localeCompare(right) : right.localeCompare(left);
+      return this.orderBy?.ascending
+        ? left.localeCompare(right)
+        : right.localeCompare(left);
     });
   }
 
@@ -421,7 +427,10 @@ class QueryBuilder implements PromiseLike<QueryResult> {
       changed.push(row);
     }
     return this.wantsSingle
-      ? { data: cloneRow(changed[0] ?? null), error: changed[0] ? null : { code: "PGRST116", message: "No rows" } }
+      ? {
+          data: cloneRow(changed[0] ?? null),
+          error: changed[0] ? null : { code: "PGRST116", message: "No rows" },
+        }
       : { data: changed.map(cloneRow), error: null };
   }
 

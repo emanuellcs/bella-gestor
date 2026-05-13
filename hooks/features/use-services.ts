@@ -64,8 +64,7 @@ export function useServices() {
         }
         throw new Error(res.error);
       },
-      error: (err: unknown) =>
-        messageFromError(err, "Erro ao criar serviço."),
+      error: (err: unknown) => messageFromError(err, "Erro ao criar serviço."),
     });
     return (await promise).data;
   };

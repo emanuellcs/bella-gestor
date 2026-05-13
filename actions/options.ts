@@ -172,16 +172,14 @@ export async function updateAppSettingAction(key: string, value: string) {
   try {
     const supabase = getSupabaseAdmin();
     const parsedSetting = appSettingSchema.parse({ key, value });
-    const { error } = await supabase
-      .from("app_settings")
-      .upsert([
-        {
-          key: parsedSetting.key,
-          value: parsedSetting.value,
-          updated_at: new Date().toISOString(),
-          deleted_at: null,
-        },
-      ]);
+    const { error } = await supabase.from("app_settings").upsert([
+      {
+        key: parsedSetting.key,
+        value: parsedSetting.value,
+        updated_at: new Date().toISOString(),
+        deleted_at: null,
+      },
+    ]);
 
     if (error) throw new Error(parseSupabaseError(error).description);
     revalidatePath("/configuracoes");
@@ -191,7 +189,9 @@ export async function updateAppSettingAction(key: string, value: string) {
     return {
       success: false,
       error:
-        error instanceof Error ? error.message : "Falha ao salvar configuração.",
+        error instanceof Error
+          ? error.message
+          : "Falha ao salvar configuração.",
     };
   }
 }

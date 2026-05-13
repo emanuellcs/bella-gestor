@@ -14,10 +14,7 @@ export function testUser(overrides: Partial<User> = {}): User {
   };
 }
 
-export function renderWithProviders(
-  ui: ReactElement,
-  options?: RenderOptions,
-) {
+export function renderWithProviders(ui: ReactElement, options?: RenderOptions) {
   return render(ui, options);
 }
 

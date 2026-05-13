@@ -279,7 +279,9 @@ export async function updateServiceVariantAction(
       ...(parsedVariant.variantName !== undefined
         ? { variant_name: parsedVariant.variantName }
         : {}),
-      ...(parsedVariant.price !== undefined ? { price: parsedVariant.price } : {}),
+      ...(parsedVariant.price !== undefined
+        ? { price: parsedVariant.price }
+        : {}),
       ...(parsedVariant.duration !== undefined
         ? { duration_minutes: parsedVariant.duration }
         : {}),

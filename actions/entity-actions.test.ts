@@ -4,10 +4,7 @@ import {
   createAppointmentAction,
   updateAppointmentAction,
 } from "@/actions/appointments";
-import {
-  createClientAction,
-  deactivateClientAction,
-} from "@/actions/clients";
+import { createClientAction, deactivateClientAction } from "@/actions/clients";
 import {
   getAppOptionsAction,
   updateAppSettingAction,
@@ -48,7 +45,8 @@ describe("entity server actions", () => {
         sales: [dbFactories.sale()],
       },
       rpc: {
-        create_appointment_with_sale: () => dbFactories.appointment({ id: 101 }),
+        create_appointment_with_sale: () =>
+          dbFactories.appointment({ id: 101 }),
       },
     });
     mocks.getSupabaseAdmin.mockReturnValue(supabase);

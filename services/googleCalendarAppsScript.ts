@@ -8,7 +8,9 @@ const APPS_SCRIPT_URL = process.env.NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL || "";
 
 type GoogleCalendarEventPayload = z.input<typeof googleCalendarEventSchema>;
 
-export async function createCalendarEvent(eventData: GoogleCalendarEventPayload) {
+export async function createCalendarEvent(
+  eventData: GoogleCalendarEventPayload,
+) {
   try {
     if (!APPS_SCRIPT_URL) {
       throw new Error("NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL não configurada");

@@ -348,9 +348,7 @@ export const dbFactories = {
       ...overrides,
     };
   },
-  appSetting(
-    overrides: Partial<SupabaseAppSetting> = {},
-  ): SupabaseAppSetting {
+  appSetting(overrides: Partial<SupabaseAppSetting> = {}): SupabaseAppSetting {
     return {
       key: "default_commission_pct",
       value: "70",

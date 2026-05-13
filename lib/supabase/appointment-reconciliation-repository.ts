@@ -134,9 +134,7 @@ function saleFromRow(row: unknown): Sale {
   return supabaseSaleToSale(row as Parameters<typeof supabaseSaleToSale>[0]);
 }
 
-export class SupabaseAppointmentReconciliationRepository
-  implements AppointmentReconciliationRepository
-{
+export class SupabaseAppointmentReconciliationRepository implements AppointmentReconciliationRepository {
   constructor(private readonly supabase: SupabaseClient = getSupabaseAdmin()) {}
 
   async findAppointmentByGoogleEventId(googleEventId: string) {
@@ -210,7 +208,10 @@ export class SupabaseAppointmentReconciliationRepository
     return row ? saleFromRow(row) : null;
   }
 
-  async ensureSaleForAppointment(appointmentId: string, googleEventId?: string) {
+  async ensureSaleForAppointment(
+    appointmentId: string,
+    googleEventId?: string,
+  ) {
     const { data, error } = await this.supabase.rpc(
       "repair_appointment_financials",
       {
@@ -234,7 +235,8 @@ export class SupabaseAppointmentReconciliationRepository
     event: CalendarCheckoutEvent,
     appointment?: ReconciliationAppointment,
   ): Promise<CompletionDraft> {
-    const clientId = appointment?.clientId || (await this.resolveClient(parsed));
+    const clientId =
+      appointment?.clientId || (await this.resolveClient(parsed));
     const professionalId =
       appointment?.professionalId ||
       (await this.resolveProfessional(parsed, event));
@@ -415,7 +417,9 @@ export class SupabaseAppointmentReconciliationRepository
 
     const { data, error } = await this.supabase
       .from("services")
-      .select("id, name, service_variants(id, variant_name, price, is_active, deleted_at)")
+      .select(
+        "id, name, service_variants(id, variant_name, price, is_active, deleted_at)",
+      )
       .is("deleted_at", null)
       .eq("is_active", true)
       .limit(100);

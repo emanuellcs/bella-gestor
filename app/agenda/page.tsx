@@ -336,9 +336,9 @@ export default function AgendaPage() {
 
           const hasFinancialDetails = Boolean(
             values.clientId &&
-              values.professionalId &&
-              values.serviceVariantId &&
-              Number.isFinite(customPrice),
+            values.professionalId &&
+            values.serviceVariantId &&
+            Number.isFinite(customPrice),
           );
 
           if (hasFinancialDetails) {
@@ -406,9 +406,8 @@ export default function AgendaPage() {
       const res = await deleteCalendarEvent(id);
       if (res?.success) {
         if (event) {
-          const internalRes = await deleteAppointmentForCalendarEventAction(
-            event,
-          );
+          const internalRes =
+            await deleteAppointmentForCalendarEventAction(event);
           if (!internalRes.success) {
             toast.error(
               internalRes.error ||

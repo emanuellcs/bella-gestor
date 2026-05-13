@@ -57,8 +57,7 @@ export function useClients() {
         }
         throw new Error(res.error);
       },
-      error: (err: unknown) =>
-        messageFromError(err, "Erro ao criar cliente."),
+      error: (err: unknown) => messageFromError(err, "Erro ao criar cliente."),
     });
     return (await promise).data;
   };

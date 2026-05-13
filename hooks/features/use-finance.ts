@@ -35,10 +35,7 @@ export function useFinance() {
       setPayments(paymentsData);
       setError(null);
     } catch (err: unknown) {
-      const msg = messageFromError(
-        err,
-        "Falha ao carregar dados financeiros",
-      );
+      const msg = messageFromError(err, "Falha ao carregar dados financeiros");
       setError(msg);
       toast.error(msg);
     } finally {

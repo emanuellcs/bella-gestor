@@ -54,8 +54,9 @@ export async function getSales(
       throw new Error(parseSupabaseError(error).description);
     }
 
-    return ((data as Parameters<typeof supabaseSaleToSale>[0][] | null) || [])
-      .map((sale) => supabaseSaleToSale(sale));
+    return (
+      (data as Parameters<typeof supabaseSaleToSale>[0][] | null) || []
+    ).map((sale) => supabaseSaleToSale(sale));
   } catch (error) {
     console.error("Error in getSales:", error);
     throw error;
