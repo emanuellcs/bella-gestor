@@ -88,6 +88,7 @@ export interface Appointment {
   totalPrice: number;
   hasSale?: boolean;
   saleId?: string;
+  googleEventId?: string;
   created_at: string;
   updatedAt?: string;
 }

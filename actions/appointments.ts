@@ -22,6 +22,7 @@ export async function createAppointmentAction(
       p_start_time: appointment.startTime,
       p_end_time: appointment.endTime,
       p_notes: appointment.notes || null,
+      p_google_event_id: appointment.googleEventId || null,
       p_service_variants:
         appointment.serviceVariants?.map((sv) => ({
           service_variant_id: parseInt(sv.serviceVariantId),
@@ -83,6 +84,9 @@ export async function updateAppointmentAction(
         ? { status: appointment.status }
         : {}),
       ...(appointment.notes !== undefined ? { notes: appointment.notes } : {}),
+      ...(appointment.googleEventId !== undefined
+        ? { google_event_id: appointment.googleEventId || null }
+        : {}),
       updated_at: new Date().toISOString(),
     };
 
@@ -140,7 +144,20 @@ export async function deleteAppointmentAction(id: string) {
       return { success: false, error: parseSupabaseError(error).description };
     }
 
-    await supabase
+    const { error: servicesError } = await supabase
+      .from("appointment_services")
+      .update({ deleted_at: deletedAt })
+      .eq("appointment_id", parseInt(id))
+      .is("deleted_at", null);
+
+    if (servicesError) {
+      return {
+        success: false,
+        error: parseSupabaseError(servicesError).description,
+      };
+    }
+
+    const { error: salesError } = await supabase
       .from("sales")
       .update({
         status: SaleStatus.CANCELLED,
@@ -148,6 +165,13 @@ export async function deleteAppointmentAction(id: string) {
       })
       .eq("appointment_id", parseInt(id))
       .is("deleted_at", null);
+
+    if (salesError) {
+      return {
+        success: false,
+        error: parseSupabaseError(salesError).description,
+      };
+    }
 
     revalidatePath("/agenda");
     revalidatePath("/financeiro");

@@ -39,6 +39,7 @@ CREATE TABLE public.appointments (
   end_time timestamp with time zone NOT NULL,
   status USER-DEFINED NOT NULL DEFAULT 'scheduled'::appointment_status,
   notes text,
+  google_event_id text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   created_by uuid,

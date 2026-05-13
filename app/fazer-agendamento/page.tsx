@@ -5,6 +5,7 @@ import {
   createCalendarEvent,
   listCalendarEvents,
 } from "@/services/googleCalendarAppsScript";
+import { resolveAppointmentForCheckoutAction } from "@/actions/appointment-reconciliation";
 import type { Appointment, Sale, Payment, Professional } from "@/types";
 import { AppointmentStatus } from "@/types";
 import { useData } from "@/lib/data-context";
@@ -154,8 +155,7 @@ export default function CreateAppointmentPage() {
     professionals,
     refreshData,
     addAppointment,
-    appointments: internalAppointments,
-    sales,
+    updateAppointment,
     isLoading: isDataLoading,
   } = useData();
 
@@ -299,40 +299,27 @@ export default function CreateAppointmentPage() {
   const handleCheckout = async (ev: GoogleCalendarEvent) => {
     setIsSearchingSale(true);
     try {
-      const parseField = (desc: string | undefined, label: string) => {
-        const line = (desc || "").split("\n").find((p) => p.startsWith(label));
-        return line ? line.replace(label, "").trim() : "";
-      };
+      const result = await resolveAppointmentForCheckoutAction(ev);
 
-      const clientName = parseField(ev.description, "Cliente: ");
-      const startTime = new Date(ev.start.dateTime).getTime();
-
-      const matchedAppt = internalAppointments?.find((a) => {
-        const aTime = new Date(a.startTime).getTime();
-        const aClient = allClients.find((c) => c.id === a.clientId)?.name;
-        return Math.abs(aTime - startTime) < 60000 && aClient === clientName;
-      });
-
-      if (!matchedAppt) {
+      if (!result.success) {
         toast({
           variant: "destructive",
           title: "Erro",
-          description: "Vínculo interno não encontrado.",
+          description: result.error || "Falha ao preparar checkout.",
         });
         return;
       }
 
-      const sale = sales?.find((s) => s.appointmentId === matchedAppt.id);
-      if (!sale) {
+      if (result.status !== "ready_for_checkout") {
         toast({
           variant: "destructive",
-          title: "Erro",
-          description: "Venda não encontrada para este agendamento.",
+          title: "Dados incompletos",
+          description: result.message,
         });
         return;
       }
 
-      if (sale.status === "paid") {
+      if (result.sale.status === "paid") {
         toast({
           title: "Informativo",
           description: "Este agendamento já consta como pago.",
@@ -340,7 +327,7 @@ export default function CreateAppointmentPage() {
         return;
       }
 
-      setCheckoutSale(sale);
+      setCheckoutSale(result.sale as Sale);
     } catch (err) {
       const errorMsg =
         err instanceof Error
@@ -442,6 +429,10 @@ export default function CreateAppointmentPage() {
           title: "Erro no Google Calendar",
           description:
             "O agendamento foi salvo no banco, mas não foi sincronizado com o Google.",
+        });
+      } else if (googleRes.eventId || googleRes.event?.id) {
+        await updateAppointment(supabaseRes.id, {
+          googleEventId: googleRes.eventId || googleRes.event?.id,
         });
       }
 

@@ -66,6 +66,7 @@ export interface SupabaseAppointment {
   end_time: string;
   status: AppointmentStatus;
   notes: string | null;
+  google_event_id: string | null;
   created_at: string;
   updated_at: string | null;
   created_by: string | null;
