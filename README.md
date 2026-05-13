@@ -1,6 +1,6 @@
 # Bella Gestor
 
-Bella Gestor is a comprehensive Customer Relationship Management (CRM) and Enterprise Resource Planning (ERP) platform built specifically for Spaço Bellas. It is designed to be the central nervous system for a salon or spa, handling everything from daily scheduling and client retention to complex financial operations like split payments and staff commissions. 
+Bella Gestor is a comprehensive Customer Relationship Management (CRM) and Enterprise Resource Planning (ERP) platform built specifically for Spaço Bellas. It is designed to be the central nervous system for a salon or spa, handling everything from daily scheduling and client retention to complex financial operations like split payments and staff commissions.
 
 By bringing together scheduling, a Point-of-Sale (POS) system, and detailed financial tracking into one unified platform, Bella Gestor helps business owners maintain control over their operations while providing a seamless experience for both staff and clients.
 
@@ -9,24 +9,29 @@ By bringing together scheduling, a Point-of-Sale (POS) system, and detailed fina
 The application is broken down into intuitive, user-facing modules that handle specific areas of the business.
 
 ### Agenda & Scheduling
-The Agenda is the heart of daily operations. It provides a robust calendar interface where staff can create, modify, and manage appointments. When booking an appointment, the system automatically pulls in the specific service variants selected, calculating the total duration and base pricing on the fly. 
+
+The Agenda is the heart of daily operations. It provides a robust calendar interface where staff can create, modify, and manage appointments. When booking an appointment, the system automatically pulls in the specific service variants selected, calculating the total duration and base pricing on the fly.
 
 The Agenda is also deeply connected to the financial system. When an appointment is marked as completed, a dedicated checkout flow smoothly transitions the scheduled event into a finalized financial transaction.
 
 ### Client Management
+
 This module handles the complete lifecycle of the consumer base. Beyond just storing contact details and personal notes, the system actively helps with client retention. It includes specialized views that identify clients who haven't visited in a while, allowing the business to run targeted re-engagement campaigns. To prevent duplicate records during fast-paced data entry or external imports, the system uses idempotency keys and versioning behind the scenes.
 
 ### Financials & POS
-The Finance module acts as the central ledger and POS backend. It manages the entire lifecycle of a sale. One of its most powerful features is handling split payments, allowing a single checkout to be paid across multiple methods. 
+
+The Finance module acts as the central ledger and POS backend. It manages the entire lifecycle of a sale. One of its most powerful features is handling split payments, allowing a single checkout to be paid across multiple methods.
 
 Additionally, the system tracks commissions with absolute precision. When a sale is made, the exact commission percentage and amount for each item are locked into an immutable historical ledger. This means that if a professional's commission rate changes next month, past financial records remain completely accurate and unchanged.
 
 ### Staff & Services
+
 The Professionals module manages the team. It handles role assignments (such as Admin, Secretary, or Professional) and tracks base commission rates for each staff member.
 
 The Services module maintains the catalog of offerings. Services are organized hierarchically, with broad categories (like "Haircut") branching into specific variants (like "Men's Haircut - Senior Stylist"). These variants hold the crucial details: price, duration, and even specific commission rates that can override a professional's default rate. Services can also be toggled active or inactive without deleting them, preserving the integrity of past sales data.
 
 ### Reports
+
 Data is only useful if you can understand it. The Reports and Dashboard modules take the vast amount of transactional data and turn it into actionable business intelligence. It calculates key performance indicators like revenue, commissions, and retention rates, comparing current metrics against historical trends to provide clear visibility into the business's health.
 
 ## Architecture & Security
@@ -44,11 +49,13 @@ Finally, to protect the integrity of financial history, the system employs a str
 Bella Gestor connects seamlessly with external services to expand its capabilities.
 
 ### Google Calendar
-To ensure schedule parity, the system features a bidirectional sync with Google Calendar. To keep the frontend architecture clean and avoid direct OAuth complexities, we use a Google Apps Script proxy. The Next.js backend talks to this proxy, which in turn handles the native Google Calendar API. 
+
+To ensure schedule parity, the system features a bidirectional sync with Google Calendar. To keep the frontend architecture clean and avoid direct OAuth complexities, we use a Google Apps Script proxy. The Next.js backend talks to this proxy, which in turn handles the native Google Calendar API.
 
 When events are created directly in Google Calendar and pulled into Bella Gestor, they come in without the necessary financial and client context. The system smartly flags these as needing completion, prompting the staff to link a registered client and service before the event can generate a financial record.
 
 ### InfinitePay Payments
+
 For processing external asynchronous payments, such as credit cards and PIX via payment links, we integrate with InfinitePay. Bella Gestor listens for payment updates through a secure webhook endpoint. When a payment is successfully captured, the system uses NSU-based idempotency to ensure we never record a duplicate payment. Once the incoming payments cover the total balance of a sale, the system automatically finalizes the sale and marks the parent appointment as completed, requiring zero manual work from the staff.
 
 ## Running the Project Locally
