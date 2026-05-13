@@ -4,17 +4,22 @@ import { revalidatePath } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { parseSupabaseError } from "@/lib/error-handler";
 import { Service, ServiceVariant } from "@/types";
+import type { SupabaseService, SupabaseServiceVariant } from "@/types/db";
 import { getServiceVariantsByServiceId } from "@/services/services";
 import {
   supabaseServiceToService,
   supabaseVariantToVariant,
 } from "@/lib/utils/mapping";
+import {
+  serviceInputSchema,
+  serviceVariantInputSchema,
+} from "@/lib/validation/schemas";
 
 /**
  * Creates a new service with optional variants.
  */
 export async function createServiceAction(
-  service: Omit<Service, "id" | "created_at" | "updatedAt"> & {
+  service: Omit<Service, "id" | "created_at" | "updatedAt" | "variants"> & {
     variants?: Omit<
       ServiceVariant,
       "id" | "serviceId" | "created_at" | "updatedAt"
@@ -23,11 +28,12 @@ export async function createServiceAction(
 ) {
   try {
     const supabase = getSupabaseAdmin();
+    const parsedService = serviceInputSchema.parse(service);
     const payload = {
-      name: service.name,
-      description: service.description || null,
-      category: service.category || null,
-      is_active: service.active ?? true,
+      name: parsedService.name ?? service.name,
+      description: parsedService.description || null,
+      category: parsedService.category || null,
+      is_active: parsedService.active ?? true,
     };
 
     const { data, error } = await supabase
@@ -42,12 +48,12 @@ export async function createServiceAction(
 
     const createdServiceId = data.id;
 
-    if (service.variants && service.variants.length > 0) {
-      const variantsPayload = service.variants.map((variant) => ({
+    if (parsedService.variants && parsedService.variants.length > 0) {
+      const variantsPayload = parsedService.variants.map((variant) => ({
         service_id: createdServiceId,
-        variant_name: variant.variantName,
-        price: variant.price,
-        duration_minutes: variant.duration,
+        variant_name: variant.variantName ?? "",
+        price: variant.price ?? 0,
+        duration_minutes: variant.duration ?? 0,
         is_active: variant.active ?? true,
       }));
 
@@ -66,7 +72,7 @@ export async function createServiceAction(
 
     revalidatePath("/servicos");
     return { success: true, data: supabaseServiceToService(data) };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in createServiceAction:", error);
     return { success: false, error: "Falha ao criar serviço." };
   }
@@ -77,18 +83,23 @@ export async function createServiceAction(
  */
 export async function updateServiceAction(
   id: string,
-  service: Partial<Service> & { variants?: ServiceVariant[] },
+  service: Partial<Service> & { variants?: Partial<ServiceVariant>[] },
 ) {
   try {
     const supabase = getSupabaseAdmin();
     const serviceIdNum = parseInt(id);
-    const payload: any = {
-      ...(service.name !== undefined ? { name: service.name } : {}),
-      ...(service.description !== undefined
-        ? { description: service.description }
+    const parsedService = serviceInputSchema.parse(service);
+    const payload: Partial<SupabaseService> = {
+      ...(parsedService.name !== undefined ? { name: parsedService.name } : {}),
+      ...(parsedService.description !== undefined
+        ? { description: parsedService.description }
         : {}),
-      ...(service.category !== undefined ? { category: service.category } : {}),
-      ...(service.active !== undefined ? { is_active: service.active } : {}),
+      ...(parsedService.category !== undefined
+        ? { category: parsedService.category }
+        : {}),
+      ...(parsedService.active !== undefined
+        ? { is_active: parsedService.active }
+        : {}),
       updated_at: new Date().toISOString(),
     };
 
@@ -104,9 +115,9 @@ export async function updateServiceAction(
       return { success: false, error: parseSupabaseError(error).description };
     }
 
-    if (service.variants !== undefined) {
+    if (parsedService.variants !== undefined) {
       const existingVariants = await getServiceVariantsByServiceId(id);
-      const incomingVariants = service.variants;
+      const incomingVariants = parsedService.variants;
 
       const variantsToCreate = incomingVariants.filter((v) => !v.id);
       const variantsToUpdate = incomingVariants.filter((v) => v.id);
@@ -117,16 +128,17 @@ export async function updateServiceAction(
       if (variantsToCreate.length > 0) {
         const createPayload = variantsToCreate.map((variant) => ({
           service_id: serviceIdNum,
-          variant_name: variant.variantName,
-          price: variant.price,
-          duration_minutes: variant.duration,
+          variant_name: variant.variantName ?? "",
+          price: variant.price ?? 0,
+          duration_minutes: variant.duration ?? 0,
           is_active: variant.active ?? true,
         }));
         await supabase.from("service_variants").insert(createPayload);
       }
 
       for (const variant of variantsToUpdate) {
-        const updatePayload: any = {
+        if (!variant.id) continue;
+        const updatePayload: Partial<SupabaseServiceVariant> = {
           ...(variant.variantName !== undefined
             ? { variant_name: variant.variantName }
             : {}),
@@ -162,7 +174,7 @@ export async function updateServiceAction(
 
     revalidatePath("/servicos");
     return { success: true, data: supabaseServiceToService(data) };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in updateServiceAction:", error);
     return { success: false, error: "Falha ao atualizar serviço." };
   }
@@ -209,7 +221,7 @@ export async function deleteServiceAction(id: string) {
 
     revalidatePath("/servicos");
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in deleteServiceAction:", error);
     return { success: false, error: "Falha ao excluir serviço." };
   }
@@ -223,12 +235,13 @@ export async function createServiceVariantAction(
 ) {
   try {
     const supabase = getSupabaseAdmin();
+    const parsedVariant = serviceVariantInputSchema.parse(variant);
     const payload = {
-      service_id: parseInt(variant.serviceId),
-      variant_name: variant.variantName,
-      price: variant.price,
-      duration_minutes: variant.duration,
-      is_active: variant.active ?? true,
+      service_id: parseInt(parsedVariant.serviceId ?? variant.serviceId),
+      variant_name: parsedVariant.variantName ?? variant.variantName,
+      price: parsedVariant.price ?? variant.price,
+      duration_minutes: parsedVariant.duration ?? variant.duration,
+      is_active: parsedVariant.active ?? true,
     };
 
     const { data, error } = await supabase
@@ -243,7 +256,7 @@ export async function createServiceVariantAction(
 
     revalidatePath("/servicos");
     return { success: true, data: supabaseVariantToVariant(data) };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in createServiceVariantAction:", error);
     return { success: false, error: "Falha ao criar variante de serviço." };
   }
@@ -258,18 +271,23 @@ export async function updateServiceVariantAction(
 ) {
   try {
     const supabase = getSupabaseAdmin();
-    const payload: any = {
-      ...(variant.serviceId !== undefined
-        ? { service_id: parseInt(variant.serviceId) }
+    const parsedVariant = serviceVariantInputSchema.parse(variant);
+    const payload: Partial<SupabaseServiceVariant> = {
+      ...(parsedVariant.serviceId !== undefined
+        ? { service_id: parseInt(parsedVariant.serviceId) }
         : {}),
-      ...(variant.variantName !== undefined
-        ? { variant_name: variant.variantName }
+      ...(parsedVariant.variantName !== undefined
+        ? { variant_name: parsedVariant.variantName }
         : {}),
-      ...(variant.price !== undefined ? { price: variant.price } : {}),
-      ...(variant.duration !== undefined
-        ? { duration_minutes: variant.duration }
+      ...(parsedVariant.price !== undefined
+        ? { price: parsedVariant.price }
         : {}),
-      ...(variant.active !== undefined ? { is_active: variant.active } : {}),
+      ...(parsedVariant.duration !== undefined
+        ? { duration_minutes: parsedVariant.duration }
+        : {}),
+      ...(parsedVariant.active !== undefined
+        ? { is_active: parsedVariant.active }
+        : {}),
       updated_at: new Date().toISOString(),
     };
 
@@ -287,7 +305,7 @@ export async function updateServiceVariantAction(
 
     revalidatePath("/servicos");
     return { success: true, data: supabaseVariantToVariant(data) };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in updateServiceVariantAction:", error);
     return { success: false, error: "Falha ao atualizar variante de serviço." };
   }
@@ -315,7 +333,7 @@ export async function deleteServiceVariantAction(id: string) {
 
     revalidatePath("/servicos");
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in deleteServiceVariantAction:", error);
     return { success: false, error: "Falha ao excluir variante de serviço." };
   }

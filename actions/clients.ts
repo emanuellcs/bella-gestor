@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { clientToSupabaseClient, supabaseClientToClient } from "@/lib/utils";
 import { parseSupabaseError } from "@/lib/error-handler";
 import { Client } from "@/types";
+import { clientInputSchema } from "@/lib/validation/schemas";
 
 /**
  * Creates a new client.
@@ -14,7 +15,8 @@ export async function createClientAction(
 ) {
   try {
     const supabase = getSupabaseAdmin();
-    const payload = clientToSupabaseClient(client);
+    const parsedClient = clientInputSchema.parse(client);
+    const payload = clientToSupabaseClient(parsedClient);
 
     const { data, error } = await supabase
       .from("clients")
@@ -28,7 +30,7 @@ export async function createClientAction(
 
     revalidatePath("/clientes");
     return { success: true, data: supabaseClientToClient(data) };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in createClientAction:", error);
     return { success: false, error: "Falha ao criar cliente." };
   }
@@ -40,7 +42,8 @@ export async function createClientAction(
 export async function updateClientAction(id: string, client: Partial<Client>) {
   try {
     const supabase = getSupabaseAdmin();
-    const payload = clientToSupabaseClient(client);
+    const parsedClient = clientInputSchema.parse(client);
+    const payload = clientToSupabaseClient(parsedClient);
 
     const { data, error } = await supabase
       .from("clients")
@@ -56,7 +59,7 @@ export async function updateClientAction(id: string, client: Partial<Client>) {
 
     revalidatePath("/clientes");
     return { success: true, data: supabaseClientToClient(data) };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in updateClientAction:", error);
     return { success: false, error: "Falha ao atualizar cliente." };
   }
@@ -80,7 +83,7 @@ export async function deactivateClientAction(id: string) {
 
     revalidatePath("/clientes");
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in deactivateClientAction:", error);
     return { success: false, error: "Falha ao desativar cliente." };
   }
@@ -104,7 +107,7 @@ export async function reactivateClientAction(id: string) {
 
     revalidatePath("/clientes");
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in reactivateClientAction:", error);
     return { success: false, error: "Falha ao reativar cliente." };
   }
@@ -132,7 +135,7 @@ export async function deleteClientAction(id: string) {
 
     revalidatePath("/clientes");
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in deleteClientAction:", error);
     return { success: false, error: "Falha ao excluir cliente." };
   }

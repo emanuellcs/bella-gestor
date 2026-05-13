@@ -4,21 +4,26 @@ import { revalidatePath } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { parseSupabaseError } from "@/lib/error-handler";
 import { Professional } from "@/types";
+import type { SupabaseProfessional } from "@/types/db";
+import { professionalInputSchema } from "@/lib/validation/schemas";
 
 export async function createProfessionalAction(
   professional: Omit<Professional, "id" | "created_at">,
 ) {
   try {
     const supabase = getSupabaseAdmin();
+    const parsedProfessional = professionalInputSchema.parse(professional);
     const { data, error } = await supabase
       .from("professionals")
       .insert([
         {
-          full_name: professional.name,
-          email: professional.email,
-          function_title: professional.functionTitle,
-          role: professional.role,
-          commission_pct: professional.commissionPct,
+          full_name: parsedProfessional.name ?? professional.name,
+          email: parsedProfessional.email ?? professional.email,
+          function_title:
+            parsedProfessional.functionTitle ?? professional.functionTitle,
+          role: parsedProfessional.role ?? professional.role,
+          commission_pct:
+            parsedProfessional.commissionPct ?? professional.commissionPct,
         },
       ])
       .select("*")
@@ -38,9 +43,13 @@ export async function createProfessionalAction(
         created_at: data.created_at,
       } as Professional,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in createProfessionalAction:", error);
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Falha ao criar profissional.",
+    };
   }
 }
 
@@ -50,14 +59,18 @@ export async function updateProfessionalAction(
 ) {
   try {
     const supabase = getSupabaseAdmin();
-    const payload: any = {};
-    if (professional.name !== undefined) payload.full_name = professional.name;
-    if (professional.email !== undefined) payload.email = professional.email;
-    if (professional.functionTitle !== undefined)
-      payload.function_title = professional.functionTitle;
-    if (professional.role !== undefined) payload.role = professional.role;
-    if (professional.commissionPct !== undefined)
-      payload.commission_pct = professional.commissionPct;
+    const parsedProfessional = professionalInputSchema.parse(professional);
+    const payload: Partial<SupabaseProfessional> = {};
+    if (parsedProfessional.name !== undefined)
+      payload.full_name = parsedProfessional.name;
+    if (parsedProfessional.email !== undefined)
+      payload.email = parsedProfessional.email;
+    if (parsedProfessional.functionTitle !== undefined)
+      payload.function_title = parsedProfessional.functionTitle;
+    if (parsedProfessional.role !== undefined)
+      payload.role = parsedProfessional.role;
+    if (parsedProfessional.commissionPct !== undefined)
+      payload.commission_pct = parsedProfessional.commissionPct;
 
     const { data, error } = await supabase
       .from("professionals")
@@ -81,9 +94,15 @@ export async function updateProfessionalAction(
         created_at: data.created_at,
       } as Professional,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in updateProfessionalAction:", error);
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Falha ao atualizar profissional.",
+    };
   }
 }
 
@@ -99,8 +118,14 @@ export async function deleteProfessionalAction(id: string) {
     if (error) throw new Error(parseSupabaseError(error).description);
     revalidatePath("/profissionais");
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in deleteProfessionalAction:", error);
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Falha ao excluir profissional.",
+    };
   }
 }

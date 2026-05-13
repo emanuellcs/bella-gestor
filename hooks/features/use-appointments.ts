@@ -13,6 +13,10 @@ import {
 } from "@/actions/appointments";
 import { Appointment } from "@/types";
 
+function messageFromError(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 /**
  * Hook to manage appointments state and operations.
  */
@@ -31,8 +35,8 @@ export function useAppointments() {
             : await getAppointments();
         setAppointments(data);
         setError(null);
-      } catch (err: any) {
-        const msg = err.message || "Falha ao carregar agendamentos";
+      } catch (err: unknown) {
+        const msg = messageFromError(err, "Falha ao carregar agendamentos");
         setError(msg);
         toast.error(msg);
       } finally {
@@ -55,7 +59,8 @@ export function useAppointments() {
         }
         throw new Error(res.error);
       },
-      error: (err) => err.message || "Erro ao criar agendamento.",
+      error: (err: unknown) =>
+        messageFromError(err, "Erro ao criar agendamento."),
     });
     return (await promise).data;
   };
@@ -73,7 +78,8 @@ export function useAppointments() {
         }
         throw new Error(res.error);
       },
-      error: (err) => err.message || "Erro ao atualizar agendamento.",
+      error: (err: unknown) =>
+        messageFromError(err, "Erro ao atualizar agendamento."),
     });
     return (await promise).data;
   };
@@ -88,7 +94,8 @@ export function useAppointments() {
         }
         throw new Error(res.error);
       },
-      error: (err) => err.message || "Erro ao excluir agendamento.",
+      error: (err: unknown) =>
+        messageFromError(err, "Erro ao excluir agendamento."),
     });
     return (await promise).success;
   };

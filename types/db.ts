@@ -10,6 +10,8 @@ import {
  * Strictly mirroring the database structure.
  */
 
+export type SupabaseNumeric = number | string;
+
 export interface SupabaseClient {
   id: number;
   full_name: string;
@@ -49,10 +51,10 @@ export interface SupabaseServiceVariant {
   id: number;
   service_id: number;
   variant_name: string;
-  price: number;
+  price: SupabaseNumeric;
   duration_minutes: number;
   is_active: boolean;
-  commission_pct: number | null;
+  commission_pct: SupabaseNumeric | null;
   created_at: string;
   updated_at: string | null;
   deleted_at: string | null;
@@ -66,6 +68,7 @@ export interface SupabaseAppointment {
   end_time: string;
   status: AppointmentStatus;
   notes: string | null;
+  google_event_id: string | null;
   created_at: string;
   updated_at: string | null;
   created_by: string | null;
@@ -85,7 +88,7 @@ export interface SupabaseSale {
   id: number;
   client_id: number;
   appointment_id: number | null;
-  total_amount: number;
+  total_amount: SupabaseNumeric;
   status: SaleStatus;
   notes: string | null;
   created_at: string;
@@ -100,11 +103,11 @@ export interface SupabaseSaleItem {
   sale_id: number;
   service_variant_id: number;
   quantity: number;
-  unit_price: number;
-  subtotal: number;
+  unit_price: SupabaseNumeric;
+  subtotal: SupabaseNumeric;
   professional_id: string | null;
-  commission_pct: number | null;
-  commission_amount: number | null;
+  commission_pct: SupabaseNumeric | null;
+  commission_amount: SupabaseNumeric | null;
   created_at: string;
   deleted_at: string | null;
 }
@@ -112,7 +115,7 @@ export interface SupabaseSaleItem {
 export interface SupabasePayment {
   id: number;
   sale_id: number;
-  amount: number;
+  amount: SupabaseNumeric;
   payment_method: string | null;
   external_transaction_id: string | null;
   payment_link_url: string | null;
@@ -137,7 +140,7 @@ export interface SupabaseProfessional {
   full_name: string | null;
   email: string | null;
   function_title: string | null;
-  commission_pct: number | null;
+  commission_pct: SupabaseNumeric | null;
   created_at: string;
   deleted_at: string | null;
 }
@@ -168,3 +171,34 @@ export interface SupabaseUserIntegration {
   updated_at: string | null;
   deleted_at: string | null;
 }
+
+export interface SupabasePing {
+  id: number;
+  created_at: string;
+}
+
+export type SupabaseTableMap = {
+  app_options: SupabaseAppOption;
+  app_settings: SupabaseAppSetting;
+  appointment_services: SupabaseAppointmentService;
+  appointments: SupabaseAppointment;
+  clients: SupabaseClient;
+  payments: SupabasePayment;
+  ping: SupabasePing;
+  professionals: SupabaseProfessional;
+  sale_items: SupabaseSaleItem;
+  sales: SupabaseSale;
+  service_variants: SupabaseServiceVariant;
+  services: SupabaseService;
+  user_roles: SupabaseUserRole;
+};
+
+export type SupabaseTableName = keyof SupabaseTableMap;
+export type SupabaseRow<TTable extends SupabaseTableName> =
+  SupabaseTableMap[TTable];
+export type SupabaseInsert<TTable extends SupabaseTableName> = Partial<
+  SupabaseRow<TTable>
+>;
+export type SupabaseUpdate<TTable extends SupabaseTableName> = Partial<
+  SupabaseRow<TTable>
+>;

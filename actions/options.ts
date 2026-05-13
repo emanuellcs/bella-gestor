@@ -5,6 +5,10 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { parseSupabaseError } from "@/lib/error-handler";
 
 import { supabaseAppOptionToAppOption } from "@/lib/utils/mapping";
+import {
+  appOptionInputSchema,
+  appSettingSchema,
+} from "@/lib/validation/schemas";
 
 export async function getAppOptionsAction() {
   try {
@@ -20,9 +24,12 @@ export async function getAppOptionsAction() {
       success: true,
       data: (data || []).map(supabaseAppOptionToAppOption),
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in getAppOptionsAction:", error);
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Falha ao listar opções.",
+    };
   }
 }
 
@@ -36,23 +43,31 @@ export async function upsertAppOptionAction(option: {
 }) {
   try {
     const supabase = getSupabaseAdmin();
+    const parsedOption = appOptionInputSchema.parse(option);
     let result;
 
-    if (option.id) {
+    if (parsedOption.id) {
       // Update existing
       result = await supabase
         .from("app_options")
-        .update(option)
-        .eq("id", option.id)
+        .update(parsedOption)
+        .eq("id", parsedOption.id)
         .is("deleted_at", null)
         .select("*")
         .single();
     } else {
       // Insert new - remove id if it's undefined/null to let database generate it
-      const { id, ...payload } = option;
       result = await supabase
         .from("app_options")
-        .insert([payload])
+        .insert([
+          {
+            option_type: parsedOption.option_type,
+            label: parsedOption.label,
+            value: parsedOption.value,
+            is_active: parsedOption.is_active,
+            display_order: parsedOption.display_order,
+          },
+        ])
         .select("*")
         .single();
     }
@@ -62,9 +77,12 @@ export async function upsertAppOptionAction(option: {
     if (error) throw new Error(parseSupabaseError(error).description);
     revalidatePath("/configuracoes");
     return { success: true, data: supabaseAppOptionToAppOption(data) };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in upsertAppOptionAction:", error);
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Falha ao salvar opção.",
+    };
   }
 }
 
@@ -80,9 +98,12 @@ export async function deleteAppOptionAction(id: number) {
     if (error) throw new Error(parseSupabaseError(error).description);
     revalidatePath("/configuracoes");
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in deleteAppOptionAction:", error);
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Falha ao excluir opção.",
+    };
   }
 }
 
@@ -109,9 +130,13 @@ export async function updateAppOptionsOrderAction(
 
     revalidatePath("/configuracoes");
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in updateAppOptionsOrderAction:", error);
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Falha ao ordenar opções.",
+    };
   }
 }
 
@@ -131,26 +156,42 @@ export async function getAppSettingsAction() {
     });
 
     return { success: true, data: settings };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in getAppSettingsAction:", error);
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Falha ao carregar configurações.",
+    };
   }
 }
 
 export async function updateAppSettingAction(key: string, value: string) {
   try {
     const supabase = getSupabaseAdmin();
-    const { error } = await supabase
-      .from("app_settings")
-      .upsert([
-        { key, value, updated_at: new Date().toISOString(), deleted_at: null },
-      ]);
+    const parsedSetting = appSettingSchema.parse({ key, value });
+    const { error } = await supabase.from("app_settings").upsert([
+      {
+        key: parsedSetting.key,
+        value: parsedSetting.value,
+        updated_at: new Date().toISOString(),
+        deleted_at: null,
+      },
+    ]);
 
     if (error) throw new Error(parseSupabaseError(error).description);
     revalidatePath("/configuracoes");
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in updateAppSettingAction:", error);
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Falha ao salvar configuração.",
+    };
   }
 }

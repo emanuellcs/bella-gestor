@@ -123,6 +123,7 @@ export function supabaseAppointmentToAppointment(
     status: apt.status,
     notes: apt.notes || "",
     totalPrice: 0,
+    googleEventId: apt.google_event_id || undefined,
     created_at: apt.created_at,
     updatedAt: apt.updated_at || undefined,
   };

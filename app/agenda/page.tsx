@@ -8,6 +8,12 @@ import {
   updateCalendarEvent,
   deleteCalendarEvent,
 } from "@/services/googleCalendarAppsScript";
+import {
+  completeAppointmentForCheckoutAction,
+  deleteAppointmentForCalendarEventAction,
+  resolveAppointmentForCheckoutAction,
+  syncCalendarAppointmentFieldsAction,
+} from "@/actions/appointment-reconciliation";
 import { useData } from "@/lib/data-context";
 import type { Appointment, Sale, Payment } from "@/types";
 import { AppointmentStatus } from "@/types";
@@ -53,18 +59,21 @@ export default function AgendaPage() {
     services,
     professionals,
     appointments: internalAppointments,
-    sales,
     isLoading: dataLoading,
     refreshData,
     addAppointment,
+    updateAppointment,
   } = useData();
 
   const [calendarEvents, setCalendarEvents] = useState<GoogleCalendarEvent[]>(
     [],
   );
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
+  const [isResolvingCheckout, setIsResolvingCheckout] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [checkoutSale, setCheckoutSale] = useState<Sale | null>(null);
+  const [pendingCheckoutEvent, setPendingCheckoutEvent] =
+    useState<GoogleCalendarEvent | null>(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -103,6 +112,7 @@ export default function AgendaPage() {
           (ev: GoogleCalendarEvent) => {
             const startTime = new Date(ev.start.dateTime).getTime();
             const matchedAppt = internalAppointments?.find((a) => {
+              if (a.googleEventId && a.googleEventId === ev.id) return true;
               const aTime = new Date(a.startTime).getTime();
               return Math.abs(aTime - startTime) < 60000; // Match within 1 minute
             });
@@ -173,21 +183,27 @@ export default function AgendaPage() {
     professionals,
   ]);
 
-  const handleCheckout = (ev: GoogleCalendarEvent) => {
-    const startTime = new Date(ev.start.dateTime).getTime();
-    const matchedAppt = internalAppointments?.find(
-      (a) => Math.abs(new Date(a.startTime).getTime() - startTime) < 60000,
-    );
+  const handleCheckout = async (ev: GoogleCalendarEvent) => {
+    setIsResolvingCheckout(true);
+    try {
+      const result = await resolveAppointmentForCheckoutAction(ev);
 
-    if (matchedAppt) {
-      const sale = sales?.find((s) => s.appointmentId === matchedAppt.id);
-      if (sale) {
-        setCheckoutSale(sale);
-      } else {
-        toast.error("Venda não encontrada para este agendamento.");
+      if (!result.success) {
+        toast.error(result.error || "Falha ao preparar checkout.");
+        return;
       }
-    } else {
-      toast.error("Agendamento interno não encontrado para vínculo POS.");
+
+      if (result.status === "ready_for_checkout") {
+        setCheckoutSale(result.sale as Sale);
+        return;
+      }
+
+      setPendingCheckoutEvent(ev);
+      setSelectedEvent(ev);
+      setIsModalOpen(true);
+      toast.message(result.message);
+    } finally {
+      setIsResolvingCheckout(false);
     }
   };
 
@@ -200,6 +216,7 @@ export default function AgendaPage() {
     startTime: string;
     endTime: string;
     customPrice: number;
+    status?: AppointmentStatus;
   }) => {
     try {
       const client = clients.find((c) => c.id === values.clientId);
@@ -276,6 +293,10 @@ export default function AgendaPage() {
           res = await createCalendarEvent(googlePayload);
           if (!res?.success) {
             toast.error(res?.error || "Erro ao sincronizar com Google Agenda");
+          } else if (res.eventId || res.event?.id) {
+            await updateAppointment(supabaseRes.id, {
+              googleEventId: res.eventId || res.event?.id,
+            });
           }
         } else {
           throw new Error("Falha ao salvar no banco de dados.");
@@ -284,10 +305,77 @@ export default function AgendaPage() {
 
       if (res?.success) {
         if (selectedEvent) {
+          const syncedEvent: GoogleCalendarEvent = {
+            ...selectedEvent,
+            summary: googlePayload.summary,
+            description: googlePayload.description,
+            start: { dateTime: googlePayload.startTime },
+            end: { dateTime: googlePayload.endTime },
+            attendees:
+              "attendees" in googlePayload
+                ? googlePayload.attendees
+                : selectedEvent.attendees,
+          };
+
+          const syncRes = await syncCalendarAppointmentFieldsAction(
+            syncedEvent,
+            {
+              clientId: values.clientId || undefined,
+              professionalId: values.professionalId || undefined,
+              startTime: googlePayload.startTime,
+              endTime: googlePayload.endTime,
+              notes: values.notes || undefined,
+              status: values.status,
+            },
+          );
+
+          if (!syncRes.success) {
+            toast.error(syncRes.error || "Falha ao atualizar vínculo interno.");
+            return;
+          }
+
+          const hasFinancialDetails = Boolean(
+            values.clientId &&
+            values.professionalId &&
+            values.serviceVariantId &&
+            Number.isFinite(customPrice),
+          );
+
+          if (hasFinancialDetails) {
+            const completeRes = await completeAppointmentForCheckoutAction(
+              syncedEvent,
+              {
+                appointmentId: syncRes.appointmentId || undefined,
+                clientId: values.clientId,
+                professionalId: values.professionalId,
+                serviceVariantId: values.serviceVariantId,
+                unitPrice: customPrice,
+                quantity: 1,
+                notes: values.notes || undefined,
+                startTime: googlePayload.startTime,
+                endTime: googlePayload.endTime,
+                status: values.status,
+              },
+            );
+
+            if (!completeRes.success) {
+              toast.error(
+                completeRes.error || "Falha ao completar dados financeiros.",
+              );
+              return;
+            }
+
+            if (pendingCheckoutEvent?.id === selectedEvent.id) {
+              setCheckoutSale(completeRes.sale as Sale);
+            }
+          }
+
           // Edit mode: only show success toast for Google Calendar result
           toast.success("Agendamento atualizado!");
+          setPendingCheckoutEvent(null);
           setIsModalOpen(false);
         }
+        refreshData();
         fetchEvents();
       } else if (selectedEvent) {
         // Edit mode: Google Calendar sync failed
@@ -299,7 +387,15 @@ export default function AgendaPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (target: string | GoogleCalendarEvent) => {
+    const event =
+      typeof target === "string"
+        ? selectedEvent?.id === target
+          ? selectedEvent
+          : calendarEvents.find((item) => item.id === target)
+        : target;
+    const id = typeof target === "string" ? target : target.id;
+
     if (
       !confirm(
         "Tem certeza que deseja remover este agendamento do Google Agenda?",
@@ -309,7 +405,19 @@ export default function AgendaPage() {
     try {
       const res = await deleteCalendarEvent(id);
       if (res?.success) {
+        if (event) {
+          const internalRes =
+            await deleteAppointmentForCalendarEventAction(event);
+          if (!internalRes.success) {
+            toast.error(
+              internalRes.error ||
+                "Evento removido do Google, mas falhou ao atualizar o vínculo interno.",
+            );
+            return;
+          }
+        }
         toast.success("Agendamento removido");
+        refreshData();
         fetchEvents();
       } else {
         toast.error(res?.error || "Erro ao excluir");
@@ -452,24 +560,28 @@ export default function AgendaPage() {
       <CalendarView
         currentDate={currentDate}
         events={filteredEvents}
-        isLoading={isLoadingEvents || dataLoading}
+        isLoading={isLoadingEvents || dataLoading || isResolvingCheckout}
         onEdit={(ev) => {
           setSelectedEvent(ev);
           setIsModalOpen(true);
         }}
-        onDelete={(ev) => handleDelete(ev.id)}
+        onDelete={(ev) => handleDelete(ev)}
         onCheckout={handleCheckout}
       />
 
       <AppointmentFormModal
         open={isModalOpen}
-        onOpenChange={setIsModalOpen}
+        onOpenChange={(open) => {
+          setIsModalOpen(open);
+          if (!open) setPendingCheckoutEvent(null);
+        }}
         selectedEvent={selectedEvent}
         onSave={handleSave}
         onDelete={(id) => handleDelete(id)}
         clients={clients}
         services={services}
         professionals={professionals}
+        requireFinancialDetails={!!pendingCheckoutEvent}
       />
 
       {checkoutSale && (

@@ -43,6 +43,7 @@ CREATE TABLE public.appointments (
   updated_at timestamp with time zone DEFAULT now(),
   created_by uuid,
   deleted_at timestamp with time zone,
+  google_event_id text,
   CONSTRAINT appointments_pkey PRIMARY KEY (id),
   CONSTRAINT appointments_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id),
   CONSTRAINT appointments_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id),

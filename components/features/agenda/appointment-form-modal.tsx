@@ -60,6 +60,7 @@ interface AppointmentFormModalProps {
   clients: Client[];
   services: Service[];
   professionals: Professional[];
+  requireFinancialDetails?: boolean;
 }
 
 export function AppointmentFormModal({
@@ -71,6 +72,7 @@ export function AppointmentFormModal({
   clients,
   services,
   professionals,
+  requireFinancialDetails = false,
 }: AppointmentFormModalProps) {
   const form = useForm<AppointmentFormValues>({
     resolver: zodResolver(appointmentSchema),
@@ -181,7 +183,7 @@ export function AppointmentFormModal({
   }, [open, selectedEvent, clients, services, professionals, form]);
 
   const onSubmit = async (values: AppointmentFormValues) => {
-    if (!selectedEvent) {
+    if (!selectedEvent || requireFinancialDetails) {
       const requiredFields: Array<keyof AppointmentFormValues> = [
         "clientId",
         "serviceId",
@@ -243,12 +245,18 @@ export function AppointmentFormModal({
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>
-            {selectedEvent ? "Editar agendamento" : "Novo agendamento"}
+            {requireFinancialDetails
+              ? "Completar agendamento"
+              : selectedEvent
+                ? "Editar agendamento"
+                : "Novo agendamento"}
           </DialogTitle>
           <DialogDescription>
-            {selectedEvent
-              ? "Atualize os dados do agendamento"
-              : "Preencha os dados para criar um agendamento"}
+            {requireFinancialDetails
+              ? "Confirme cliente, serviço, profissional e valor antes do pagamento"
+              : selectedEvent
+                ? "Atualize os dados do agendamento"
+                : "Preencha os dados para criar um agendamento"}
           </DialogDescription>
         </DialogHeader>
 
